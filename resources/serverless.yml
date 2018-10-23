@@ -1,0 +1,100 @@
+service: improve-v3-resources
+provider:
+  name: aws
+  region: us-west-2
+resources:
+  Resources:
+    FirehoseToS3Role:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: ${self:service}-${opt:stage, self:provider.stage}-FirehoseToS3Role
+        AssumeRolePolicyDocument:
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - firehose.amazonaws.com
+            Action:
+            - sts:AssumeRole
+        Policies:
+        - PolicyName: FirehoseToS3Policy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                - s3:AbortMultipartUpload
+                - s3:GetBucketLocation
+                - s3:GetObject
+                - s3:ListBucket
+                - s3:ListBucketMultipartUploads
+                - s3:PutObject
+                Resource: '*'
+    FirehoseS3ObjectCreatedSnsTopic:
+      Type: 'AWS::SNS::Topic'
+      Properties:
+        TopicName: ${self:service}-${opt:stage, self:provider.stage}-FirehoseS3ObjectCreated
+    FirehoseS3ObjectCreatedSnsTopicPolicy:
+      Type: 'AWS::SNS::TopicPolicy'
+      Properties:
+        Topics:
+          - 
+            Ref: FirehoseS3ObjectCreatedSnsTopic
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: 'sns:Publish'
+              Resource:
+                Ref: FirehoseS3ObjectCreatedSnsTopic
+              Principal:
+                AWS: '*'
+    FirehoseS3Bucket:
+      Type: 'AWS::S3::Bucket'
+      DeletionPolicy: Retain
+      DependsOn: FirehoseS3ObjectCreatedSnsTopic
+      Properties:
+        BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose
+        NotificationConfiguration:
+          TopicConfigurations:
+            - Topic:
+                Ref: FirehoseS3ObjectCreatedSnsTopic
+              Event: 's3:ObjectCreated:*'
+    V3Firehose:
+      Type: AWS::KinesisFirehose::DeliveryStream
+      Properties:
+        DeliveryStreamName: ${self:service}-${opt:stage, self:provider.stage}-firehose
+        S3DestinationConfiguration:
+          BucketARN:
+            Fn::Join:
+            - ''
+            - - 'arn:aws:s3:::'
+              - Ref: FirehoseS3Bucket
+          BufferingHints:
+            IntervalInSeconds: "900"
+            SizeInMBs: "128"
+          CompressionFormat: "GZIP"
+          RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
+    RecordsS3Bucket:
+      Type: 'AWS::S3::Bucket'
+      DeletionPolicy: Retain
+      Properties:
+        BucketName: ${self:service}-${opt:stage, self:provider.stage}-records
+    ModelsS3Bucket:
+      Type: 'AWS::S3::Bucket'
+      DeletionPolicy: Retain
+      Properties:
+        BucketName: ${self:service}-${opt:stage, self:provider.stage}-models
+
+  Outputs:
+    FirehoseS3Bucket:
+      Value: 
+        Ref: FirehoseS3Bucket
+    RecordsS3Bucket:
+      Value: 
+        Ref: RecordsS3Bucket
+    ModelsS3Bucket:
+      Value: 
+        Ref: ModelsS3Bucket
+    FirehoseS3ObjectCreatedSnsTopic:
+      Value: 
+        Ref: FirehoseS3ObjectCreatedSnsTopic

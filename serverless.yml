@@ -1,0 +1,63 @@
+service: improve-v3
+custom: 
+  firehoseS3ObjectCreatedSns: arn:aws:sns:us-west-2:117097735164:improve-v3-resources-${opt:stage, self:provider.stage}-FirehoseS3ObjectCreated
+provider:
+  name: aws
+  runtime: nodejs6.10
+  region: us-west-2
+  timeout: 6
+  memorySize: 192
+  environment:
+    FIREHOSE_DELIVERY_STREAM_NAME: ${self:service}-resources-${opt:stage, self:provider.stage}-firehose
+    RECORDS_BUCKET: ${self:service}-resources-${opt:stage, self:provider.stage}-records
+    MODELS_BUCKET: ${self:service}-resources-${opt:stage, self:provider.stage}-models
+  iamRoleStatements: 
+    - Effect: Allow
+      Action:
+        - "firehose:*"
+      Resource: "arn:aws:firehose:*:*:deliverystream/${self:provider.environment.FIREHOSE_DELIVERY_STREAM_NAME}"
+    - Effect: Allow
+      Action:
+        - "s3:*"
+      Resource: 'arn:aws:s3:::improve-v3-resources-${opt:stage, self:provider.stage}*'
+
+functions:
+  choose:
+    handler: improve.choose
+    events:
+      - http:
+          path: choose
+          method: post
+          cors: true
+          private: true
+  using:
+    handler: improve.using
+    events:
+      - http:
+          path: using
+          method: post
+          cors: true
+          private: true
+  rewards:
+    handler: improve.rewards
+    events:
+      - http:
+          path: rewards
+          method: post
+          cors: true
+          private: true
+  unpackFirehose:
+    handler: improve.unpackFirehose
+    timeout: 300
+    events:
+      - sns: ${self:custom.firehoseS3ObjectCreatedSns}
+  dispatchParallelJoin:
+    timeout: 300
+    handler: improve.dispatchParallelJoin
+    events:
+      - schedule: rate(15 minutes)
+  dispatchParallelTrain:
+    timeout: 300
+    handler: improve.dispatchParallelTrain
+    events:
+      - schedule: rate(5 minutes)
