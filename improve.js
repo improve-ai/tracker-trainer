@@ -14,7 +14,7 @@ const lambda = new AWS.Lambda();
 const LOG_PROBABILITY = .1;
 
 function setup(event, context, shouldLog) {
-  context.callbackWaitsForEmptyEventLoop = false; // allow persistent redis connection
+  context.callbackWaitsForEmptyEventLoop = false; // allow persistent redis connection (FIX, see if still necessary)
   
   if (shouldLog) {
     //console.log(JSON.stringify(context));
@@ -30,6 +30,78 @@ function error(callback, message) {
     statusCode: 400,
     body: response
   });
+}
+
+module.exports.choose = function(event, context, cb) {
+  let logging = checkShouldLog();
+  consoleTime('choose', logging);
+  let receivedAt = new Date();
+
+  setup(event, context);
+  
+  let body = JSON.parse(event.body);
+  
+  let apiKey = event.requestContext.identity.apiKey;
+
+  if (!apiKey) {
+    return error(cb,"'x-api-key' HTTP header required");
+  }
+
+  if (!body.variants) {
+    return error(cb, 'variants is required')
+  }
+  
+  if (!body.model) {
+    return error(cb, 'model is required')
+  }
+  
+  if (!body.user_id) {
+    return error(cb, 'user_id is required')
+  }
+
+  for (let propertyKey in body.variants) {
+    if (!body.variants.hasOwnProperty(propertyKey)) {
+      continue;
+    }
+
+    let variants = body.variants[propertyKey];
+    if (!Array.isArray(variants)) {
+      return error(cb, 'variant values must be lists')
+    }
+    if (variants.length < 1) {
+      return error(cb, "variants must contain at least 1 element")
+    }
+  }
+  
+  let properties = {}
+  
+  body["record_type"] = "choose";
+
+  return sendToFirehose(apiKey, body, receivedAt, logging).then((result) => {
+    consoleTimeEnd('choose', logging)
+    return sendSuccessResponse(cb);
+  }).catch(error =>{
+    consoleTimeEnd('choose', logging)
+    console.log(error);
+    error(cb,error);
+  });
+
+/*  Promise.all(promises).then(results => {
+    let response = {
+      properties
+    };
+  
+    cb(null, {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin" : "*"
+      },
+      body: JSON.stringify(response)
+    });
+    console.timeEnd('choose')
+  }, e => {
+    return error(cb, e.message);
+  })*/
 }
 
 module.exports.using = function(event, context, cb) {
