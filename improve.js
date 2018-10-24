@@ -10,26 +10,38 @@ const _ = require('lodash');
 const firehose = new AWS.Firehose();
 const s3 = new AWS.S3();
 const lambda = new AWS.Lambda();
+let sagemaker = new AWS.SageMakerRuntime();
 
 const LOG_PROBABILITY = .1;
 
 function setup(event, context, shouldLog) {
-  context.callbackWaitsForEmptyEventLoop = false; // allow persistent redis connection (FIX, see if still necessary)
+  /* Set callbackWaitsForEmptyEventLoop=false to allow choose() to return a response
+     immediately while the firehose payload is sent in the background.  According
+     to AWS documentation, it is possible that the choose firehose could be 
+     lost, but for choose() this is typically not a big deal since the
+     the algorithms use it for sampling typical properties instead of direct
+     training.  Firehose requests for 'using' and 'rewards' are verified prior 
+     to sending a response.
+  
+     From the AWS docs:
+     
+     callbackWaitsForEmptyEventLoop: The default value is true. This property 
+     is useful only to modify the default behavior of the callback.  By default,
+     the callback will wait until the event loop is empty before freezing the
+     process and returning the results to the caller. You can set this property
+     to false to request AWS Lambda to freeze the process soon after the
+     callback is called, even if there are events in the event loop. AWS Lambda
+     will freeze the process, any state data and the events in the event loop
+     (any remaining events in the event loop processed when the Lambda function
+     is called next and if AWS Lambda chooses to use the frozen process).
+  */
+  context.callbackWaitsForEmptyEventLoop = false;
   
   if (shouldLog) {
     //console.log(JSON.stringify(context));
     console.log(JSON.stringify(event));
     console.log(event.body);
   }
-}
-
-function error(callback, message) {
-  let response = JSON.stringify({ "error": { "message": message}});
-  console.log(response);
-  return callback(null, {
-    statusCode: 400,
-    body: response
-  });
 }
 
 module.exports.choose = function(event, context, cb) {
@@ -47,16 +59,16 @@ module.exports.choose = function(event, context, cb) {
     return error(cb,"'x-api-key' HTTP header required");
   }
 
-  if (!body.variants) {
-    return error(cb, 'variants is required')
-  }
-  
   if (!body.model) {
     return error(cb, 'model is required')
   }
   
   if (!body.user_id) {
     return error(cb, 'user_id is required')
+  }
+
+  if (!body.variants) {
+    return error(cb, 'variants is required')
   }
 
   for (let propertyKey in body.variants) {
@@ -73,35 +85,37 @@ module.exports.choose = function(event, context, cb) {
     }
   }
   
-  let properties = {}
+  let endpointName = process.env.ENDPOINT_NAME;
   
-  body["record_type"] = "choose";
-
-  return sendToFirehose(apiKey, body, receivedAt, logging).then((result) => {
-    consoleTimeEnd('choose', logging)
-    return sendSuccessResponse(cb);
-  }).catch(error =>{
-    consoleTimeEnd('choose', logging)
-    console.log(error);
-    error(cb,error);
-  });
-
-/*  Promise.all(promises).then(results => {
-    let response = {
-      properties
-    };
+  var params = {
+    Body: new Buffer(body),
+    EndpointName: endpointName,
+  };
   
+  // TODO if endpoint error, return random variants and log
+  
+  sagemaker.invokeEndpoint(params).promise().then((response) => {
+    consoleTimeEnd('choose', logging)
+    // Initiate the callback immediately so that its not blocking on Firehose
     cb(null, {
       statusCode: 200,
       headers: {
         "Access-Control-Allow-Origin" : "*"
       },
-      body: JSON.stringify(response)
+      body: response.Body
     });
-    console.timeEnd('choose')
-  }, e => {
-    return error(cb, e.message);
-  })*/
+  }).then((result) => {
+    body["record_type"] = "choose";
+    // Since we don't initiate firehose until after the response callback,
+    // it is possible that this firehose request could be lost, but this
+    // should happen very infrequently and should not be a problem for most
+    // algorithms
+    return sendToFirehose(apiKey, body, receivedAt, logging);
+  }).catch(error =>{
+    consoleTimeEnd('choose', logging)
+    console.log(error);
+    error(cb,error);
+  });
 }
 
 module.exports.using = function(event, context, cb) {
@@ -462,6 +476,15 @@ function sendSuccessResponse(callback) {
       "Access-Control-Allow-Origin" : "*"
     },
     body: JSON.stringify(response)
+  });
+}
+
+function error(callback, message) {
+  let response = JSON.stringify({ "error": { "message": message}});
+  console.log(response);
+  return callback(null, {
+    statusCode: 400,
+    body: response
   });
 }
 
