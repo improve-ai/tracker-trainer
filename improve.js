@@ -85,11 +85,9 @@ module.exports.choose = function(event, context, cb) {
     }
   }
   
-  let endpointName = process.env.ENDPOINT_NAME;
-  
   var params = {
     Body: new Buffer(body),
-    EndpointName: endpointName,
+    EndpointName: getEndpointName(apiKey, body.model)
   };
   
   // TODO if endpoint error, return random variants and log
@@ -107,9 +105,10 @@ module.exports.choose = function(event, context, cb) {
   }).then((result) => {
     body["record_type"] = "choose";
     // Since we don't initiate firehose until after the response callback,
-    // it is possible that this firehose request could be lost, but this
+    // it is possible that this firehose request could be lost if there is
+    // an immediate process freeze and the process isn't re-used, but this
     // should happen very infrequently and should not be a problem for most
-    // algorithms
+    // algorithms since they use choose data mostly as hints
     return sendToFirehose(apiKey, body, receivedAt, logging);
   }).catch(error =>{
     consoleTimeEnd('choose', logging)
@@ -300,17 +299,20 @@ module.exports.unpackFirehose = function(event, context, cb) {
                         return;
                     }
                     
-                    let model = requestRecord.model;
+                    let model = null; // leave as null in case its a rewards record
                     
-                    if ((recordType === "choose" || recordType === "using") && !model) {
+                    if (recordType === "choose" || recordType === "using") {
+                      model = requestRecord.model;
+                      if (!model) {
                         console.log(`WARN: no model for requestRecord ${requestRecord}`)
                         return;
+                      }
                     }
                     
                     // TODO double check apiKey, model valid chars
                     
                     // apiKey/recordType/(model/)yyyy/MM/dd/hh/apiKey-recordType-(model-)yyyy-MM-dd-hh-mm-ss-uuid.gz
-                    let s3Key = `${apiKey}/${recordType}/`+(model ? `${model}/` : "")+pathDatePart+"/"+
+                    let s3Key = getS3Prefix(recordType, apiKey, model)+pathDatePart+"/"+
                       `improve-v3-${apiKey}-${recordType}-`+(model ? `${model}-` : "")+filenameDatePart+"-"+uuidPart+".gz"
                     
                     let buffers = buffersByKey[s3Key]
@@ -369,10 +371,6 @@ module.exports.unpackFirehose = function(event, context, cb) {
   }, err => {
     return cb(err)
   })
-}
-
-module.exports.dispatchParallelJoin = function(event, context, cb) {
-  dispatchParallel(process.env.JOIN_FUNCTION, event, context, cb)
 }
 
 module.exports.dispatchParallelTrain = function(event, context, cb) {
@@ -435,6 +433,175 @@ function dispatchParallel(functionName, event, context, cb) {
   }, err => {
     return cb(err)
   })
+}
+
+module.exports.updateEndpointConfig = function(event, context, cb) {
+  var params = {
+  CreationTimeAfter: new Date || 'Wed Dec 31 1969 16:00:00 GMT-0800 (PST)' || 123456789,
+  CreationTimeBefore: new Date || 'Wed Dec 31 1969 16:00:00 GMT-0800 (PST)' || 123456789,
+  LastModifiedTimeAfter: new Date || 'Wed Dec 31 1969 16:00:00 GMT-0800 (PST)' || 123456789,
+  LastModifiedTimeBefore: new Date || 'Wed Dec 31 1969 16:00:00 GMT-0800 (PST)' || 123456789,
+  MaxResults: 0,
+  NameContains: 'STRING_VALUE',
+  NextToken: 'STRING_VALUE',
+  SortBy: Name | CreationTime | Status,
+  SortOrder: Ascending | Descending,
+  StatusEquals: InProgress | Completed | Failed | Stopping | Stopped
+};
+sagemaker.listTrainingJobs(params, function(err, data) {
+  if (err) console.log(err, err.stack); // an error occurred
+  else     console.log(data);           // successful response
+});
+
+var params = {
+  ExecutionRoleArn: 'STRING_VALUE', /* required */
+  ModelName: 'STRING_VALUE', /* required */
+  PrimaryContainer: { /* required */
+    Image: 'STRING_VALUE', /* required */
+    ContainerHostname: 'STRING_VALUE',
+    Environment: {
+      '<EnvironmentKey>': 'STRING_VALUE',
+      /* '<EnvironmentKey>': ... */
+    },
+    ModelDataUrl: 'STRING_VALUE'
+  },
+  Tags: [
+    {
+      Key: 'STRING_VALUE', /* required */
+      Value: 'STRING_VALUE' /* required */
+    },
+    /* more items */
+  ],
+  VpcConfig: {
+    SecurityGroupIds: [ /* required */
+      'STRING_VALUE',
+      /* more items */
+    ],
+    Subnets: [ /* required */
+      'STRING_VALUE',
+      /* more items */
+    ]
+  }
+};
+sagemaker.createModel(params, function(err, data) {
+  if (err) console.log(err, err.stack); // an error occurred
+  else     console.log(data);           // successful response
+});
+
+var params = {
+  EndpointConfigName: 'STRING_VALUE', /* required */
+  ProductionVariants: [ /* required */
+    {
+      InitialInstanceCount: process.env.HOSTING_INITIAL_INSTANCE_COUNT,
+      InstanceType: process.env.HOSTING_INSTANCE_TYPE,
+      ModelName: 'STRING_VALUE',
+      VariantName: 'STRING_VALUE'
+    },
+    /* more items */
+  ],
+};
+sagemaker.createEndpointConfig(params, function(err, data) {
+  if (err) console.log(err, err.stack); // an error occurred
+  else     console.log(data);           // successful response
+});
+
+var params = {
+  EndpointConfigName: 'STRING_VALUE', /* required */
+  EndpointName: 'STRING_VALUE', /* required */
+};
+
+sagemaker.createEndpoint(params, function(err, data) {
+  if (err) console.log(err, err.stack); // an error occurred
+  else     console.log(data);           // successful response
+});
+
+}
+
+function createTrainingJob(apiKey, model) {
+  
+  let recordsS3PrefixBase = "s3://"+process.env.RECORDS_BUCKET+'/'
+  let modelsS3PrefixBase = "s3://"+process.env.MODELS_BUCKET+'/'
+  
+  var params = {
+    TrainingJobName: `${apiKey}-${model}`,
+    HyperParameters: {
+      /* '<ParameterKey>': ... */
+    },
+    AlgorithmSpecification: { /* required */
+      TrainingImage: process.env.TRAINING_IMAGE,
+      TrainingInputMode: "File",
+    },
+    InputDataConfig: [ 
+      {
+        ChannelName: 'choose',
+        DataSource: { 
+          S3DataSource: { 
+            S3DataType:"S3Prefix",
+            S3Uri: recordsS3PrefixBase+getChooseS3KeyPrefix(apiKey, model), 
+            S3DataDistributionType: "FullyReplicated",
+          }
+        },
+      },
+      {
+        ChannelName: 'using',
+        DataSource: { 
+          S3DataSource: { 
+            S3DataType:"S3Prefix",
+            S3Uri: recordsS3PrefixBase+getUsingS3KeyPrefix(apiKey, model), 
+            S3DataDistributionType: "FullyReplicated",
+          }
+        },
+      },
+      {
+        ChannelName: 'rewards',
+        DataSource: { 
+          S3DataSource: { 
+            S3DataType:"S3Prefix",
+            S3Uri: recordsS3PrefixBase+getRewardsS3KeyPrefix(apiKey), 
+            S3DataDistributionType: "FullyReplicated",
+          }
+        },
+      },
+    ],
+    OutputDataConfig: { 
+      S3OutputPath: modelsS3PrefixBase+getModelsS3KeyPrefix(apiKey, model), 
+    },
+    ResourceConfig: { 
+      InstanceCount: 1, 
+      InstanceType: process.env.TRAINING_INSTANCE_TYPE,
+      VolumeSizeInGB: process.env.TRAINING_VOLUME_SIZE_IN_GB
+    },
+    RoleArn: process.env.TRAINING_ROLE_ARN,
+    StoppingCondition: { 
+      MaxRuntimeInSeconds: process.env.TRAINING_MAX_RUNTIME_IN_SECONDS,
+    },
+  };
+
+  return sagemaker.createTrainingJob(params).promise()
+}
+
+function getEndpointName(apiKey, model) {
+  return `${process.env.ENDPOINT_BASE_NAME}-${apiKey}-${model}`
+}
+
+function getS3KeyPrefix(recordType, apiKey, model) {
+  return `${apiKey}/${recordType}/`+(model ? `${model}/` : "")
+}
+
+function getRewardsS3KeyPrefix(apiKey) {
+  return getS3KeyPrefix("rewards",apiKey)
+}
+
+function getUsingS3KeyPrefix(apiKey, model) {
+  return getS3KeyPrefix("using",apiKey, model)
+}
+
+function getChooseS3KeyPrefix(apiKey, model) {
+  return getS3KeyPrefix("choose",apiKey, model)
+}
+
+function getModelsS3KeyPrefix(apiKey, model) {
+  return `${apiKey}/${model}`
 }
 
 function listAllApiKeys(arr, ContinuationToken) {
