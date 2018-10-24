@@ -10,8 +10,8 @@ provider:
   memorySize: 192
   environment:
     ALLOWED_MODELS: "messages-1.0,test-0.1" # Comma seperated list of allowed model names
-    TRAINING_ROLE_ARN: FIX
-    TRAINING_IMAGE: FIX
+    TRAINING_ROLE_ARN: arn:aws:iam::117097735164:role/service-role/AmazonSageMaker-ExecutionRole-20181021T151698
+    TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/decision_service
     TRAINING_INSTANCE_TYPE: ml.m5.large
     TRAINING_VOLUME_SIZE_IN_GB: 50
     TRAINING_MAX_RUNTIME_IN_SECONDS: 86400 # default 1 day
@@ -30,6 +30,15 @@ provider:
       Action:
         - "s3:*"
       Resource: 'arn:aws:s3:::${self:custom.globallyUniquePrefix}-resources-${opt:stage, self:provider.stage}*'
+    - Effect: Allow
+      Action:
+        - "sagemaker:*"
+      Resource: '*'
+    - Effect: Allow
+      Action:
+        - "iam:PassRole"
+      Resource: "arn:aws:iam::*:role/*"
+
 
 functions:
   choose:

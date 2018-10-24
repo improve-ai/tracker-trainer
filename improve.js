@@ -10,7 +10,8 @@ const _ = require('lodash');
 const firehose = new AWS.Firehose();
 const s3 = new AWS.S3();
 const lambda = new AWS.Lambda();
-let sagemaker = new AWS.SageMakerRuntime();
+const sagemaker = new AWS.SageMaker();
+const sagemakerRuntime = new AWS.SageMakerRuntime();
 
 const LOG_PROBABILITY = .1;
 
@@ -92,7 +93,7 @@ module.exports.choose = function(event, context, cb) {
   
   // TODO if endpoint error, return random variants and log
   
-  sagemaker.invokeEndpoint(params).promise().then((response) => {
+  sagemakerRuntime.invokeEndpoint(params).promise().then((response) => {
     consoleTimeEnd('choose', logging)
     // Initiate the callback immediately so that its not blocking on Firehose
     cb(null, {
@@ -137,6 +138,7 @@ module.exports.using = function(event, context, cb) {
     return error(cb,"the 'model' field is required");
   }
   
+  // FIX new model match ^[a-zA-Z0-9](-*[a-zA-Z0-9])*
   let valid = /^[a-zA-Z0-9-\._]+$/ 
   if (!body.model.match(valid)) {
     return error(cb, "Only alphanumeric, underscore, period, and dash allowed in model name")
@@ -312,7 +314,7 @@ module.exports.unpackFirehose = function(event, context, cb) {
                     // TODO double check apiKey, model valid chars
                     
                     // apiKey/recordType/(model/)yyyy/MM/dd/hh/apiKey-recordType-(model-)yyyy-MM-dd-hh-mm-ss-uuid.gz
-                    let s3Key = getS3Prefix(recordType, apiKey, model)+pathDatePart+"/"+
+                    let s3Key = getS3KeyPrefix(recordType, apiKey, model)+pathDatePart+"/"+
                       `improve-v3-${apiKey}-${recordType}-`+(model ? `${model}-` : "")+filenameDatePart+"-"+uuidPart+".gz"
                     
                     let buffers = buffersByKey[s3Key]
@@ -374,12 +376,8 @@ module.exports.unpackFirehose = function(event, context, cb) {
 }
 
 module.exports.dispatchParallelTrain = function(event, context, cb) {
-  dispatchParallel(process.env.TRAIN_FUNCTION, event, context, cb)
-}
 
-function dispatchParallel(functionName, event, context, cb) {
-
-  console.log(`dispatching ${functionName} processes`)
+  console.log(`dispatching training processes`)
 
   return listAllApiKeys().then(apiKeys => {
     let promises = []
@@ -416,14 +414,7 @@ function dispatchParallel(functionName, event, context, cb) {
       for (let j = 0; j< models.length; j++) {
         let model = models[j]
         
-        console.log(`invoking ${functionName} on apiKey ${apiKey} model ${model}`)
-        var params = {
-          FunctionName: functionName, 
-          InvocationType: "Event", 
-          Payload: JSON.stringify({api_key: apiKey, model}), 
-        }
-        
-        promises.push(lambda.invoke(params).promise())
+        promises.push(createTrainingJob(apiKey, model))
       }
     }
     
@@ -433,6 +424,70 @@ function dispatchParallel(functionName, event, context, cb) {
   }, err => {
     return cb(err)
   })
+}
+
+
+function createTrainingJob(apiKey, model) {
+  
+  let recordsS3PrefixBase = "s3://"+process.env.RECORDS_BUCKET+'/'
+  let modelsS3PrefixBase = "s3://"+process.env.MODELS_BUCKET+'/'
+  
+  var params = {
+    TrainingJobName: dateFormat.asString("yyyy-MM-dd-hh-mm-ss",new Date())+"-"+uuidv4(),
+    HyperParameters: {
+      /* '<ParameterKey>': ... */
+    },
+    AlgorithmSpecification: { /* required */
+      TrainingImage: process.env.TRAINING_IMAGE,
+      TrainingInputMode: "File",
+    },
+    InputDataConfig: [ 
+      {
+        ChannelName: 'choose',
+        DataSource: { 
+          S3DataSource: { 
+            S3DataType:"S3Prefix",
+            S3Uri: recordsS3PrefixBase+getChooseS3KeyPrefix(apiKey, model), 
+            S3DataDistributionType: "FullyReplicated",
+          }
+        },
+      },
+      {
+        ChannelName: 'using',
+        DataSource: { 
+          S3DataSource: { 
+            S3DataType:"S3Prefix",
+            S3Uri: recordsS3PrefixBase+getUsingS3KeyPrefix(apiKey, model), 
+            S3DataDistributionType: "FullyReplicated",
+          }
+        },
+      },
+      {
+        ChannelName: 'rewards',
+        DataSource: { 
+          S3DataSource: { 
+            S3DataType:"S3Prefix",
+            S3Uri: recordsS3PrefixBase+getRewardsS3KeyPrefix(apiKey), 
+            S3DataDistributionType: "FullyReplicated",
+          }
+        },
+      },
+    ],
+    OutputDataConfig: { 
+      S3OutputPath: modelsS3PrefixBase+getModelsS3KeyPrefix(apiKey, model), 
+    },
+    ResourceConfig: { 
+      InstanceCount: 1, 
+      InstanceType: process.env.TRAINING_INSTANCE_TYPE,
+      VolumeSizeInGB: process.env.TRAINING_VOLUME_SIZE_IN_GB
+    },
+    RoleArn: process.env.TRAINING_ROLE_ARN,
+    StoppingCondition: { 
+      MaxRuntimeInSeconds: process.env.TRAINING_MAX_RUNTIME_IN_SECONDS,
+    },
+  };
+
+  return sagemaker.createTrainingJob(params).promise()
 }
 
 module.exports.updateEndpointConfig = function(event, context, cb) {
@@ -517,68 +572,6 @@ sagemaker.createEndpoint(params, function(err, data) {
 
 }
 
-function createTrainingJob(apiKey, model) {
-  
-  let recordsS3PrefixBase = "s3://"+process.env.RECORDS_BUCKET+'/'
-  let modelsS3PrefixBase = "s3://"+process.env.MODELS_BUCKET+'/'
-  
-  var params = {
-    TrainingJobName: `${apiKey}-${model}`,
-    HyperParameters: {
-      /* '<ParameterKey>': ... */
-    },
-    AlgorithmSpecification: { /* required */
-      TrainingImage: process.env.TRAINING_IMAGE,
-      TrainingInputMode: "File",
-    },
-    InputDataConfig: [ 
-      {
-        ChannelName: 'choose',
-        DataSource: { 
-          S3DataSource: { 
-            S3DataType:"S3Prefix",
-            S3Uri: recordsS3PrefixBase+getChooseS3KeyPrefix(apiKey, model), 
-            S3DataDistributionType: "FullyReplicated",
-          }
-        },
-      },
-      {
-        ChannelName: 'using',
-        DataSource: { 
-          S3DataSource: { 
-            S3DataType:"S3Prefix",
-            S3Uri: recordsS3PrefixBase+getUsingS3KeyPrefix(apiKey, model), 
-            S3DataDistributionType: "FullyReplicated",
-          }
-        },
-      },
-      {
-        ChannelName: 'rewards',
-        DataSource: { 
-          S3DataSource: { 
-            S3DataType:"S3Prefix",
-            S3Uri: recordsS3PrefixBase+getRewardsS3KeyPrefix(apiKey), 
-            S3DataDistributionType: "FullyReplicated",
-          }
-        },
-      },
-    ],
-    OutputDataConfig: { 
-      S3OutputPath: modelsS3PrefixBase+getModelsS3KeyPrefix(apiKey, model), 
-    },
-    ResourceConfig: { 
-      InstanceCount: 1, 
-      InstanceType: process.env.TRAINING_INSTANCE_TYPE,
-      VolumeSizeInGB: process.env.TRAINING_VOLUME_SIZE_IN_GB
-    },
-    RoleArn: process.env.TRAINING_ROLE_ARN,
-    StoppingCondition: { 
-      MaxRuntimeInSeconds: process.env.TRAINING_MAX_RUNTIME_IN_SECONDS,
-    },
-  };
-
-  return sagemaker.createTrainingJob(params).promise()
-}
 
 function getEndpointName(apiKey, model) {
   return `${process.env.ENDPOINT_BASE_NAME}-${apiKey}-${model}`
