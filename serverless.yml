@@ -1,6 +1,5 @@
-service: improve-v3
+service: improve-v3 # !!! REPLACE WITH GLOBALLY UNIQUE SERVICE NAME FOR THIS DEPLOYMENT
 custom: 
-  globallyUniquePrefix: ${self:service} # CHANGE THIS TO COMPANYNAME-PROJECTNAME-${self:service} # Unique prefix for s3 buckets, firehose stream names, and sagemaker endpoints
   firehoseS3ObjectCreatedSns: arn:aws:sns:us-west-2:117097735164:improve-v3-resources-${opt:stage, self:provider.stage}-FirehoseS3ObjectCreated
 provider:
   name: aws
@@ -8,19 +7,18 @@ provider:
   region: us-west-2
   timeout: 6
   memorySize: 192
-  environment:
-    ALLOWED_MODELS: "messages-1.0,test-0.1" # Comma seperated list of allowed model names
-    TRAINING_ROLE_ARN: arn:aws:iam::117097735164:role/service-role/AmazonSageMaker-ExecutionRole-20181021T151698
+  environment:  
+    SERVICE: ${self:service}
+    STAGE: ${opt:stage, self:provider.stage}
     TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/decision_service
-    TRAINING_INSTANCE_TYPE: ml.m5.large
     TRAINING_VOLUME_SIZE_IN_GB: 50
-    TRAINING_MAX_RUNTIME_IN_SECONDS: 86400 # default 1 day
+    TRAINING_MAX_RUNTIME_IN_SECONDS: 86400 # 1 day
     HOSTING_INSTANCE_TYPE: ml.t2.medium
-    HOSTING_INITIAL_INSTANCE_COUNT: 1 # set to the average number of hosting instances needed in production
-    ENDPOINT_BASE_NAME: ${self:custom.globallyUniquePrefix}-${opt:stage, self:provider.stage}
-    FIREHOSE_DELIVERY_STREAM_NAME: ${self:custom.globallyUniquePrefix}-resources-${opt:stage, self:provider.stage}-firehose
-    RECORDS_BUCKET: ${self:custom.globallyUniquePrefix}-resources-${opt:stage, self:provider.stage}-records
-    MODELS_BUCKET: ${self:custom.globallyUniquePrefix}-resources-${opt:stage, self:provider.stage}-models
+    HOSTING_INITIAL_INSTANCE_COUNT: 1 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
+    TRAINING_ROLE_ARN: arn:aws:iam::117097735164:role/service-role/AmazonSageMaker-ExecutionRole-20181021T151698
+    FIREHOSE_DELIVERY_STREAM_NAME: ${self:service}-resources-${opt:stage, self:provider.stage}-firehose
+    RECORDS_BUCKET: ${self:service}-resources-${opt:stage, self:provider.stage}-records
+    MODELS_BUCKET: ${self:service}-resources-${opt:stage, self:provider.stage}-models
   iamRoleStatements: 
     - Effect: Allow
       Action:
@@ -29,7 +27,7 @@ provider:
     - Effect: Allow
       Action:
         - "s3:*"
-      Resource: 'arn:aws:s3:::${self:custom.globallyUniquePrefix}-resources-${opt:stage, self:provider.stage}*'
+      Resource: 'arn:aws:s3:::${self:service}-resources-${opt:stage, self:provider.stage}*'
     - Effect: Allow
       Action:
         - "sagemaker:*"
@@ -70,8 +68,8 @@ functions:
     timeout: 300
     events:
       - sns: ${self:custom.firehoseS3ObjectCreatedSns}
-  dispatchParallelTrain:
-    handler: improve.dispatchParallelTrain
+  dispatchTrainingJobs:
+    handler: improve.dispatchTrainingJobs
     timeout: 300
     events:
       - schedule: rate(5 minutes)

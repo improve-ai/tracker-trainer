@@ -6,14 +6,15 @@ const es = require('event-stream');
 const uuidv4 = require('uuid/v4');
 const dateFormat = require('date-format');
 const _ = require('lodash');
+var shajs = require('sha.js')
 
 const firehose = new AWS.Firehose();
 const s3 = new AWS.S3();
-const lambda = new AWS.Lambda();
 const sagemaker = new AWS.SageMaker();
 const sagemakerRuntime = new AWS.SageMakerRuntime();
 
 const LOG_PROBABILITY = .1;
+
 
 function setup(event, context, shouldLog) {
   /* Set callbackWaitsForEmptyEventLoop=false to allow choose() to return a response
@@ -87,7 +88,7 @@ module.exports.choose = function(event, context, cb) {
   }
   
   var params = {
-    Body: new Buffer(body),
+    Body: new Buffer(event.body),
     EndpointName: getEndpointName(apiKey, body.model)
   };
   
@@ -138,7 +139,6 @@ module.exports.using = function(event, context, cb) {
     return error(cb,"the 'model' field is required");
   }
   
-  // FIX new model match ^[a-zA-Z0-9](-*[a-zA-Z0-9])*
   let valid = /^[a-zA-Z0-9-\._]+$/ 
   if (!body.model.match(valid)) {
     return error(cb, "Only alphanumeric, underscore, period, and dash allowed in model name")
@@ -375,9 +375,9 @@ module.exports.unpackFirehose = function(event, context, cb) {
   })
 }
 
-module.exports.dispatchParallelTrain = function(event, context, cb) {
+module.exports.dispatchTrainingJobs = function(event, context, cb) {
 
-  console.log(`dispatching training processes`)
+  console.log(`dispatching training jobs`)
 
   return listAllApiKeys().then(apiKeys => {
     let promises = []
@@ -413,7 +413,7 @@ module.exports.dispatchParallelTrain = function(event, context, cb) {
       let [apiKey, models] = apiKeysAndModels[i];
       for (let j = 0; j< models.length; j++) {
         let model = models[j]
-        
+        console.log(`creating training job for apiKey ${apiKey} model ${model}`)
         promises.push(createTrainingJob(apiKey, model))
       }
     }
@@ -574,7 +574,26 @@ sagemaker.createEndpoint(params, function(err, data) {
 
 
 function getEndpointName(apiKey, model) {
-  return `${process.env.ENDPOINT_BASE_NAME}-${apiKey}-${model}`
+  // this is a somewhat readable format for the sagemaker console
+  return generateAlphaNumericDash63Name(`${process.env.STAGE}-${model}-${apiKey}-${process.env.SERVICE}`);
+}
+
+/**
+  Generates a readable and reliabily unique mapping from name to an acceptible format for AWS names
+*/
+function generateAlphaNumericDash63Name(name) {
+  let valid = /^[a-zA-Z0-9](-*[a-zA-Z0-9])*/ 
+  if (name.match(valid) && name.length <= 63) {
+    return name;
+  }
+  
+  let hashPart = shajs('sha256').update(name).digest('base64').replace(/[\W_]+/g,'').substring(0,24); // remove all non-alphanumeric (+=/) then truncate to 144 bits
+  let namePart = name.replace(/[\W_]+/g,'-').substring(0,63-hashPart.length-2)+'-'; // replace all non-alphanumeric with - and truncate to the proper length
+  let result = namePart + hashPart;
+  while (result.startsWith('-')) { // can't start with -
+    result = result.substring(1);
+  }
+  return result;
 }
 
 function getS3KeyPrefix(recordType, apiKey, model) {
