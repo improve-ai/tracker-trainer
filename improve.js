@@ -93,8 +93,6 @@ module.exports.choose = function(event, context, cb) {
     EndpointName: getEndpointName(apiKey, body.model)
   };
   
-  // TODO if endpoint error, return random variants and log
-  
   sagemakerRuntime.invokeEndpoint(params).promise().then((response) => {
     consoleTimeEnd('choose', logging)
     // Initiate the callback immediately so that its not blocking on Firehose
@@ -105,14 +103,6 @@ module.exports.choose = function(event, context, cb) {
       },
       body: response.Body
     });
-  }).then((result) => {
-    body["record_type"] = "choose";
-    // Since we don't initiate firehose until after the response callback,
-    // it is possible that this firehose request could be lost if there is
-    // an immediate process freeze and the process isn't re-used, but this
-    // should happen very infrequently and should not be a problem for most
-    // algorithms since they use choose data mostly as hints
-    return sendToFirehose(apiKey, body, receivedAt, logging);
   }).catch((err) => {
     consoleTimeEnd('choose', logging)
     console.log(err);
@@ -127,6 +117,15 @@ module.exports.choose = function(event, context, cb) {
       },
       body: JSON.stringify(response)
     });
+  }).then((result) => {
+    console.log("sending firehose")
+    body["record_type"] = "choose";
+    // Since we don't initiate firehose until after the response callback,
+    // it is possible that this firehose request could be lost if there is
+    // an immediate process freeze and the process isn't re-used, but this
+    // should happen very infrequently and should not be a problem for most
+    // algorithms since they use choose data mostly as hints
+    return sendToFirehose(apiKey, body, receivedAt, logging);
   });
 }
 
