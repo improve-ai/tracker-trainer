@@ -118,27 +118,14 @@ module.exports.choose = function(event, context, cb) {
       body: JSON.stringify(response)
     });
   }).then((result) => {
-    console.log("sending firehose")
     body["record_type"] = "choose";
     // Since we don't initiate firehose until after the response callback,
     // it is possible that this firehose request could be lost if there is
-    // an immediate process freeze and the process isn't re-used, but this
+    // an immediate process freeze and the process isn't re-thawed, but this
     // should happen very infrequently and should not be a problem for most
     // algorithms since they use choose data mostly as hints
     return sendToFirehose(apiKey, body, receivedAt, logging);
   });
-}
-
-function chooseRandomVariants(variantMap) {
-  let properties = {}
-  for (let propertyKey in variantMap) {
-    if (!variantMap.hasOwnProperty(propertyKey)) {
-      continue;
-    }
-
-    properties[propertyKey] = _.sample(variantMap[propertyKey]);
-  }
-  return properties;
 }
 
 module.exports.using = function(event, context, cb) {
@@ -236,8 +223,8 @@ module.exports.rewards = function(event, context, cb) {
 }
 
 // Send the event with the timestamp and api key to firehose
-function sendToFirehose(apiKey, body, receivedAt, log) {
-  body["api_key"] = apiKey;
+function sendToFirehose(projectName, body, receivedAt, log) {
+  body["project_name"] = projectName;
   body["received_at"] = receivedAt.toISOString();
   if (!body["timestamp"]) {
     body["timestamp"] = body["received_at"];
@@ -260,6 +247,18 @@ function sendToFirehose(apiKey, body, receivedAt, log) {
   })
   consoleTimeEnd('firehose-create',log)
   return firehosePromise;
+}
+
+function chooseRandomVariants(variantMap) {
+  let properties = {}
+  for (let propertyKey in variantMap) {
+    if (!variantMap.hasOwnProperty(propertyKey)) {
+      continue;
+    }
+
+    properties[propertyKey] = _.sample(variantMap[propertyKey]);
+  }
+  return properties;
 }
 
 module.exports.unpackFirehose = function(event, context, cb) {
@@ -305,12 +304,16 @@ module.exports.unpackFirehose = function(event, context, cb) {
                     }
                     let requestRecord = JSON.parse(line)
 
-                    if (!requestRecord || !requestRecord.api_key) {
-                        console.log(`WARN: no api_key for requestRecord ${requestRecord}`)
+                    if (!requestRecord || !requestRecord.project_name) {
+                        console.log(`WARN: no project_name for requestRecord ${requestRecord}`)
                         return;
                     }
                     
-                    let apiKey = requestRecord.api_key;
+                    let projectName = requestRecord.project_name;
+                    
+                    // delete project_name from requestRecord in case its sensitive
+                    delete requestRecord.project_name;
+                    
                     let recordType = requestRecord.record_type;
                     
                     if (!recordType) {
@@ -333,18 +336,18 @@ module.exports.unpackFirehose = function(event, context, cb) {
                       }
                     }
                     
-                    // TODO double check apiKey, model valid chars
+                    // TODO double check projectName, model valid chars
                     
-                    // apiKey/recordType/(model/)yyyy/MM/dd/hh/apiKey-recordType-(model-)yyyy-MM-dd-hh-mm-ss-uuid.gz
-                    let s3Key = getS3KeyPrefix(recordType, apiKey, model)+pathDatePart+"/"+
-                      `improve-v3-${apiKey}-${recordType}-`+(model ? `${model}-` : "")+filenameDatePart+"-"+uuidPart+".gz"
+                    // projectName/recordType/(model/)yyyy/MM/dd/hh/projectName-recordType-(model-)yyyy-MM-dd-hh-mm-ss-uuid.gz
+                    let s3Key = getS3KeyPrefix(recordType, projectName, model)+pathDatePart+"/"+
+                      `improve-v3-${projectName}-${recordType}-`+(model ? `${model}-` : "")+filenameDatePart+"-"+uuidPart+".gz"
                     
                     let buffers = buffersByKey[s3Key]
                     if (!buffers) {
                       buffers = []
                       buffersByKey[s3Key] = buffers
                     }
-                    buffers.push(Buffer.from(line+"\n"))
+                    buffers.push(Buffer.from(JSON.stringify(requestRecord)+"\n"))
 
                 } catch (err) {
                     console.log(`error ${err} skipping requestRecord`)
@@ -401,42 +404,42 @@ module.exports.dispatchTrainingJobs = function(event, context, cb) {
 
   console.log(`dispatching training jobs`)
 
-  return listAllApiKeys().then(apiKeys => {
+  return listAllProjects().then(projectNames => {
     let promises = []
     
-    for (let i = 0; i < apiKeys.length; i++) {
-      let apiKey = apiKeys[i]
+    for (let i = 0; i < projectNames.length; i++) {
+      let projectName = projectNames[i]
       let params = {
         Bucket: process.env.RECORDS_BUCKET,
         Delimiter: '/',
-        Prefix: `${apiKey}/using/`
+        Prefix: `${projectName}/using/`
       }
       
-      console.log(`listing models for apiKey ${apiKey}`)
-      // not recursing, so up to 1000 models per apiKey
+      console.log(`listing models for projectName ${projectName}`)
+      // not recursing, so up to 1000 models per projectName
       promises.push(s3.listObjectsV2(params).promise().then(result => {
         if (!result || !result.CommonPrefixes || !result.CommonPrefixes.length) {
-          console.log(`skipping apiKey ${apiKey}`)
+          console.log(`skipping projectName ${projectName}`)
           return
         }
         
-        return [apiKey, pluckLastPrefixPart(result.CommonPrefixes)]
+        return [projectName, pluckLastPrefixPart(result.CommonPrefixes)]
       }))
     }
   
     return Promise.all(promises)
-  }).then(apiKeysAndModels => {
+  }).then(projectNamesAndModels => {
     let promises = []
 
-    for (let i = 0; i < apiKeysAndModels.length; i++) {
-      if (!apiKeysAndModels[i]) {
+    for (let i = 0; i < projectNamesAndModels.length; i++) {
+      if (!projectNamesAndModels[i]) {
         continue;
       }
-      let [apiKey, models] = apiKeysAndModels[i];
+      let [projectName, models] = projectNamesAndModels[i];
       for (let j = 0; j< models.length; j++) {
         let model = models[j]
-        console.log(`creating training job for apiKey ${apiKey} model ${model}`)
-        promises.push(createTrainingJob(apiKey, model))
+        console.log(`creating training job for project ${projectName} model ${model}`)
+        promises.push(createTrainingJob(projectName, model))
       }
     }
     
@@ -449,13 +452,13 @@ module.exports.dispatchTrainingJobs = function(event, context, cb) {
 }
 
 
-function createTrainingJob(apiKey, model) {
+function createTrainingJob(projectName, model) {
   
   let recordsS3PrefixBase = "s3://"+process.env.RECORDS_BUCKET+'/'
   let modelsS3PrefixBase = "s3://"+process.env.MODELS_BUCKET+'/'
   
   var params = {
-    TrainingJobName: dateFormat.asString("yyyy-MM-dd-hh-mm-ss",new Date())+"-"+uuidv4(),
+    TrainingJobName: getTrainingJobName(projectName, model),
     HyperParameters: {
       /* '<ParameterKey>': ... */
     },
@@ -469,7 +472,7 @@ function createTrainingJob(apiKey, model) {
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
-            S3Uri: recordsS3PrefixBase+getChooseS3KeyPrefix(apiKey, model), 
+            S3Uri: recordsS3PrefixBase+getChooseS3KeyPrefix(projectName, model), 
             S3DataDistributionType: "FullyReplicated",
           }
         },
@@ -479,7 +482,7 @@ function createTrainingJob(apiKey, model) {
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
-            S3Uri: recordsS3PrefixBase+getUsingS3KeyPrefix(apiKey, model), 
+            S3Uri: recordsS3PrefixBase+getUsingS3KeyPrefix(projectName, model), 
             S3DataDistributionType: "FullyReplicated",
           }
         },
@@ -489,14 +492,14 @@ function createTrainingJob(apiKey, model) {
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
-            S3Uri: recordsS3PrefixBase+getRewardsS3KeyPrefix(apiKey), 
+            S3Uri: recordsS3PrefixBase+getRewardsS3KeyPrefix(projectName), 
             S3DataDistributionType: "FullyReplicated",
           }
         },
       },
     ],
     OutputDataConfig: { 
-      S3OutputPath: modelsS3PrefixBase+getModelsS3KeyPrefix(apiKey, model), 
+      S3OutputPath: modelsS3PrefixBase+getModelsS3KeyPrefix(projectName, model), 
     },
     ResourceConfig: { 
       InstanceCount: 1, 
@@ -531,33 +534,11 @@ sagemaker.listTrainingJobs(params, function(err, data) {
 });
 
 var params = {
-  ExecutionRoleArn: 'STRING_VALUE', /* required */
+  ExecutionRoleArn: process.env.TRAINING_ROLE_ARN,
   ModelName: 'STRING_VALUE', /* required */
   PrimaryContainer: { /* required */
-    Image: 'STRING_VALUE', /* required */
-    ContainerHostname: 'STRING_VALUE',
-    Environment: {
-      '<EnvironmentKey>': 'STRING_VALUE',
-      /* '<EnvironmentKey>': ... */
-    },
+    Image: process.env.TRAINING_IMAGE,
     ModelDataUrl: 'STRING_VALUE'
-  },
-  Tags: [
-    {
-      Key: 'STRING_VALUE', /* required */
-      Value: 'STRING_VALUE' /* required */
-    },
-    /* more items */
-  ],
-  VpcConfig: {
-    SecurityGroupIds: [ /* required */
-      'STRING_VALUE',
-      /* more items */
-    ],
-    Subnets: [ /* required */
-      'STRING_VALUE',
-      /* more items */
-    ]
   }
 };
 sagemaker.createModel(params, function(err, data) {
@@ -595,9 +576,14 @@ sagemaker.createEndpoint(params, function(err, data) {
 }
 
 
-function getEndpointName(apiKey, model) {
+function getEndpointName(projectName, model) {
   // this is a somewhat readable format for the sagemaker console
-  return generateAlphaNumericDash63Name(`${process.env.STAGE}-${model}-${apiKey}-${process.env.SERVICE}`);
+  return generateAlphaNumericDash63Name(`${process.env.STAGE}-${model}-${projectName}-${process.env.SERVICE}`);
+}
+
+function getTrainingJobName(projectName, model) {
+  // every single training job must have a unique name per AWS account
+  return generateAlphaNumericDash63Name(`${process.env.STAGE}-${model}-${projectName}-${process.env.SERVICE}-${uuidv4()}`)
 }
 
 /**
@@ -618,27 +604,27 @@ function generateAlphaNumericDash63Name(name) {
   return result;
 }
 
-function getS3KeyPrefix(recordType, apiKey, model) {
-  return `${apiKey}/${recordType}/`+(model ? `${model}/` : "")
+function getS3KeyPrefix(recordType, projectName, model) {
+  return `${projectName}/${recordType}/`+(model ? `${model}/` : "")
 }
 
-function getRewardsS3KeyPrefix(apiKey) {
-  return getS3KeyPrefix("rewards",apiKey)
+function getRewardsS3KeyPrefix(projectName) {
+  return getS3KeyPrefix("rewards",projectName)
 }
 
-function getUsingS3KeyPrefix(apiKey, model) {
-  return getS3KeyPrefix("using",apiKey, model)
+function getUsingS3KeyPrefix(projectName, model) {
+  return getS3KeyPrefix("using",projectName, model)
 }
 
-function getChooseS3KeyPrefix(apiKey, model) {
-  return getS3KeyPrefix("choose",apiKey, model)
+function getChooseS3KeyPrefix(projectName, model) {
+  return getS3KeyPrefix("choose",projectName, model)
 }
 
-function getModelsS3KeyPrefix(apiKey, model) {
-  return `${apiKey}/${model}`
+function getModelsS3KeyPrefix(projectName, model) {
+  return `${projectName}/${model}`
 }
 
-function listAllApiKeys(arr, ContinuationToken) {
+function listAllProjects(arr, ContinuationToken) {
     console.log(`listing all API keys${ContinuationToken ? " at position "+ContinuationToken: ""}`)
 
     if (!arr) arr=[];
@@ -655,7 +641,7 @@ function listAllApiKeys(arr, ContinuationToken) {
         } else if (!result.IsTruncated) {
             return arr.concat(pluckLastPrefixPart(result.CommonPrefixes))
         } else {
-            return listAllApiKeys(arr.concat(pluckLastPrefixPart(result.CommonPrefixes)), result.NextContinuationToken)
+            return listAllProjects(arr.concat(pluckLastPrefixPart(result.CommonPrefixes)), result.NextContinuationToken)
         }
     })
 }
