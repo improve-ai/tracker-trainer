@@ -47,7 +47,8 @@ function setup(event, context, shouldLog) {
 }
 
 module.exports.choose = function(event, context, cb) {
-  let logging = checkShouldLog();
+  //let logging = checkShouldLog();
+  let logging = true;
   consoleTime('choose', logging);
   let receivedAt = new Date();
 
@@ -58,19 +59,19 @@ module.exports.choose = function(event, context, cb) {
   let apiKey = event.requestContext.identity.apiKey;
 
   if (!apiKey) {
-    return error(cb,"'x-api-key' HTTP header required");
+    return sendErrorResponse(cb,"'x-api-key' HTTP header required");
   }
 
   if (!body.model) {
-    return error(cb, 'model is required')
+    return sendErrorResponse(cb, 'model is required')
   }
   
   if (!body.user_id) {
-    return error(cb, 'user_id is required')
+    return sendErrorResponse(cb, 'user_id is required')
   }
 
   if (!body.variants) {
-    return error(cb, 'variants is required')
+    return sendErrorResponse(cb, 'variants is required')
   }
 
   for (let propertyKey in body.variants) {
@@ -80,10 +81,10 @@ module.exports.choose = function(event, context, cb) {
 
     let variants = body.variants[propertyKey];
     if (!Array.isArray(variants)) {
-      return error(cb, 'variant values must be lists')
+      return sendErrorResponse(cb, 'variant values must be lists')
     }
     if (variants.length < 1) {
-      return error(cb, "variants must contain at least 1 element")
+      return sendErrorResponse(cb, "variants must contain at least 1 element")
     }
   }
   
@@ -112,10 +113,10 @@ module.exports.choose = function(event, context, cb) {
     // should happen very infrequently and should not be a problem for most
     // algorithms since they use choose data mostly as hints
     return sendToFirehose(apiKey, body, receivedAt, logging);
-  }).catch(error =>{
+  }).catch((err) => {
     consoleTimeEnd('choose', logging)
-    console.log(error);
-    error(cb,error);
+    console.log(err);
+    sendErrorResponse(cb,err);
   });
 }
 
@@ -131,25 +132,25 @@ module.exports.using = function(event, context, cb) {
   let apiKey = event.requestContext.identity.apiKey;
 
   if (!apiKey) {
-    return error(cb,"'x-api-key' HTTP header required");
+    return sendErrorResponse(cb,"'x-api-key' HTTP header required");
   }
   
   // if there is no JSON body, just emit the model error
   if (!body || !body.model) {
-    return error(cb,"the 'model' field is required");
+    return sendErrorResponse(cb,"the 'model' field is required");
   }
   
   let valid = /^[a-zA-Z0-9-\._]+$/ 
   if (!body.model.match(valid)) {
-    return error(cb, "Only alphanumeric, underscore, period, and dash allowed in model name")
+    return sendErrorResponse(cb, "Only alphanumeric, underscore, period, and dash allowed in model name")
   }
 
   if (!body.user_id) {
-    return error(cb,"the 'user_id' field is required");
+    return sendErrorResponse(cb,"the 'user_id' field is required");
   }
   
   if (!body.properties || !(typeof body.properties === 'object')) {
-    return error(cb,"the 'properties' object is required");
+    return sendErrorResponse(cb,"the 'properties' object is required");
   }
   
   body["record_type"] = "using";
@@ -157,10 +158,10 @@ module.exports.using = function(event, context, cb) {
   return sendToFirehose(apiKey, body, receivedAt, logging).then((result) => {
     consoleTimeEnd('using', logging)
     return sendSuccessResponse(cb);
-  }).catch(error =>{
+  }).catch(err =>{
     consoleTimeEnd('using', logging)
-    console.log(error);
-    error(cb,error);
+    console.log(err);
+    sendErrorResponse(cb,err);
   });
 }
 
@@ -177,16 +178,16 @@ module.exports.rewards = function(event, context, cb) {
   let apiKey = event.requestContext.identity.apiKey;
 
   if (!apiKey) {
-    return error(cb,"'x-api-key' HTTP header required");
+    return sendErrorResponse(cb,"'x-api-key' HTTP header required");
   }
   
   // if there is no JSON body, just emit the user_id error
   if (!body || !body.user_id) {
-    return error(cb,"the 'user_id' field is required");
+    return sendErrorResponse(cb,"the 'user_id' field is required");
   }
   
   if (!body.rewards || !(typeof body.rewards === 'object')) {
-    return error(cb,"the 'rewards' object is required");
+    return sendErrorResponse(cb,"the 'rewards' object is required");
   }
   
   // Check that the rewards are kosher
@@ -197,7 +198,7 @@ module.exports.rewards = function(event, context, cb) {
 
     let reward = body.rewards[rewardKey];
     if (isNaN(reward) || Number(reward) <= 0) {
-      return error(cb,"revenue and reward properties must be positive numbers: "+rewardKey+"="+reward)
+      return sendErrorResponse(cb,"revenue and reward properties must be positive numbers: "+rewardKey+"="+reward)
     }
   }
 
@@ -206,10 +207,10 @@ module.exports.rewards = function(event, context, cb) {
   return sendToFirehose(apiKey, body, receivedAt, logging).then((result) => {
     consoleTimeEnd('rewards',logging)
     return sendSuccessResponse(cb);
-  }).catch(error =>{
+  }).catch(err =>{
     consoleTimeEnd('rewards',logging)
-    console.log(error);
-    error(cb,error);
+    console.log(err);
+    sendErrorResponse(cb,err);
   });
 }
 
@@ -658,7 +659,7 @@ function sendSuccessResponse(callback) {
   });
 }
 
-function error(callback, message) {
+function sendErrorResponse(callback, message) {
   let response = JSON.stringify({ "error": { "message": message}});
   console.log(response);
   return callback(null, {
