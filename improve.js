@@ -116,8 +116,30 @@ module.exports.choose = function(event, context, cb) {
   }).catch((err) => {
     consoleTimeEnd('choose', logging)
     console.log(err);
-    sendErrorResponse(cb,err);
+    console.log("Error invoking sagemaker endpoint - returning random variants")
+    let response = {
+      properties: chooseRandomVariants(body.variants)
+    }
+    cb(null, {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin" : "*"
+      },
+      body: JSON.stringify(response)
+    });
   });
+}
+
+function chooseRandomVariants(variantMap) {
+  let properties = {}
+  for (let propertyKey in variantMap) {
+    if (!variantMap.hasOwnProperty(propertyKey)) {
+      continue;
+    }
+
+    properties[propertyKey] = _.sample(variantMap[propertyKey]);
+  }
+  return properties;
 }
 
 module.exports.using = function(event, context, cb) {
