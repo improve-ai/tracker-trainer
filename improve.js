@@ -70,8 +70,8 @@ module.exports.choose = function(event, context, cb) {
     return sendErrorResponse(cb, 'user_id is required')
   }
 
-  if (!body.variants) {
-    return sendErrorResponse(cb, 'variants is required')
+  if (!body.variants || !(typeof body.variants === 'object')) {
+    return sendErrorResponse(cb, "the 'variants' object is required")
   }
 
   for (let propertyKey in body.variants) {
@@ -222,7 +222,7 @@ module.exports.rewards = function(event, context, cb) {
   });
 }
 
-// Send the event with the timestamp and api key to firehose
+// Send the event with the timestamp and project name to firehose
 function sendToFirehose(projectName, body, receivedAt, log) {
   body["project_name"] = projectName;
   body["received_at"] = receivedAt.toISOString();
