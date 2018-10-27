@@ -14,6 +14,7 @@ const sagemaker = new AWS.SageMaker();
 const sagemakerRuntime = new AWS.SageMakerRuntime();
 
 const LOG_PROBABILITY = .1;
+const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
 
 
 function setup(event, context, shouldLog) {
@@ -515,25 +516,24 @@ function createTrainingJob(projectName, model) {
   return sagemaker.createTrainingJob(params).promise()
 }
 
-module.exports.updateEndpointConfig = function(event, context, cb) {
-  var params = {
-  CreationTimeAfter: new Date || 'Wed Dec 31 1969 16:00:00 GMT-0800 (PST)' || 123456789,
-  CreationTimeBefore: new Date || 'Wed Dec 31 1969 16:00:00 GMT-0800 (PST)' || 123456789,
-  LastModifiedTimeAfter: new Date || 'Wed Dec 31 1969 16:00:00 GMT-0800 (PST)' || 123456789,
-  LastModifiedTimeBefore: new Date || 'Wed Dec 31 1969 16:00:00 GMT-0800 (PST)' || 123456789,
-  MaxResults: 0,
-  NameContains: 'STRING_VALUE',
-  NextToken: 'STRING_VALUE',
-  SortBy: Name | CreationTime | Status,
-  SortOrder: Ascending | Descending,
-  StatusEquals: InProgress | Completed | Failed | Stopping | Stopped
-};
-sagemaker.listTrainingJobs(params, function(err, data) {
-  if (err) console.log(err, err.stack); // an error occurred
-  else     console.log(data);           // successful response
-});
+module.exports.deployUpdatedModels = function(event, context, cb) {
 
-var params = {
+  // FIX problem with listTrainingJobs doesn't allow us to use LastModifiedAfterr
+  return listSomeTrainingJobs(20).then((trainingJobs) => {
+    let promises = []
+    for (let i=0;i<trainingJobs.length;i++) {
+      let params = {
+        TrainingJobName: trainingJobs[i].TrainingJobName
+      }
+      promises.push(sagemaker.describeTrainingJob(params).promise())
+    }
+    
+    return Promise.all(promises)
+  }).then((trainingJobDescriptions) => {
+    console.log(JSON.stringify(trainingJobDescriptions));
+  });
+
+let params = {
   ExecutionRoleArn: process.env.TRAINING_ROLE_ARN,
   ModelName: 'STRING_VALUE', /* required */
   PrimaryContainer: { /* required */
@@ -546,14 +546,14 @@ sagemaker.createModel(params, function(err, data) {
   else     console.log(data);           // successful response
 });
 
-var params = {
+let params = {
   EndpointConfigName: 'STRING_VALUE', /* required */
   ProductionVariants: [ /* required */
     {
       InitialInstanceCount: process.env.HOSTING_INITIAL_INSTANCE_COUNT,
       InstanceType: process.env.HOSTING_INSTANCE_TYPE,
       ModelName: 'STRING_VALUE',
-      VariantName: 'STRING_VALUE'
+      VariantName: "A",
     },
     /* more items */
   ],
@@ -563,15 +563,14 @@ sagemaker.createEndpointConfig(params, function(err, data) {
   else     console.log(data);           // successful response
 });
 
-var params = {
-  EndpointConfigName: 'STRING_VALUE', /* required */
-  EndpointName: 'STRING_VALUE', /* required */
-};
+  let params = {
+    EndpointConfigName: 'STRING_VALUE', /* required */
+    EndpointName: getEndpointName(projectName, model)
+  };
 
-sagemaker.createEndpoint(params, function(err, data) {
-  if (err) console.log(err, err.stack); // an error occurred
-  else     console.log(data);           // successful response
-});
+  sagemaker.createEndpoint(params).promise().then((result) => {
+    
+  });
 
 }
 
@@ -624,26 +623,81 @@ function getModelsS3KeyPrefix(projectName, model) {
   return `${projectName}/${model}`
 }
 
-function listAllProjects(arr, ContinuationToken) {
-    console.log(`listing all API keys${ContinuationToken ? " at position "+ContinuationToken: ""}`)
+function listSomeTrainingJobs(MaxResults) {
+  let params = {
+    LastModifiedTimeAfter: new Date(new Date().getTime() - ONE_HOUR_IN_MILLIS),
+    // NameContains: 'STRING_VALUE', FIX Scope to only improve.ai training jobs
+    StatusEquals: "Completed",
+    MaxResults,
+  };
 
-    if (!arr) arr=[];
-
-    const params = {
-        Bucket: process.env.RECORDS_BUCKET,
-        Delimiter: '/',
-        ContinuationToken
-    }
+  return sagemaker.listTrainingJobs(params).promise().then(result => {
+    console.log(JSON.stringify(result))
+    if (!result || !result.TrainingJobSummaries || !result.TrainingJobSummaries.length) {
+      return [];
+    } 
     
-    return s3.listObjectsV2(params).promise().then(result => {
-        if (!result || !result.CommonPrefixes || !result.CommonPrefixes.length) {
-            return arr;
-        } else if (!result.IsTruncated) {
-            return arr.concat(pluckLastPrefixPart(result.CommonPrefixes))
-        } else {
-            return listAllProjects(arr.concat(pluckLastPrefixPart(result.CommonPrefixes)), result.NextContinuationToken)
-        }
-    })
+    return result.TrainingJobSummaries;
+  })
+}
+
+
+function listAllTrainingJobs(arr, NextToken) {
+  console.log(`listing training jobs${NextToken ? " at position "+NextToken: ""}`)
+
+  if (!arr) arr=[];
+
+  let params;
+
+  if (NextToken) {
+    params = {
+      NextToken
+    };
+  } else {
+    params = {
+      LastModifiedTimeAfter: new Date(new Date().getTime() - ONE_HOUR_IN_MILLIS),
+      // NameContains: 'STRING_VALUE', FIX Scope to only improve.ai training jobs
+      StatusEquals: "Completed",
+      MaxResults: 100,
+    };
+  }
+
+  return sagemaker.listTrainingJobs(params).promise().then(result => {
+      console.log(result)
+      if (!result || !result.TrainingJobSummaries || !result.TrainingJobSummaries.length) {
+          return arr;
+      } 
+      
+      arr = arr.concat(result.TrainingJobSummaries);
+      
+      if (result.NextToken) {
+        return listAllTrainingJobs(arr, result.NextToken)
+      } else {
+        return arr;
+      }
+  })
+}
+
+function listAllProjects(arr, ContinuationToken) {
+  console.log(`listing all API keys${ContinuationToken ? " at position "+ContinuationToken: ""}`)
+
+  if (!arr) arr=[];
+
+  const params = {
+      Bucket: process.env.RECORDS_BUCKET,
+      Delimiter: '/',
+      ContinuationToken
+  }
+  
+  return s3.listObjectsV2(params).promise().then(result => {
+      if (!result || !result.CommonPrefixes || !result.CommonPrefixes.length) {
+          return arr;
+      } else if (!result.IsTruncated) {
+          return arr.concat(pluckLastPrefixPart(result.CommonPrefixes))
+      } else {
+          return listAllProjects(arr.concat(pluckLastPrefixPart(result.CommonPrefixes)), result.NextContinuationToken)
+      }
+  })
 }
 
 function pluckLastPrefixPart(arr) {
