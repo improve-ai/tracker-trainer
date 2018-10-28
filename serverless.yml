@@ -14,6 +14,7 @@ provider:
     TRAINING_INSTANCE_TYPE: ml.m5.large
     TRAINING_VOLUME_SIZE_IN_GB: 50
     TRAINING_MAX_RUNTIME_IN_SECONDS: 86400 # 1 day
+    HOSTING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/decision_service
     HOSTING_INSTANCE_TYPE: ml.t2.medium
     HOSTING_INITIAL_INSTANCE_COUNT: 1 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
     TRAINING_ROLE_ARN: arn:aws:iam::117097735164:role/service-role/AmazonSageMaker-ExecutionRole-20181021T151698

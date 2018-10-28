@@ -522,56 +522,75 @@ module.exports.deployUpdatedModels = function(event, context, cb) {
   return listSomeTrainingJobs(20).then((trainingJobs) => {
     let promises = []
     for (let i=0;i<trainingJobs.length;i++) {
-      let params = {
-        TrainingJobName: trainingJobs[i].TrainingJobName
-      }
-      promises.push(sagemaker.describeTrainingJob(params).promise())
+      promises.push(maybeCreateOrUpdateEndpointForTrainingJob(trainingJobs[i].TrainingJobName))
     }
     
     return Promise.all(promises)
   }).then((trainingJobDescriptions) => {
     console.log(JSON.stringify(trainingJobDescriptions));
-  });
+    //return createModel()
+  })
 
-let params = {
-  ExecutionRoleArn: process.env.TRAINING_ROLE_ARN,
-  ModelName: 'STRING_VALUE', /* required */
-  PrimaryContainer: { /* required */
-    Image: process.env.TRAINING_IMAGE,
-    ModelDataUrl: 'STRING_VALUE'
-  }
-};
-sagemaker.createModel(params, function(err, data) {
-  if (err) console.log(err, err.stack); // an error occurred
-  else     console.log(data);           // successful response
-});
+}
 
-let params = {
-  EndpointConfigName: 'STRING_VALUE', /* required */
-  ProductionVariants: [ /* required */
-    {
-      InitialInstanceCount: process.env.HOSTING_INITIAL_INSTANCE_COUNT,
-      InstanceType: process.env.HOSTING_INSTANCE_TYPE,
-      ModelName: 'STRING_VALUE',
-      VariantName: "A",
-    },
-    /* more items */
-  ],
-};
-sagemaker.createEndpointConfig(params, function(err, data) {
-  if (err) console.log(err, err.stack); // an error occurred
-  else     console.log(data);           // successful response
-});
-
+function maybeCreateOrUpdateEndpointForTrainingJob(TrainingJobName) {
   let params = {
-    EndpointConfigName: 'STRING_VALUE', /* required */
-    EndpointName: getEndpointName(projectName, model)
-  };
-
-  sagemaker.createEndpoint(params).promise().then((result) => {
+    TrainingJobName 
+  }
+  
+  return sagemaker.describeTrainingJob(params).promise().then((trainingJobDescription) => {
+    if (!trainingJobDescription || !trainingJobDescription.ModelArtifacts || !trainingJobDescription.ModelArtifacts.S3ModelArtifacts) {
+      throw new Error("Model artifacts not found in TrainingJobDescription");
+    }
     
-  });
+    let params = {
+      ExecutionRoleArn: process.env.TRAINING_ROLE_ARN,
+      ModelName: TrainingJobName,
+      PrimaryContainer: { 
+        Image: process.env.HOSTING_IMAGE,
+        ModelDataUrl: trainingJobDescription.ModelArtifacts.S3ModelArtifacts,
+      }
+    }
 
+    return sagemaker.createModel(params).promise().then((response) => {
+      if (response.ModelArn) {
+        return [projectName, model, TrainingJobName]; 
+      } else {
+        throw new Error("No ModelArn in response, assuming failure");
+      }
+    });
+  }).then((EndpointConfigName) => {
+    console.log(`EndpointConfigName ${EndpointConfigName}`);
+
+    let params = {
+      EndpointConfigName,
+      ProductionVariants: [ 
+        {
+          InitialInstanceCount: process.env.HOSTING_INITIAL_INSTANCE_COUNT,
+          InstanceType: process.env.HOSTING_INSTANCE_TYPE,
+          ModelName: EndpointConfigName,
+          VariantName: "A",
+        },
+      ],
+    };
+  
+    return sagemaker.createEndpointConfig(params).promise().then((response) => {
+      if (response.EndpointConfigArn) {
+        return EndpointConfigName; // the EndpointConfigName is what we need for create/updateEndpoint
+      } else {
+        throw new Error(`No EndpointConfigArn in response ${JSON.stringify(response)}, assuming failure`);
+      }
+    });
+  }).then((projectName, model, EndpointConfigName) => {
+    let params = {
+      EndpointConfigName: EndpointConfigName, /* required */
+      EndpointName: getEndpointName(projectName, model)
+    };
+
+    sagemaker.updateEndpoint(params).promise().then((result) => {
+      
+    });
+  });
 }
 
 
@@ -622,6 +641,8 @@ function getChooseS3KeyPrefix(projectName, model) {
 function getModelsS3KeyPrefix(projectName, model) {
   return `${projectName}/${model}`
 }
+
+
 
 function listSomeTrainingJobs(MaxResults) {
   let params = {
