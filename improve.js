@@ -522,7 +522,9 @@ module.exports.deployUpdatedModels = function(event, context, cb) {
   return listSomeTrainingJobs(20).then((trainingJobs) => {
     let promises = []
     for (let i=0;i<trainingJobs.length;i++) {
-      promises.push(maybeCreateOrUpdateEndpointForTrainingJob(trainingJobs[i].TrainingJobName))
+      promises.push(delay(500*i).then(() => {
+        maybeCreateOrUpdateEndpointForTrainingJob(trainingJobs[i].TrainingJobName)
+      }));
     }
     
     return Promise.all(promises)
@@ -533,63 +535,101 @@ module.exports.deployUpdatedModels = function(event, context, cb) {
 
 }
 
-function maybeCreateOrUpdateEndpointForTrainingJob(TrainingJobName) {
+function maybeCreateOrUpdateEndpointForTrainingJob(trainingJobName) {
   let params = {
-    TrainingJobName 
+    TrainingJobName: trainingJobName 
   }
   
   return sagemaker.describeTrainingJob(params).promise().then((trainingJobDescription) => {
     if (!trainingJobDescription || !trainingJobDescription.ModelArtifacts || !trainingJobDescription.ModelArtifacts.S3ModelArtifacts) {
       throw new Error("Model artifacts not found in TrainingJobDescription");
     }
+    if (!trainingJobDescription.OutputDataConfig || !trainingJobDescription.OutputDataConfig.S3OutputPath) {
+      throw new Error("S3OutputPath not found in TrainingJobDescription");
+    }
+    if (trainingJobDescription.TrainingJobStatus !== "Completed") {
+      throw new Error(`TrainingJobStatus ${trainingJobDescription.TrainingJobStatus} is not 'Completed'`)
+    }
     
+    // Use the trainingJobName as the ModelName
     let params = {
       ExecutionRoleArn: process.env.TRAINING_ROLE_ARN,
-      ModelName: TrainingJobName,
+      ModelName: trainingJobName,
       PrimaryContainer: { 
         Image: process.env.HOSTING_IMAGE,
         ModelDataUrl: trainingJobDescription.ModelArtifacts.S3ModelArtifacts,
       }
     }
+    
+    let projectName, model = getProjectNameAndModelFromS3OutputPath(trainingJobDescription.OutputDataConfig.S3OutputPath)
 
+    console.log(`Creating Model ${trainingJobName}`);
     return sagemaker.createModel(params).promise().then((response) => {
       if (response.ModelArn) {
-        return [projectName, model, TrainingJobName]; 
+        return [projectName, model, trainingJobName]; // trainingJobName is the ModelName
       } else {
         throw new Error("No ModelArn in response, assuming failure");
       }
     });
-  }).then((EndpointConfigName) => {
-    console.log(`EndpointConfigName ${EndpointConfigName}`);
+  }).then(([projectName, model, trainingJobName]) => {
 
+    // Use the trainingJobName/ModelName as the EndpointConfigName
     let params = {
-      EndpointConfigName,
+      EndpointConfigName: trainingJobName,
       ProductionVariants: [ 
         {
           InitialInstanceCount: process.env.HOSTING_INITIAL_INSTANCE_COUNT,
           InstanceType: process.env.HOSTING_INSTANCE_TYPE,
-          ModelName: EndpointConfigName,
+          ModelName: trainingJobName,
           VariantName: "A",
         },
       ],
     };
-  
+
+    console.log(`Creating EndpointConfig ${trainingJobName}`);
     return sagemaker.createEndpointConfig(params).promise().then((response) => {
       if (response.EndpointConfigArn) {
-        return EndpointConfigName; // the EndpointConfigName is what we need for create/updateEndpoint
+        return [projectName, model, trainingJobName]; // trainingJobName is the EndpointConfigName
       } else {
         throw new Error(`No EndpointConfigArn in response ${JSON.stringify(response)}, assuming failure`);
       }
     });
-  }).then((projectName, model, EndpointConfigName) => {
+  }).then(([projectName, model, EndpointConfigName]) => {
+    console.log(`projectName ${projectName} model ${model} EndpointConfigName ${EndpointConfigName}`)
+    let EndpointName = getEndpointName(projectName, model)
     let params = {
-      EndpointConfigName: EndpointConfigName, /* required */
-      EndpointName: getEndpointName(projectName, model)
-    };
+      EndpointName
+    }
+    
+    sagemaker.describeEndpoint(params).promise().then((result) => {
+      console.log(result)
+    }).catch((error) => {
+      let params = {
+        EndpointConfigName,
+        EndpointName,
+      };
+      console.log(error)
 
-    sagemaker.updateEndpoint(params).promise().then((result) => {
+      console.log(`Creating Endpoint ${EndpointName} EndpointConfigName ${EndpointConfigName}`)
+      return sagemaker.createEndpoint(params).promise().then((result) => {
+        console.log(result);
+      });
+
+    }).then((result) => {
+      let params = {
+        EndpointConfigName,
+        EndpointName,
+      };
+  
+      console.log(`Updating Endpoint ${EndpointName} EndpointConfigName ${EndpointConfigName}`)
+      sagemaker.updateEndpoint(params).promise().then((result) => {
+        console.log(result);
+      });
       
     });
+  }).catch((error) => {
+    // Handle errors within the function since this is a conditional update
+    console.log(error);
   });
 }
 
@@ -642,7 +682,10 @@ function getModelsS3KeyPrefix(projectName, model) {
   return `${projectName}/${model}`
 }
 
-
+function getProjectNameAndModelFromS3OutputPath(S3OutputPath) {
+  let parts = S3OutputPath.split('/');
+  return [parts[parts.length-2], parts[parts.length-1]]
+}
 
 function listSomeTrainingJobs(MaxResults) {
   let params = {
@@ -764,4 +807,11 @@ function consoleTimeEnd(name, shouldLog) {
   if (shouldLog) {
     console.timeEnd(name);
   }
+}
+
+// from https://stackoverflow.com/questions/39538473/using-settimeout-on-promise-chain
+function delay(t, v) {
+   return new Promise(function(resolve) { 
+       setTimeout(resolve.bind(null, v), t)
+   });
 }
