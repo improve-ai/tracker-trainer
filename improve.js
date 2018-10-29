@@ -89,16 +89,22 @@ module.exports.choose = function(event, context, cb) {
     }
   }
   
+  // send to firehose in parallel with sagemaker invoke
+  body["record_type"] = "choose";
+  sendToFirehose(apiKey, body, receivedAt, logging).catch((error) =>
+    console.log(error)
+  );
+  
   var params = {
     Body: new Buffer(event.body),
     EndpointName: getEndpointName(apiKey, body.model)
   };
   
+  // Invoke the sagemaker endpoint
   sagemakerRuntime.invokeEndpoint(params).promise().then((response) => {
     if (!response.Body) {
       throw new Error("response.Body missing")
     }
-    console.log(response.Body.toString('utf8'));
     consoleTimeEnd('choose', logging)
     // Initiate the callback immediately so that its not blocking on Firehose
     cb(null, {
@@ -122,15 +128,7 @@ module.exports.choose = function(event, context, cb) {
       },
       body: JSON.stringify(response)
     });
-  }).then((result) => {
-    body["record_type"] = "choose";
-    // Since we don't initiate firehose until after the response callback,
-    // it is possible that this firehose request could be lost if there is
-    // an immediate process freeze and the process isn't re-thawed, but this
-    // should happen very infrequently and should not be a problem for most
-    // algorithms since they use choose data mostly as hints
-    return sendToFirehose(apiKey, body, receivedAt, logging);
-  });
+  })
 }
 
 module.exports.using = function(event, context, cb) {
