@@ -10,8 +10,8 @@ var shajs = require('sha.js')
 
 const firehose = new AWS.Firehose();
 const s3 = new AWS.S3();
-const sagemaker = new AWS.SageMaker();
 const sagemakerRuntime = new AWS.SageMakerRuntime();
+const sagemaker = new AWS.SageMaker({ maxRetries: 100, retryDelayOptions: { customBackoff: sagemakerBackoff }});
 
 const LOG_PROBABILITY = .1;
 const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
@@ -95,6 +95,10 @@ module.exports.choose = function(event, context, cb) {
   };
   
   sagemakerRuntime.invokeEndpoint(params).promise().then((response) => {
+    if (!response.Body) {
+      throw new Error("response.Body missing")
+    }
+    console.log(response.Body.toString('utf8'));
     consoleTimeEnd('choose', logging)
     // Initiate the callback immediately so that its not blocking on Firehose
     cb(null, {
@@ -102,7 +106,7 @@ module.exports.choose = function(event, context, cb) {
       headers: {
         "Access-Control-Allow-Origin" : "*"
       },
-      body: response.Body
+      body: response.Body.toString('utf8')
     });
   }).catch((err) => {
     consoleTimeEnd('choose', logging)
@@ -522,6 +526,7 @@ module.exports.deployUpdatedModels = function(event, context, cb) {
   return listSomeTrainingJobs(20).then((trainingJobs) => {
     let promises = []
     for (let i=0;i<trainingJobs.length;i++) {
+      // delay to avoid throttling errors
       promises.push(delay(500*i).then(() => {
         maybeCreateOrUpdateEndpointForTrainingJob(trainingJobs[i].TrainingJobName)
       }));
@@ -561,7 +566,8 @@ function maybeCreateOrUpdateEndpointForTrainingJob(trainingJobName) {
       }
     }
     
-    let projectName, model = getProjectNameAndModelFromS3OutputPath(trainingJobDescription.OutputDataConfig.S3OutputPath)
+    let [projectName, model] = getProjectNameAndModelFromS3OutputPath(trainingJobDescription.OutputDataConfig.S3OutputPath)
+    console.log(`Got projectName ${projectName} model ${model} from S3OutputPath`)
 
     console.log(`Creating Model ${trainingJobName}`);
     return sagemaker.createModel(params).promise().then((response) => {
@@ -814,4 +820,9 @@ function delay(t, v) {
    return new Promise(function(resolve) { 
        setTimeout(resolve.bind(null, v), t)
    });
+}
+
+function sagemakerBackoff(retryCount) {
+  // linear backoff because of 5 minute limit on lambda
+  return 1000 + Math.floor(Math.random() * 2000)
 }
