@@ -1,4 +1,4 @@
-service: improve-v3 # !!! REPLACE WITH GLOBALLY UNIQUE SERVICE NAME FOR THIS DEPLOYMENT
+service: improve-v3
 custom: 
   firehoseS3ObjectCreatedSns: arn:aws:sns:us-west-2:117097735164:improve-v3-resources-${opt:stage, self:provider.stage}-FirehoseS3ObjectCreated
 provider:

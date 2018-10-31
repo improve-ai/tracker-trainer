@@ -16,7 +16,6 @@ const sagemaker = new AWS.SageMaker({ maxRetries: 100, retryDelayOptions: { cust
 const LOG_PROBABILITY = .1;
 const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
 
-
 function setup(event, context, shouldLog) {
   /* Set callbackWaitsForEmptyEventLoop=false to allow choose() to return a response
      immediately while the firehose payload is sent in the background.  According
@@ -531,9 +530,8 @@ module.exports.deployUpdatedModels = function(event, context, cb) {
     }
     
     return Promise.all(promises)
-  }).then((trainingJobDescriptions) => {
-    console.log(JSON.stringify(trainingJobDescriptions));
-    //return createModel()
+  }).then((results) => {
+    console.log(results);
   })
 
 }
@@ -565,9 +563,7 @@ function maybeCreateOrUpdateEndpointForTrainingJob(trainingJobName) {
     }
     
     let [projectName, model] = getProjectNameAndModelFromS3OutputPath(trainingJobDescription.OutputDataConfig.S3OutputPath)
-    console.log(`Got projectName ${projectName} model ${model} from S3OutputPath`)
-
-    console.log(`Creating Model ${trainingJobName}`);
+    console.log(`Attempting to Create Model ${trainingJobName}`);
     return sagemaker.createModel(params).promise().then((response) => {
       if (response.ModelArn) {
         return [projectName, model, trainingJobName]; // trainingJobName is the ModelName
@@ -626,7 +622,7 @@ function maybeCreateOrUpdateEndpointForTrainingJob(trainingJobName) {
       };
   
       console.log(`Updating Endpoint ${EndpointName} EndpointConfigName ${EndpointConfigName}`)
-      sagemaker.updateEndpoint(params).promise().then((result) => {
+      return sagemaker.updateEndpoint(params).promise().then((result) => {
         console.log(result);
       });
       
@@ -644,8 +640,9 @@ function getEndpointName(projectName, model) {
 }
 
 function getTrainingJobName(projectName, model) {
+  
   // every single training job must have a unique name per AWS account
-  return generateAlphaNumericDash63Name(`${process.env.STAGE}-${model}-${projectName}-${process.env.SERVICE}-${uuidv4()}`)
+  return `${getAlphaNumeric(process.env.STAGE).substring(0,5)}-${getAlphaNumeric(projectName).substring(0,12)}-${getAlphaNumeric(model).substring(0,16)}-${dateFormat.asString("yyyyMMddhhmmss",new Date())}-${uuidv4().slice(-12)}`
 }
 
 /**
@@ -658,12 +655,26 @@ function generateAlphaNumericDash63Name(name) {
   }
   
   let hashPart = shajs('sha256').update(name).digest('base64').replace(/[\W_]+/g,'').substring(0,24); // remove all non-alphanumeric (+=/) then truncate to 144 bits
-  let namePart = name.replace(/[\W_]+/g,'-').substring(0,63-hashPart.length-2)+'-'; // replace all non-alphanumeric with - and truncate to the proper length
+  let namePart = getAlphaNumericDash(name).substring(0,63-hashPart.length-2)+'-'; // replace all non-alphanumeric with - and truncate to the proper length
   let result = namePart + hashPart;
   while (result.startsWith('-')) { // can't start with -
     result = result.substring(1);
   }
   return result;
+}
+
+/**
+ * replace non-alphanumeric and dash with dash
+ */
+function getAlphaNumericDash(s) {
+  return s.replace(/[\W_]+/g,'-')
+}
+
+/**
+ * remove all non-alphanumeric
+ */
+function getAlphaNumeric(s) {
+  return s.replace(/\W/g, '')
 }
 
 function getS3KeyPrefix(recordType, projectName, model) {
