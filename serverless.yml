@@ -42,7 +42,7 @@ provider:
 
 functions:
   choose:
-    handler: improve.choose
+    handler: api.choose
     events:
       - http:
           path: choose
@@ -50,7 +50,7 @@ functions:
           cors: true
           private: true
   using:
-    handler: improve.using
+    handler: api.using
     events:
       - http:
           path: using
@@ -58,7 +58,7 @@ functions:
           cors: true
           private: true
   rewards:
-    handler: improve.rewards
+    handler: api.rewards
     events:
       - http:
           path: rewards
@@ -71,12 +71,12 @@ functions:
     events:
       - sns: ${self:custom.firehoseS3ObjectCreatedSns}
   dispatchTrainingJobs:
-    handler: improve.dispatchTrainingJobs
+    handler: api.dispatchTrainingJobs
     timeout: 300
     events:
       - schedule: rate(5 minutes)
   deployUpdatedModels:
-    handler: improve.deployUpdatedModels
+    handler: api.deployUpdatedModels
     timeout: 300
     events:
       - schedule: rate(1 minute)
