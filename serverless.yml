@@ -66,7 +66,7 @@ functions:
           cors: true
           private: true
   unpackFirehose:
-    handler: improve.unpackFirehose
+    handler: unpack_firehose.unpackFirehose
     timeout: 300
     events:
       - sns: ${self:custom.firehoseS3ObjectCreatedSns}
