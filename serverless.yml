@@ -74,7 +74,7 @@ functions:
     handler: api.dispatchTrainingJobs
     timeout: 300
     events:
-      - schedule: rate(5 minutes)
+      - schedule: rate(1 day)
   deployUpdatedModels:
     handler: api.deployUpdatedModels
     timeout: 300
