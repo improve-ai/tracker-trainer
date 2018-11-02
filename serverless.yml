@@ -4,17 +4,17 @@ custom:
 provider:
   name: aws
   runtime: nodejs6.10
-  region: us-west-2
+  region: us-east-2
   timeout: 6
   memorySize: 192
   environment:  
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
-    TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/decision_service
+    TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/decision_service
     TRAINING_INSTANCE_TYPE: ml.m5.large
     TRAINING_VOLUME_SIZE_IN_GB: 50
     TRAINING_MAX_RUNTIME_IN_SECONDS: 86400 # 1 day
-    HOSTING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/decision_service
+    HOSTING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/decision_service
     HOSTING_INSTANCE_TYPE: ml.t2.medium
     HOSTING_INITIAL_INSTANCE_COUNT: 1 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
     TRAINING_ROLE_ARN: arn:aws:iam::117097735164:role/service-role/AmazonSageMaker-ExecutionRole-20181021T151698
@@ -71,12 +71,12 @@ functions:
     events:
       - sns: ${self:custom.firehoseS3ObjectCreatedSns}
   dispatchTrainingJobs:
-    handler: api.dispatchTrainingJobs
+    handler: train_deploy.dispatchTrainingJobs
     timeout: 300
     events:
       - schedule: rate(5 minutes)
   deployUpdatedModels:
-    handler: api.deployUpdatedModels
+    handler: train_deploy.deployUpdatedModels
     timeout: 300
     events:
       - schedule: rate(1 minute)
