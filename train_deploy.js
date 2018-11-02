@@ -244,8 +244,6 @@ function maybeCreateOrUpdateEndpointForTrainingJob(trainingJobName) {
   });
 }
 
-
-
 function listSomeTrainingJobs(MaxResults) {
   let params = {
     LastModifiedTimeAfter: new Date(new Date().getTime() - ONE_HOUR_IN_MILLIS),
@@ -265,7 +263,7 @@ function listSomeTrainingJobs(MaxResults) {
 }
 
 
-function listAllTrainingJobs(arr, NextToken) {
+function listRecentCompletedTrainingJobs(arr, NextToken) {
   console.log(`listing training jobs${NextToken ? " at position "+NextToken: ""}`)
 
   if (!arr) arr=[];
@@ -294,7 +292,7 @@ function listAllTrainingJobs(arr, NextToken) {
       arr = arr.concat(result.TrainingJobSummaries);
       
       if (result.NextToken) {
-        return listAllTrainingJobs(arr, result.NextToken)
+        return listRecentCompletedTrainingJobs(arr, result.NextToken)
       } else {
         return arr;
       }
@@ -356,7 +354,7 @@ function generateAlphaNumericDash63Name(name) {
 }
 
 /**
- * replace non-alphanumeric and dash with dash
+ * replace non-alphanumeric with dash (which passes through dashes)
  */
 function getAlphaNumericDash(s) {
   return s.replace(/[\W_]+/g,'-')
@@ -395,8 +393,6 @@ function pluckLastPrefixPart(arr) {
     return item.split('/').slice(-2)[0] // split and grab to second to last item
   })
 }
-
-
 
 // from https://stackoverflow.com/questions/39538473/using-settimeout-on-promise-chain
 function delay(t, v) {

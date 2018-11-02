@@ -1,35 +1,43 @@
-service: improve-v3
-custom: 
-  firehoseS3ObjectCreatedSns: arn:aws:sns:us-west-2:117097735164:improve-v3-resources-${opt:stage, self:provider.stage}-FirehoseS3ObjectCreated
+service: improve-v4
 provider:
   name: aws
-  runtime: nodejs6.10
   region: us-east-2
+  runtime: nodejs6.10
   timeout: 6
-  memorySize: 192
+  memorySize: 192 # increase to improve API performance
   environment:  
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
-    TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/decision_service
-    TRAINING_INSTANCE_TYPE: ml.m5.large
-    TRAINING_VOLUME_SIZE_IN_GB: 50
+    #
+    # Customize your deployment here:
+    #
+    TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/decision_service # Scalable Decision Service image using XGBoost
+    # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/bandit # Multi-Armed Bandit image for Thompson Sampling/Bayesian Bandits and Epsilon Greedy
+    # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/ethical_dynamic_pricing # Ethical Dynamic Pricing image
+    # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/content_recommendation # Content recommendation engine & algorithmic news feeds
+    # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/game_optimization # Optimizes game balancing and loot drop tables for increased engagement
+    TRAINING_INSTANCE_TYPE: ml.m5.large # choose an instance type with enough memory to hold the entire training set
+    TRAINING_VOLUME_SIZE_IN_GB: 50 # must be at least 2x the training data size
     TRAINING_MAX_RUNTIME_IN_SECONDS: 86400 # 1 day
-    HOSTING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/decision_service
     HOSTING_INSTANCE_TYPE: ml.t2.medium
-    HOSTING_INITIAL_INSTANCE_COUNT: 1 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
-    TRAINING_ROLE_ARN: arn:aws:iam::117097735164:role/service-role/AmazonSageMaker-ExecutionRole-20181021T151698
-    FIREHOSE_DELIVERY_STREAM_NAME: ${self:service}-resources-${opt:stage, self:provider.stage}-firehose
-    RECORDS_BUCKET: ${self:service}-resources-${opt:stage, self:provider.stage}-records
-    MODELS_BUCKET: ${self:service}-resources-${opt:stage, self:provider.stage}-models
+    HOSTING_INITIAL_INSTANCE_COUNT: 2 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
+    # 
+    # End customization
+    #
+    HOSTING_IMAGE: ${self:provider.environment.TRAINING_IMAGE}
+    TRAINING_ROLE_ARN: #{sagemakerExecutionRole}
+    FIREHOSE_DELIVERY_STREAM_NAME: #{V4Firehose}
+    RECORDS_BUCKET: #{RecordsS3Bucket}
+    MODELS_BUCKET: #{ModelsS3Bucket}
   iamRoleStatements: 
     - Effect: Allow
       Action:
         - "firehose:*"
-      Resource: "arn:aws:firehose:*:*:deliverystream/${self:provider.environment.FIREHOSE_DELIVERY_STREAM_NAME}"
+      Resource: "arn:aws:firehose:*:*:deliverystream/#{V4Firehose}"
     - Effect: Allow
       Action:
         - "s3:*"
-      Resource: 'arn:aws:s3:::${self:service}-resources-${opt:stage, self:provider.stage}*'
+      Resource: 'arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-${self:provider.region}-#{AWS::AccountId}*'
     - Effect: Allow
       Action:
         - "sagemaker:*"
@@ -37,7 +45,7 @@ provider:
     - Effect: Allow
       Action:
         - "iam:PassRole"
-      Resource: "arn:aws:iam::*:role/*" # Resource: "arn:aws:iam::ACCOUNT_NUMBER:role/service-role/SAGEMAKER_SERVICE_ROLE"
+      Resource: #{sagemakerExecutionRole}
 
 
 functions:
@@ -69,14 +77,145 @@ functions:
     handler: unpack_firehose.unpackFirehose
     timeout: 300
     events:
-      - sns: ${self:custom.firehoseS3ObjectCreatedSns}
+      - sns: #{FirehoseS3ObjectCreatedSnsTopic}
   dispatchTrainingJobs:
     handler: train_deploy.dispatchTrainingJobs
     timeout: 300
     events:
-      - schedule: rate(1 day)
+      - schedule: rate(15 minutes)
   deployUpdatedModels:
     handler: train_deploy.deployUpdatedModels
     timeout: 300
     events:
       - schedule: rate(1 minute)
+
+plugins:
+  - serverless-pseudo-parameters
+
+resources:
+  Resources:
+    FirehoseToS3Role:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: ${self:service}-${opt:stage, self:provider.stage}-FirehoseToS3Role
+        AssumeRolePolicyDocument:
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - firehose.amazonaws.com
+            Action:
+            - sts:AssumeRole
+        Policies:
+        - PolicyName: FirehoseToS3Policy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                - s3:AbortMultipartUpload
+                - s3:GetBucketLocation
+                - s3:GetObject
+                - s3:ListBucket
+                - s3:ListBucketMultipartUploads
+                - s3:PutObject
+                Resource: '*'
+    SagemakerExecutionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: ${self:service}-${opt:stage, self:provider.stage}-SagemakerExecutionRole
+        AssumeRolePolicyDocument:
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - firehose.amazonaws.com
+            Action:
+            - sts:AssumeRole
+        ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+        Policies:
+        - PolicyName: SagemakerExecutionPolicy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                - s3:GetObject
+                - s3:DeleteObject
+                - s3:ListBucket
+                - s3:PutObject
+                Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-#{AWS::AccountId}*"
+    FirehoseS3ObjectCreatedSnsTopic:
+      Type: 'AWS::SNS::Topic'
+      Properties:
+        TopicName: ${self:service}-${opt:stage, self:provider.stage}-FirehoseS3ObjectCreated
+    FirehoseS3ObjectCreatedSnsTopicPolicy:
+      Type: 'AWS::SNS::TopicPolicy'
+      Properties:
+        Topics:
+          - 
+            Ref: FirehoseS3ObjectCreatedSnsTopic
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: 'sns:Publish'
+              Resource:
+                Ref: FirehoseS3ObjectCreatedSnsTopic
+              Principal:
+                AWS: '*'
+    FirehoseS3Bucket:
+      Type: 'AWS::S3::Bucket'
+      DeletionPolicy: Retain
+      DependsOn: FirehoseS3ObjectCreatedSnsTopic
+      Properties:
+        BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose
+        NotificationConfiguration:
+          TopicConfigurations:
+            - Topic:
+                Ref: FirehoseS3ObjectCreatedSnsTopic
+              Event: 's3:ObjectCreated:*'
+    V4Firehose:
+      Type: AWS::KinesisFirehose::DeliveryStream
+      Properties:
+        DeliveryStreamName: ${self:service}-${opt:stage, self:provider.stage}-firehose
+        S3DestinationConfiguration:
+          BucketARN:
+            Fn::Join:
+            - ''
+            - - 'arn:aws:s3:::'
+              - Ref: FirehoseS3Bucket
+          BufferingHints:
+            IntervalInSeconds: "900"
+            SizeInMBs: "128"
+          CompressionFormat: "GZIP"
+          RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
+    RecordsS3Bucket:
+      Type: 'AWS::S3::Bucket'
+      DeletionPolicy: Retain
+      Properties:
+        BucketName: ${self:service}-${opt:stage, self:provider.stage}-records
+    ModelsS3Bucket:
+      Type: 'AWS::S3::Bucket'
+      DeletionPolicy: Retain
+      Properties:
+        BucketName: ${self:service}-${opt:stage, self:provider.stage}-models
+
+  Outputs:
+    V4Firehose:
+      Value:
+        Ref: V4Firehose
+    FirehoseS3Bucket:
+      Value: 
+        Ref: FirehoseS3Bucket
+    RecordsS3Bucket:
+      Value: 
+        Ref: RecordsS3Bucket
+    ModelsS3Bucket:
+      Value: 
+        Ref: ModelsS3Bucket
+    FirehoseS3ObjectCreatedSnsTopic:
+      Value: 
+        Ref: FirehoseS3ObjectCreatedSnsTopic
+    SagemakerExecutionRole:
+      Value:
+        Ref: SagemakerExecutionRole

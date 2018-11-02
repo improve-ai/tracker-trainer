@@ -1,16 +1,13 @@
 'use strict';
 
 const AWS = require('aws-sdk');
-const zlib = require('zlib');
-const es = require('event-stream');
 const uuidv4 = require('uuid/v4');
 const _ = require('lodash');
+const firehose = new AWS.Firehose();
+const sagemakerRuntime = new AWS.SageMakerRuntime();
 
 const unpack_firehose = require("./unpack_firehose.js")
 const train_deploy = require("./train_deploy.js")
-
-const firehose = new AWS.Firehose();
-const sagemakerRuntime = new AWS.SageMakerRuntime();
 
 const LOG_PROBABILITY = .1;
 
