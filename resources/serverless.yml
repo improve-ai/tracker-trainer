@@ -1,7 +1,9 @@
-service: improve-v3-resources
+service: improve-v4-resources
 provider:
   name: aws
-  region: us-west-2
+  region: us-east-2
+plugins:
+  - serverless-pseudo-parameters
 resources:
   Resources:
     FirehoseToS3Role:
@@ -29,6 +31,31 @@ resources:
                 - s3:ListBucketMultipartUploads
                 - s3:PutObject
                 Resource: '*'
+    SagemakerExecutionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: ${self:service}-${opt:stage, self:provider.stage}-SagemakerExecutionRole
+        AssumeRolePolicyDocument:
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - firehose.amazonaws.com
+            Action:
+            - sts:AssumeRole
+        ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+        Policies:
+        - PolicyName: SagemakerExecutionPolicy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                - s3:GetObject
+                - s3:DeleteObject
+                - s3:ListBucket
+                - s3:PutObject
+                Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-#{AWS::AccountId}*"
     FirehoseS3ObjectCreatedSnsTopic:
       Type: 'AWS::SNS::Topic'
       Properties:
@@ -53,13 +80,13 @@ resources:
       DeletionPolicy: Retain
       DependsOn: FirehoseS3ObjectCreatedSnsTopic
       Properties:
-        BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose
+        BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose-#{AWS::AccountId}
         NotificationConfiguration:
           TopicConfigurations:
             - Topic:
                 Ref: FirehoseS3ObjectCreatedSnsTopic
               Event: 's3:ObjectCreated:*'
-    V3Firehose:
+    V4Firehose:
       Type: AWS::KinesisFirehose::DeliveryStream
       Properties:
         DeliveryStreamName: ${self:service}-${opt:stage, self:provider.stage}-firehose
@@ -78,14 +105,17 @@ resources:
       Type: 'AWS::S3::Bucket'
       DeletionPolicy: Retain
       Properties:
-        BucketName: ${self:service}-${opt:stage, self:provider.stage}-records
+        BucketName: ${self:service}-${opt:stage, self:provider.stage}-records-#{AWS::AccountId}
     ModelsS3Bucket:
       Type: 'AWS::S3::Bucket'
       DeletionPolicy: Retain
       Properties:
-        BucketName: ${self:service}-${opt:stage, self:provider.stage}-models
+        BucketName: ${self:service}-${opt:stage, self:provider.stage}-models-#{AWS::AccountId}
 
   Outputs:
+    V4Firehose:
+      Value:
+        Ref: V4Firehose
     FirehoseS3Bucket:
       Value: 
         Ref: FirehoseS3Bucket
@@ -98,3 +128,5 @@ resources:
     FirehoseS3ObjectCreatedSnsTopic:
       Value: 
         Ref: FirehoseS3ObjectCreatedSnsTopic
+    SagemakerExecutionRoleArn:
+      Value: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] } 
