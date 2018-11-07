@@ -43,6 +43,12 @@ resources:
               - firehose.amazonaws.com
             Action:
             - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+              - sagemaker.amazonaws.com
+            Action:
+            - sts:AssumeRole
         ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
         Policies:
@@ -55,7 +61,7 @@ resources:
                 - s3:DeleteObject
                 - s3:ListBucket
                 - s3:PutObject
-                Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-#{AWS::AccountId}*"
+                Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-*-#{AWS::AccountId}*"
     FirehoseS3ObjectCreatedSnsTopic:
       Type: 'AWS::SNS::Topic'
       Properties:

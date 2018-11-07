@@ -1,5 +1,5 @@
 # Improve.ai Reinforcement Learning Gateway for Amazon Sagemaker
-Deploy a scalable reinforcement learning or multi-armed bandit api in minutes.
+Deploy a scalable reinforcement learning or multi-armed bandit API in minutes.
 
 # reinforcement-learning-gateway
 Improve.ai Reinforcement Learning Gateway
@@ -10,8 +10,21 @@ npm install -g serverless
 # Install the dependencies from package.json
 npm install 
 
-# Deploy the service to a new dev stage
+# Deploy the s3 buckets and other service resources to us-east-2
+cd resources ; serverless deploy --stage dev ; cd ..
+
+# Deploy the service to a new dev stage in us-east-2
 serverless deploy --stage dev
+
+The output of the deployment will list the lambda endpoints for /choose, /using, and /track.
+
+Once the deployment is complete, you'll need to create a Usage Plan and API keys using AWS API Gateway.  You can also specify API keys in the serverless.yml, but this is not recommended for production.
+
+# /choose
+
+# /using
+
+# /rewards
 
 # Reducing Training Delay
 Factors that influence the time it takes new data to be deployed to a live model:

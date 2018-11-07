@@ -300,7 +300,7 @@ function listRecentCompletedTrainingJobs(arr, NextToken) {
 }
 
 function listAllProjects(arr, ContinuationToken) {
-  console.log(`listing all API keys${ContinuationToken ? " at position "+ContinuationToken: ""}`)
+  console.log(`listing all projects${ContinuationToken ? " at position "+ContinuationToken: ""}`)
 
   if (!arr) arr=[];
 
@@ -364,7 +364,7 @@ function getAlphaNumericDash(s) {
  * remove all non-alphanumeric
  */
 function getAlphaNumeric(s) {
-  return s.replace(/\W/g, '')
+  return s.replace(/[^A-Za-z0-9]/g, '')
 }
 
 function getRewardsS3KeyPrefix(projectName) {

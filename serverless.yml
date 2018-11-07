@@ -12,7 +12,7 @@ provider:
     TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/decision_service # Scalable Decision Service image using XGBoost
     # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/bandit # Multi-Armed Bandit image for Thompson Sampling/Bayesian Bandits and Epsilon Greedy
     # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/ethical_dynamic_pricing # Ethical Dynamic Pricing image
-    # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/content_recommendation # Content recommendation engine & algorithmic news feeds
+    # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/content_recommendation # Content Recommendation Engine & Algorithmic News Feeds
     # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/game_optimization # Optimizes game balancing and loot drop tables for increased engagement
     TRAINING_INSTANCE_TYPE: ml.m5.large # choose an instance type with enough memory to hold the entire training set
     TRAINING_VOLUME_SIZE_IN_GB: 50 # must be at least 2x the training data size
@@ -26,7 +26,7 @@ provider:
     TRAINING_ROLE_ARN: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
     FIREHOSE_DELIVERY_STREAM_NAME: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.V4Firehose}
     RECORDS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
-    MODELS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.ModelsS3Bucket} 
+    MODELS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.ModelsS3Bucket}
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
   iamRoleStatements: 
@@ -46,7 +46,6 @@ provider:
       Action:
         - "iam:PassRole"
       Resource: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
-
 
 functions:
   choose:
