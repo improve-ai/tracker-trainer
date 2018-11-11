@@ -248,20 +248,13 @@ function listRecentlyCompletedTrainingJobs(arr, NextToken) {
 
   if (!arr) arr=[];
 
-  let params;
-
-  if (NextToken) {
-    params = {
-      NextToken
-    };
-  } else {
-    params = {
-      LastModifiedTimeAfter: new Date(new Date().getTime() - ONE_HOUR_IN_MILLIS),
-      // NameContains: 'STRING_VALUE', FIX Scope to only improve.ai training jobs
-      StatusEquals: "Completed",
-      MaxResults: 100,
-    };
-  }
+  let params = {
+    LastModifiedTimeAfter: new Date(new Date().getTime() - ONE_HOUR_IN_MILLIS),
+    // NameContains: 'STRING_VALUE', FIX Scope to only improve.ai training jobs
+    StatusEquals: "Completed",
+    MaxResults: 100,
+    NextToken,
+  };
 
   return sagemaker.listTrainingJobs(params).promise().then(result => {
       console.log(result)
