@@ -73,7 +73,7 @@ function createTrainingJob(projectName, model) {
   var params = {
     TrainingJobName: getTrainingJobName(projectName, model),
     HyperParameters: {
-      /* '<ParameterKey>': ... */
+      objective: "binary:logistic",
     },
     AlgorithmSpecification: { /* required */
       TrainingImage: process.env.TRAINING_IMAGE,
@@ -130,8 +130,7 @@ function createTrainingJob(projectName, model) {
 
 module.exports.deployUpdatedModels = function(event, context, cb) {
 
-  // FIX problem with listTrainingJobs doesn't allow us to use LastModifiedAfterr
-  return listSomeTrainingJobs(20).then((trainingJobs) => {
+  return listRecentlyCompletedTrainingJobs().then((trainingJobs) => {
     let promises = []
     for (let i=0;i<trainingJobs.length;i++) {
       // delay to avoid throttling errors
@@ -244,26 +243,7 @@ function maybeCreateOrUpdateEndpointForTrainingJob(trainingJobName) {
   });
 }
 
-function listSomeTrainingJobs(MaxResults) {
-  let params = {
-    LastModifiedTimeAfter: new Date(new Date().getTime() - ONE_HOUR_IN_MILLIS),
-    // NameContains: 'STRING_VALUE', FIX Scope to only improve.ai training jobs
-    StatusEquals: "Completed",
-    MaxResults,
-  };
-
-  return sagemaker.listTrainingJobs(params).promise().then(result => {
-    console.log(JSON.stringify(result))
-    if (!result || !result.TrainingJobSummaries || !result.TrainingJobSummaries.length) {
-      return [];
-    } 
-    
-    return result.TrainingJobSummaries;
-  })
-}
-
-
-function listRecentCompletedTrainingJobs(arr, NextToken) {
+function listRecentlyCompletedTrainingJobs(arr, NextToken) {
   console.log(`listing training jobs${NextToken ? " at position "+NextToken: ""}`)
 
   if (!arr) arr=[];
@@ -292,7 +272,7 @@ function listRecentCompletedTrainingJobs(arr, NextToken) {
       arr = arr.concat(result.TrainingJobSummaries);
       
       if (result.NextToken) {
-        return listRecentCompletedTrainingJobs(arr, result.NextToken)
+        return listRecentlyCompletedTrainingJobs(arr, result.NextToken)
       } else {
         return arr;
       }
