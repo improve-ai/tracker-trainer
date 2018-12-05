@@ -243,19 +243,19 @@ function maybeCreateOrUpdateEndpointForTrainingJob(trainingJobName) {
   });
 }
 
-function listRecentlyCompletedTrainingJobs(arr, NextToken) {
-  console.log(`listing training jobs${NextToken ? " at position "+NextToken: ""}`)
+function listRecentlyCompletedTrainingJobs(arr, params) {
+  console.log(`listing training jobs${params ? " with params "+params: ""}`)
 
   if (!arr) arr=[];
 
-  let params = {
-    LastModifiedTimeAfter: new Date(new Date().getTime() - ONE_HOUR_IN_MILLIS),
-    // NameContains: 'STRING_VALUE', FIX Scope to only improve.ai training jobs
-    StatusEquals: "Completed",
-    MaxResults: 100,
-    NextToken,
-  };
-
+  if (!params) {
+    params = {
+      LastModifiedTimeAfter: new Date(new Date().getTime() - ONE_HOUR_IN_MILLIS),
+      // NameContains: 'STRING_VALUE', FIX Scope to only improve.ai training jobs
+      StatusEquals: "Completed",
+      MaxResults: 100,
+    };
+  }
   return sagemaker.listTrainingJobs(params).promise().then(result => {
       console.log(result)
       if (!result || !result.TrainingJobSummaries || !result.TrainingJobSummaries.length) {
@@ -265,7 +265,8 @@ function listRecentlyCompletedTrainingJobs(arr, NextToken) {
       arr = arr.concat(result.TrainingJobSummaries);
       
       if (result.NextToken) {
-        return listRecentlyCompletedTrainingJobs(arr, result.NextToken)
+        params["NextToken"] = result.NextToken
+        return listRecentlyCompletedTrainingJobs(arr, params)
       } else {
         return arr;
       }
