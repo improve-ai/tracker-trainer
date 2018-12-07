@@ -257,7 +257,6 @@ function listRecentlyCompletedTrainingJobs(arr, params) {
     };
   }
   return sagemaker.listTrainingJobs(params).promise().then(result => {
-      console.log(result)
       if (!result || !result.TrainingJobSummaries || !result.TrainingJobSummaries.length) {
           return arr;
       } 
