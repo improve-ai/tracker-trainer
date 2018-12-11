@@ -9,10 +9,9 @@ provider:
     #
     # Customize your deployment here:
     #
-    # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/decision_service # Scalable Decision Service image using XGBoost
-    TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/multi_armed_bandit # Multi-Armed Bandit image for Thompson Sampling/Bayesian Bandits and Epsilon Greedy
+    TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/decision_service # Scalable Decision Service image using XGBoost
+    # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/multi_armed_bandit # Multi-Armed Bandit image for Thompson Sampling/Bayesian Bandits and Epsilon Greedy
     # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/dynamic_pricing # Dynamic Pricing image
-    # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/content_recommendation # Content Recommendation Engine & Algorithmic News Feeds
     # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/game_tweaks # Optimizes game balancing and loot drop tables for increased engagement
     TRAINING_INSTANCE_TYPE: ml.m5.large # choose an instance type with enough memory to hold the entire training set
     TRAINING_VOLUME_SIZE_IN_GB: 50 # must be at least 2x the training data size

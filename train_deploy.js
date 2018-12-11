@@ -78,11 +78,12 @@ function createTrainingJob(projectName, model) {
     },
     AlgorithmSpecification: { /* required */
       TrainingImage: process.env.TRAINING_IMAGE,
-      TrainingInputMode: "File",
+      TrainingInputMode: "Pipe",
     },
     InputDataConfig: [ 
       {
         ChannelName: 'choose',
+        CompressionType: 'Gzip',
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
@@ -93,6 +94,7 @@ function createTrainingJob(projectName, model) {
       },
       {
         ChannelName: 'using',
+        CompressionType: 'Gzip',
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
@@ -103,6 +105,7 @@ function createTrainingJob(projectName, model) {
       },
       {
         ChannelName: 'rewards',
+        CompressionType: 'Gzip',
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
