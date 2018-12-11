@@ -74,7 +74,7 @@ function createTrainingJob(projectName, model) {
     TrainingJobName: getTrainingJobName(projectName, model),
     HyperParameters: {
       objective: "binary:logistic",
-      max_age: 60 * 60 * 24 * 90
+      max_age: "7776000" // 90 days
     },
     AlgorithmSpecification: { /* required */
       TrainingImage: process.env.TRAINING_IMAGE,
