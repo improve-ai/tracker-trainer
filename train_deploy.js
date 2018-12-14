@@ -74,24 +74,13 @@ function createTrainingJob(projectName, model) {
     TrainingJobName: getTrainingJobName(projectName, model),
     HyperParameters: {
       objective: "binary:logistic",
-      max_age: "7776000" // 90 days
+      max_age: "4000000" // "7776000" // 90 days
     },
     AlgorithmSpecification: { /* required */
       TrainingImage: process.env.TRAINING_IMAGE,
       TrainingInputMode: "Pipe",
     },
     InputDataConfig: [ 
-      {
-        ChannelName: 'choose',
-        CompressionType: 'Gzip',
-        DataSource: { 
-          S3DataSource: { 
-            S3DataType:"S3Prefix",
-            S3Uri: recordsS3PrefixBase+getChooseS3KeyPrefix(projectName, model), 
-            S3DataDistributionType: "FullyReplicated",
-          }
-        },
-      },
       {
         ChannelName: 'using',
         CompressionType: 'Gzip',
