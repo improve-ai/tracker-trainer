@@ -80,7 +80,7 @@ functions:
     handler: train_deploy.dispatchTrainingJobs
     timeout: 300
     events:
-      - schedule: rate(1 hour)
+      - schedule: rate(12 hours)
   deployUpdatedModels:
     handler: train_deploy.deployUpdatedModels
     timeout: 300

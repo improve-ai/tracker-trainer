@@ -10,6 +10,7 @@ const s3 = new AWS.S3();
 const sagemaker = new AWS.SageMaker({ maxRetries: 100, retryDelayOptions: { customBackoff: sagemakerBackoff }});
 
 const unpack_firehose = require("./unpack_firehose.js")
+const config = require("./config.js")
 
 const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
 
@@ -70,12 +71,14 @@ function createTrainingJob(projectName, model) {
   let recordsS3PrefixBase = "s3://"+process.env.RECORDS_BUCKET+'/'
   let modelsS3PrefixBase = "s3://"+process.env.MODELS_BUCKET+'/'
   
+  let hyperparameters = config.hyperparameters.default;
+  if (projectName in config.hyperparameters && model in config.hyperparameters[projectName]) {
+    hyperparameters = Object.assign(hyperparameters, config.hyperparameters[projectName][model])
+  }
+  
   var params = {
     TrainingJobName: getTrainingJobName(projectName, model),
-    HyperParameters: {
-      objective: "binary:logistic",
-      max_age: "4000000" // "7776000" // 90 days
-    },
+    HyperParameters: hyperparameters,
     AlgorithmSpecification: { /* required */
       TrainingImage: process.env.TRAINING_IMAGE,
       TrainingInputMode: "Pipe",
