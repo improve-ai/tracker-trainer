@@ -1,11 +1,11 @@
 service: improve-v4
 provider:
   name: aws
-  region: us-east-2
+  region: us-west-2
   runtime: nodejs6.10
   timeout: 6
   memorySize: 192
-  environment:  
+  environment:
     #
     # Customize your deployment here:
     #
