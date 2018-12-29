@@ -51,7 +51,7 @@ module.exports.unpackFirehose = function(event, context, cb) {
                     let requestRecord = JSON.parse(line)
 
                     if (!requestRecord || !requestRecord.project_name) {
-                        console.log(`WARN: no project_name for requestRecord ${requestRecord}`)
+                        console.log(`WARN: no project_name for ${line}`)
                         return;
                     }
                     
@@ -63,12 +63,12 @@ module.exports.unpackFirehose = function(event, context, cb) {
                     let recordType = requestRecord.record_type;
                     
                     if (!recordType) {
-                        console.log(`WARN: no record_type for requestRecord ${requestRecord}`)
+                        console.log(`WARN: no record_type for ${line}`)
                         return;
                     }
                     
                     if (!(recordType === "choose" || recordType === "using" || recordType === "rewards")) {
-                        console.log(`WARN: invalid record_type for requestRecord ${requestRecord}`)
+                        console.log(`WARN: invalid record_type for ${line}`)
                         return;
                     }
                     
@@ -77,7 +77,7 @@ module.exports.unpackFirehose = function(event, context, cb) {
                     if (recordType === "choose" || recordType === "using") {
                       model = requestRecord.model;
                       if (!model) {
-                        console.log(`WARN: no model for requestRecord ${requestRecord}`)
+                        console.log(`WARN: no model for ${line}`)
                         return;
                       }
                     }
