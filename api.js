@@ -42,8 +42,8 @@ function setup(event, context, shouldLog) {
 }
 
 module.exports.choose = function(event, context, cb) {
-  //let logging = checkShouldLog();
-  let logging = true;
+  let logging = checkShouldLog();
+
   consoleTime('choose', logging);
   let receivedAt = new Date();
 
