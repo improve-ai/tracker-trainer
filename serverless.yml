@@ -9,7 +9,7 @@ provider:
     #
     # Customize your deployment here:
     #
-    TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/decision_service:latest # Scalable Decision Service image using XGBoost
+    TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/decision_service:latest # Scalable Decision Service image using XGBoost
     # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/multi_armed_bandit:latest # Multi-Armed Bandit image for Thompson Sampling/Bayesian Bandits and Epsilon Greedy
     # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/dynamic_pricing # Dynamic Pricing image
     # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/game_tweaks # Optimizes game balancing and loot drop tables for increased engagement
@@ -17,7 +17,7 @@ provider:
     TRAINING_VOLUME_SIZE_IN_GB: 50 # must be at least 2x the training data size
     TRAINING_MAX_RUNTIME_IN_SECONDS: 86400 # 1 day
     HOSTING_INSTANCE_TYPE: ml.t2.medium
-    HOSTING_INITIAL_INSTANCE_COUNT: 1 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
+    HOSTING_INITIAL_INSTANCE_COUNT: 3 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
     # 
     # End customization
     #
