@@ -6,7 +6,7 @@ module.exports = {
         },
         lRgX7U2VPZ6I1DUaSUr6D8jH4iFju3MY7i3p9mbq: {
             "messages-1.0": {
-                max_age: "1200000" //"1728000" // 20 days
+                max_age: "1500000" //"1728000" // 20 days
             } 
         },
         lF8yFNYXiT5fIlBHQMgbY3EtPUfbjJmS1OskfqiT: {
