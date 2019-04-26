@@ -17,7 +17,7 @@ provider:
     TRAINING_VOLUME_SIZE_IN_GB: 50 # must be at least 2x the training data size
     TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days , 86400 # 1 day
     HOSTING_INSTANCE_TYPE: ml.t2.medium
-    HOSTING_INITIAL_INSTANCE_COUNT: 3 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
+    HOSTING_INITIAL_INSTANCE_COUNT: 5 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
     # 
     # End customization
     #
