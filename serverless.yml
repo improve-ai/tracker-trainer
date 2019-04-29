@@ -73,6 +73,7 @@ functions:
           private: true
   unpackFirehose:
     handler: unpack_firehose.unpackFirehose
+    memorySize: 1024
     timeout: 300
     events:
       - sns: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3ObjectCreatedSnsTopic}
