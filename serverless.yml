@@ -13,7 +13,7 @@ provider:
     # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/multi_armed_bandit:latest # Multi-Armed Bandit image for Thompson Sampling/Bayesian Bandits and Epsilon Greedy
     # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/dynamic_pricing # Dynamic Pricing image
     # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/game_tweaks # Optimizes game balancing and loot drop tables for increased engagement
-    TRAINING_INSTANCE_TYPE: ml.m5.xlarge # choose an instance type with enough memory to hold the entire training set
+    TRAINING_INSTANCE_TYPE: ml.m5.2xlarge # choose an instance type with enough memory to hold the entire training set
     TRAINING_VOLUME_SIZE_IN_GB: 200 # must be at least 2x the training data size
     TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days , 86400 # 1 day
     HOSTING_INSTANCE_TYPE: ml.t2.medium
