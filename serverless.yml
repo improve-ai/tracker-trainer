@@ -15,7 +15,7 @@ provider:
     # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/game_tweaks # Optimizes game balancing and loot drop tables for increased engagement
     TRAINING_INSTANCE_TYPE: ml.m5.2xlarge # choose an instance type with enough memory to hold the entire training set
     TRAINING_VOLUME_SIZE_IN_GB: 200 # must be at least 2x the training data size
-    TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days , 86400 # 1 day
+    TRAINING_MAX_RUNTIME_IN_SECONDS: 345600 # 4 days , 86400 # 1 day
     HOSTING_INSTANCE_TYPE: ml.t2.medium
     HOSTING_INITIAL_INSTANCE_COUNT: 20 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
     # 
