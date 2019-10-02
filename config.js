@@ -11,7 +11,7 @@ module.exports = {
         },
         lF8yFNYXiT5fIlBHQMgbY3EtPUfbjJmS1OskfqiT: {
             "messages-1.0": {
-                
+                max_age: "15552000" // 180 days
             } 
         }
     }
