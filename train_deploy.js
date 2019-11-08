@@ -184,7 +184,7 @@ function maybeCreateOrUpdateEndpointForTrainingJob(trainingJobName) {
       EndpointConfigName: trainingJobName,
       ProductionVariants: [ 
         {
-          InitialInstanceCount: process.env.HOSTING_INITIAL_INSTANCE_COUNT,
+          InitialInstanceCount: config.hyperparameters[projectName][model].hosting_initial_instance_count || config.hyperparameters.default.hosting_initial_instance_count || process.env.HOSTING_INITIAL_INSTANCE_COUNT,
           InstanceType: process.env.HOSTING_INSTANCE_TYPE,
           ModelName: trainingJobName,
           VariantName: "A",

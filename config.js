@@ -6,12 +6,14 @@ module.exports = {
         },
         lRgX7U2VPZ6I1DUaSUr6D8jH4iFju3MY7i3p9mbq: {
             "messages-1.0": {
-                max_age: "4320000" // 50 days
+                max_age: "4320000", // 50 days
+                hosting_initial_instance_count: 8
             } 
         },
         lF8yFNYXiT5fIlBHQMgbY3EtPUfbjJmS1OskfqiT: {
             "messages-1.0": {
-                max_age: "15552000" // 180 days
+                max_age: "15552000", // 180 days
+                hosting_initial_instance_count: 2
             } 
         }
     }
