@@ -72,9 +72,12 @@ function createTrainingJob(projectName, model) {
   let modelsS3PrefixBase = "s3://"+process.env.MODELS_BUCKET+'/'
   
   let hyperparameters = config.hyperparameters.default;
+  
+  /* Disabling due to a type mismatch.  hyperparameters expects only strings
+  
   if (projectName in config.hyperparameters && model in config.hyperparameters[projectName]) {
     hyperparameters = Object.assign(hyperparameters, config.hyperparameters[projectName][model])
-  }
+  }*/
   
   var params = {
     TrainingJobName: getTrainingJobName(projectName, model),
