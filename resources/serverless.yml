@@ -1,4 +1,4 @@
-service: improve-v4-resources
+service: improve-v5-resources
 provider:
   name: aws
   region: us-west-2

@@ -1,6 +1,4 @@
-# Improve.ai Decision Service Gateway - Deploy Multi-Armed Bandits at Scale
-
-** This software is undergoing significant changes for the v5 release.  We do not recommend deploying v4 at this time. **
+# Improve.ai Decision Service Gateway
 
 # Install the Serverless Framework
 npm install -g serverless
@@ -8,13 +6,13 @@ npm install -g serverless
 # Install the dependencies from package.json
 npm install 
 
-# Deploy the s3 buckets and other service resources to us-east-2
-cd resources ; serverless deploy --stage dev ; cd ..
+# Deploy the s3 buckets and other service resources to us-west-2
+cd resources ; npm i serverless-pseudo-parameters; serverless deploy --stage dev ; cd ..
 
-# Deploy the service to a new dev stage in us-east-2
+# Deploy the service to a new dev stage in us-west-2
 serverless deploy --stage dev
 
-The output of the deployment will list the lambda endpoints for /choose, /using, and /track.
+The output of the deployment will list the lambda endpoints for /choose and /track.
 
 Once the deployment is complete, you'll need to create a Usage Plan and API keys using AWS API Gateway.  You can also specify API keys in the serverless.yml, but this is not recommended for production.
 
