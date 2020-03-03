@@ -8,6 +8,7 @@ const sagemakerRuntime = new AWS.SageMakerRuntime();
 
 const unpack_firehose = require("./unpack_firehose.js")
 const train_deploy = require("./train_deploy.js")
+const customize = require("./customize.js")
 
 const LOG_PROBABILITY = .1;
 
@@ -51,10 +52,10 @@ module.exports.choose = function(event, context, cb) {
   
   let body = JSON.parse(event.body);
   
-  let apiKey = event.requestContext.identity.apiKey;
+  let projectName = customize.getProjectName(event, context)
 
-  if (!apiKey) {
-    return sendErrorResponse(cb,"'x-api-key' HTTP header required");
+  if (!projectName) {
+    return sendErrorResponse(cb, "project name not configured");
   }
 
   if (!body.model) {
@@ -85,13 +86,13 @@ module.exports.choose = function(event, context, cb) {
   
   // send to firehose in parallel with sagemaker invoke
   body["record_type"] = "choose";
-  sendToFirehose(apiKey, body, receivedAt, logging).catch((error) =>
+  sendToFirehose(projectName, body, receivedAt, logging).catch((error) =>
     console.log(error)
   );
   
   var params = {
     Body: new Buffer(event.body),
-    EndpointName: train_deploy.getEndpointName(apiKey, body.model)
+    EndpointName: train_deploy.getEndpointName(projectName, body.model)
   };
   
   // Invoke the sagemaker endpoint
@@ -134,9 +135,9 @@ module.exports.using = function(event, context, cb) {
   
   let body = JSON.parse(event.body);
   
-  let apiKey = event.requestContext.identity.apiKey;
+  let projectName = customize.getProjectName()
 
-  if (!apiKey) {
+  if (!projectName) {
     return sendErrorResponse(cb,"'x-api-key' HTTP header required");
   }
   
@@ -160,7 +161,7 @@ module.exports.using = function(event, context, cb) {
   
   body["record_type"] = "using";
     
-  return sendToFirehose(apiKey, body, receivedAt, logging).then((result) => {
+  return sendToFirehose(projectName, body, receivedAt, logging).then((result) => {
     consoleTimeEnd('using', logging)
     return sendSuccessResponse(cb);
   }).catch(err =>{
@@ -180,9 +181,9 @@ module.exports.rewards = function(event, context, cb) {
   
   let body = JSON.parse(event.body);
   
-  let apiKey = event.requestContext.identity.apiKey;
+  let projectName = customize.getProjectName()
 
-  if (!apiKey) {
+  if (!projectName) {
     return sendErrorResponse(cb,"'x-api-key' HTTP header required");
   }
   
@@ -209,7 +210,7 @@ module.exports.rewards = function(event, context, cb) {
 
   body["record_type"] = "rewards";
   
-  return sendToFirehose(apiKey, body, receivedAt, logging).then((result) => {
+  return sendToFirehose(projectName, body, receivedAt, logging).then((result) => {
     consoleTimeEnd('rewards',logging)
     return sendSuccessResponse(cb);
   }).catch(err =>{

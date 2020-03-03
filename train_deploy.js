@@ -11,6 +11,7 @@ const sagemaker = new AWS.SageMaker({ maxRetries: 100, retryDelayOptions: { cust
 
 const unpack_firehose = require("./unpack_firehose.js")
 const config = require("./config.js")
+const customize = require("./customize.js")
 
 const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
 
@@ -18,53 +19,20 @@ module.exports.dispatchTrainingJobs = function(event, context, cb) {
 
   console.log(`dispatching training jobs`)
 
-  return listAllProjects().then(projectNames => {
-    let promises = []
-    
-    for (let i = 0; i < projectNames.length; i++) {
-      let projectName = projectNames[i]
-      let params = {
-        Bucket: process.env.RECORDS_BUCKET,
-        Delimiter: '/',
-        Prefix: `${projectName}/using/`
-      }
-      
-      console.log(`listing models for projectName ${projectName}`)
-      // not recursing, so up to 1000 models per projectName
-      promises.push(s3.listObjectsV2(params).promise().then(result => {
-        if (!result || !result.CommonPrefixes || !result.CommonPrefixes.length) {
-          console.log(`skipping projectName ${projectName}`)
-          return
-        }
-        
-        return [projectName, pluckLastPrefixPart(result.CommonPrefixes)]
-      }))
-    }
-  
-    return Promise.all(promises)
-  }).then(projectNamesAndModels => {
-    let promises = []
+  let promises = []
 
-    for (let i = 0; i < projectNamesAndModels.length; i++) {
-      if (!projectNamesAndModels[i]) {
-        continue;
-      }
-      let [projectName, models] = projectNamesAndModels[i];
-      for (let j = 0; j< models.length; j++) {
-        let model = models[j]
-        console.log(`creating training job for project ${projectName} model ${model}`)
-        promises.push(createTrainingJob(projectName, model))
-      }
+  let projectsToModels = customize.getProjectNamesToModelNamesMapping()
+  Object.keys(projectsToModels).forEach((projectName) => {
+    let models = projectsToModels[projectName]    
+    for (let j = 0; j < models.length; j++) {
+      let model = models[j]
+      console.log(`creating training job for project ${projectName} model ${model}`)
+      promises.push(createTrainingJob(projectName, model))
     }
-    
-    return Promise.all(promises)
-  }).then(results => {
-    return cb(null,'success')
-  }, err => {
-    return cb(err)
   })
-}
 
+  return Promise.all(promises)
+}
 
 function createTrainingJob(projectName, model) {
   
