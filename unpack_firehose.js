@@ -4,6 +4,7 @@ const AWS = require('aws-sdk');
 const zlib = require('zlib');
 const es = require('event-stream');
 const uuidv4 = require('uuid/v4');
+const shajs = require('sha.js')
 const dateFormat = require('date-format');
 const s3 = new AWS.S3();
 
@@ -12,7 +13,6 @@ module.exports.unpackFirehose = function(event, context, cb) {
   console.log(`processing event records from firehose bucket SNS event ${JSON.stringify(event)}`)
   
   let now = new Date()
-  let pathDatePart = dateFormat.asString("yyyy/MM/dd/hh", now)
   let filenameDatePart = dateFormat.asString("yyyy-MM-dd-hh-mm-ss",now)
   let uuidPart = uuidv4() // use the same uuid across the files for this unpacking
   
@@ -48,52 +48,40 @@ module.exports.unpackFirehose = function(event, context, cb) {
                     if (!line) {
                         return;
                     }
-                    let requestRecord = JSON.parse(line)
+                    let eventRecord = JSON.parse(line)
 
-                    if (!requestRecord || !requestRecord.project_name) {
-                        console.log(`WARN: no project_name for ${line}`)
+                    if (!eventRecord || !eventRecord.project_name) {
+                        console.log(`WARN: skipping record - no project_name in ${line}`)
                         return;
                     }
                     
-                    let projectName = requestRecord.project_name;
+                    if (!eventRecord.user_id) {
+                        console.log(`WARN: skipping record - no user_id in ${line}`)
+                        return;
+                    }
+                    
+                    let projectName = eventRecord.project_name;
                     
                     // delete project_name from requestRecord in case its sensitive
-                    delete requestRecord.project_name;
+                    delete eventRecord.project_name;
                     
-                    let recordType = requestRecord.record_type;
-                    
-                    if (!recordType) {
-                        console.log(`WARN: no record_type for ${line}`)
+                    // allow alphanumeric, underscore, dash, space, period
+                    if (!projectName.match(/^[\w\- .]+$/i)) {
+                        console.log(`WARN: skipping record - invalid project_name, not alphanumeric, underscore, dash, space, period ${line}`)
                         return;
                     }
                     
-                    if (!(recordType === "choose" || recordType === "using" || recordType === "rewards")) {
-                        console.log(`WARN: invalid record_type for ${line}`)
-                        return;
-                    }
-                    
-                    let model = null; // leave as null in case its a rewards record
-                    
-                    if (recordType === "choose" || recordType === "using") {
-                      model = requestRecord.model;
-                      if (!model) {
-                        console.log(`WARN: no model for ${line}`)
-                        return;
-                      }
-                    }
-                    
-                    // TODO double check projectName, model valid chars
-                    
-                    // projectName/recordType/(model/)yyyy/MM/dd/hh/projectName-recordType-(model-)yyyy-MM-dd-hh-mm-ss-uuid.gz
-                    let s3Key = module.exports.getS3KeyPrefix(recordType, projectName, model)+pathDatePart+"/"+
-                      `improve-v3-${projectName}-${recordType}-`+(model ? `${model}-` : "")+filenameDatePart+"-"+uuidPart+".gz"
+                    let hashedUserId = getHashedUserId(projectName, eventRecord.user_id);
+
+                    // projectName/histories/hashedUserId/improve-v5-pending-events-projectName-hashedUserId-yyyy-MM-dd-hh-mm-ss-uuid.gz
+                    let s3Key = `${projectName}/histories/${hashedUserId}/improve-v5-pending-events-${projectName}-${hashedUserId}-${filenameDatePart}-${uuidPart}.gz`
                     
                     let buffers = buffersByKey[s3Key]
                     if (!buffers) {
                       buffers = []
                       buffersByKey[s3Key] = buffers
                     }
-                    buffers.push(Buffer.from(JSON.stringify(requestRecord)+"\n"))
+                    buffers.push(Buffer.from(JSON.stringify(eventRecord)+"\n"))
 
                 } catch (err) {
                     console.log(`error ${err} skipping requestRecord`)
@@ -146,6 +134,6 @@ module.exports.unpackFirehose = function(event, context, cb) {
   })
 }
 
-module.exports.getS3KeyPrefix = (recordType, projectName, model) => {
-  return `${projectName}/${recordType}/`+(model ? `${model}/` : "")
+function getHashedUserId(projectName, userId) {
+    return shajs('sha256').update(projectName.length+":"+projectName+":"+userId).digest('base64').replace(/[\W_]+/g,'').substring(0,24); // remove all non-alphanumeric (+=/) then truncate to 144 bits
 }

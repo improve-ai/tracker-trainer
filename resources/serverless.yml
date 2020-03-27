@@ -103,7 +103,7 @@ resources:
             - - 'arn:aws:s3:::'
               - Ref: FirehoseS3Bucket
           BufferingHints:
-            IntervalInSeconds: "900"
+            IntervalInSeconds: "300"
             SizeInMBs: "128"
           CompressionFormat: "GZIP"
           RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }

@@ -10,7 +10,6 @@ const s3 = new AWS.S3();
 const sagemaker = new AWS.SageMaker({ maxRetries: 100, retryDelayOptions: { customBackoff: sagemakerBackoff }});
 
 const unpack_firehose = require("./unpack_firehose.js")
-const config = require("./config.js")
 const customize = require("./customize.js")
 
 const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
@@ -39,7 +38,7 @@ function createTrainingJob(projectName, model) {
   let recordsS3PrefixBase = "s3://"+process.env.RECORDS_BUCKET+'/'
   let modelsS3PrefixBase = "s3://"+process.env.MODELS_BUCKET+'/'
   
-  let hyperparameters = config.hyperparameters.default;
+  let hyperparameters = customize.hyperparameters.default;
   
   /* Disabling due to a type mismatch.  hyperparameters expects only strings
   
@@ -82,7 +81,7 @@ function createTrainingJob(projectName, model) {
       S3OutputPath: modelsS3PrefixBase+getModelsS3KeyPrefix(projectName, model), 
     },
     ResourceConfig: { 
-      InstanceCount: 1, 
+      InstanceCount: process.env.TRAINING_INSTANCE_COUNT, 
       InstanceType: process.env.TRAINING_INSTANCE_TYPE,
       VolumeSizeInGB: process.env.TRAINING_VOLUME_SIZE_IN_GB
     },
@@ -155,7 +154,7 @@ function maybeCreateOrUpdateEndpointForTrainingJob(trainingJobName) {
       EndpointConfigName: trainingJobName,
       ProductionVariants: [ 
         {
-          InitialInstanceCount: config.hyperparameters[projectName][model].hosting_initial_instance_count || config.hyperparameters.default.hosting_initial_instance_count || process.env.HOSTING_INITIAL_INSTANCE_COUNT,
+          InitialInstanceCount: customize.hyperparameters[projectName][model].hosting_initial_instance_count || customize.hyperparameters.default.hosting_initial_instance_count || process.env.HOSTING_INITIAL_INSTANCE_COUNT,
           InstanceType: process.env.HOSTING_INSTANCE_TYPE,
           ModelName: trainingJobName,
           VariantName: "A",
@@ -308,20 +307,25 @@ function getAlphaNumeric(s) {
 }
 
 function getRewardsS3KeyPrefix(projectName) {
-  return unpack_firehose.getS3KeyPrefix("rewards",projectName)
+  return getS3KeyPrefix("rewards",projectName)
 }
 
 function getUsingS3KeyPrefix(projectName, model) {
-  return unpack_firehose.getS3KeyPrefix("using",projectName, model)
+  return getS3KeyPrefix("using",projectName, model)
 }
 
 function getChooseS3KeyPrefix(projectName, model) {
-  return unpack_firehose.getS3KeyPrefix("choose",projectName, model)
+  return getS3KeyPrefix("choose",projectName, model)
 }
 
 function getModelsS3KeyPrefix(projectName, model) {
   return `${projectName}/${model}`
 }
+
+function getS3KeyPrefix(recordType, projectName, model) {
+  return `${projectName}/${recordType}/`+(model ? `${model}/` : "")
+}
+
 
 function getProjectNameAndModelFromS3OutputPath(S3OutputPath) {
   let parts = S3OutputPath.split('/');

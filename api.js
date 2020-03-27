@@ -126,6 +126,35 @@ module.exports.choose = function(event, context, cb) {
   })
 }
 
+module.exports.track = function(event, context, cb) {
+  let logging = checkShouldLog();
+  consoleTime('track', logging);
+  let receivedAt = new Date();
+  
+  setup(event, context, logging);
+  
+  let body = JSON.parse(event.body);
+  
+  let projectName = customize.getProjectName(event, context)
+
+  if (!projectName) {
+    return sendErrorResponse(cb,"project misconfigured or missing credentials")
+  }
+
+  if (!body || !body.user_id) {
+    return sendErrorResponse(cb,"the 'user_id' field is required")
+  }
+
+  return sendToFirehose(projectName, body, receivedAt, logging).then((result) => {
+    consoleTimeEnd('track', logging)
+    return sendSuccessResponse(cb);
+  }).catch(err =>{
+    consoleTimeEnd('track', logging)
+    console.log(err);
+    sendErrorResponse(cb,err);
+  });
+}
+
 module.exports.using = function(event, context, cb) {
   let logging = checkShouldLog();
   consoleTime('using', logging);
@@ -135,10 +164,10 @@ module.exports.using = function(event, context, cb) {
   
   let body = JSON.parse(event.body);
   
-  let projectName = customize.getProjectName()
+  let projectName = customize.getProjectName(event, context)
 
   if (!projectName) {
-    return sendErrorResponse(cb,"'x-api-key' HTTP header required");
+    return sendErrorResponse(cb,"project misconfigured or missing credentials");
   }
   
   // if there is no JSON body, just emit the model error
@@ -181,7 +210,7 @@ module.exports.rewards = function(event, context, cb) {
   
   let body = JSON.parse(event.body);
   
-  let projectName = customize.getProjectName()
+  let projectName = customize.getProjectName(event, context)
 
   if (!projectName) {
     return sendErrorResponse(cb,"'x-api-key' HTTP header required");
