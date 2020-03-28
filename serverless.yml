@@ -83,7 +83,10 @@ functions:
     memorySize: 1024
     timeout: 300
     events:
-      - sns: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3ObjectCreatedSnsTopic}
+      - s3:
+          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3Bucket}
+          event: s3:ObjectCreated:*
+          existing: true # the bucket is created in resources/serverless.yml so that it is retained upon deletion of this service
   dispatchTrainingJobs:
     handler: train_deploy.dispatchTrainingJobs
     timeout: 300

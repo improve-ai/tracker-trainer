@@ -62,36 +62,11 @@ resources:
                 - s3:ListBucket
                 - s3:PutObject
                 Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-*-#{AWS::AccountId}*"
-    FirehoseS3ObjectCreatedSnsTopic:
-      Type: 'AWS::SNS::Topic'
-      Properties:
-        TopicName: ${self:service}-${opt:stage, self:provider.stage}-FirehoseS3ObjectCreated
-    FirehoseS3ObjectCreatedSnsTopicPolicy:
-      Type: 'AWS::SNS::TopicPolicy'
-      Properties:
-        Topics:
-          - 
-            Ref: FirehoseS3ObjectCreatedSnsTopic
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action: 'sns:Publish'
-              Resource:
-                Ref: FirehoseS3ObjectCreatedSnsTopic
-              Principal:
-                AWS: '*'
     FirehoseS3Bucket:
       Type: 'AWS::S3::Bucket'
       DeletionPolicy: Retain
-      DependsOn: FirehoseS3ObjectCreatedSnsTopic
       Properties:
         BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose-#{AWS::AccountId}
-        NotificationConfiguration:
-          TopicConfigurations:
-            - Topic:
-                Ref: FirehoseS3ObjectCreatedSnsTopic
-              Event: 's3:ObjectCreated:*'
     V4Firehose:
       Type: AWS::KinesisFirehose::DeliveryStream
       Properties:
@@ -115,7 +90,7 @@ resources:
     ModelsS3ObjectCreatedSnsTopic:
       Type: 'AWS::SNS::Topic'
       Properties:
-        TopicName: ${self:service}-${opt:stage, self:provider.stage}-FirehoseS3ObjectCreated
+        TopicName: ${self:service}-${opt:stage, self:provider.stage}-ModelsS3ObjectCreated
     ModelsS3ObjectCreatedSnsTopicPolicy:
       Type: 'AWS::SNS::TopicPolicy'
       Properties:
@@ -164,9 +139,6 @@ resources:
     PublicModelsS3Bucket:
       Value: 
         Ref: PublicModelsS3Bucket
-    FirehoseS3ObjectCreatedSnsTopic:
-      Value: 
-        Ref: FirehoseS3ObjectCreatedSnsTopic
     ModelsS3ObjectCreatedSnsTopic:
       Value: 
         Ref: ModelsS3ObjectCreatedSnsTopic
