@@ -80,13 +80,25 @@ functions:
           private: true
   unpackFirehose:
     handler: unpack_firehose.unpackFirehose
-    memorySize: 1024
+    memorySize: 1024 # needs to be able to unpack the entire firehose buffer into memory. Buffer size is configured in resources/serverless.yml
     timeout: 300
     events:
       - s3:
           bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3Bucket}
-          event: s3:ObjectCreated:*
           existing: true # the bucket is created in resources/serverless.yml so that it is retained upon deletion of this service
+          event: s3:ObjectCreated:*
+  join:
+    handler: join.join
+#    memorySize: 1024 # uncomment to increase memory for large user histories
+    timeout: 300
+    events:
+      - s3:
+          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+          existing: true # the bucket is created in resources/serverless.yml so that it is retained upon deletion of this service
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: histories/
+            - suffix: .gz
   dispatchTrainingJobs:
     handler: train_deploy.dispatchTrainingJobs
     timeout: 300
