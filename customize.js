@@ -36,3 +36,8 @@ module.exports.getProjectName = (event, context) => {
     return event.requestContext.identity.apiKey;
 }
 
+// This function may also return a promise for performing asynchronous processing
+module.exports.assignRewards = (sortedUserHistory) => {
+    
+}
+

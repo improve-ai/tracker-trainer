@@ -1,22 +1,15 @@
 'use strict';
 
-const AWS = require('aws-sdk');
-const zlib = require('zlib');
-const es = require('event-stream');
-const uuidv4 = require('uuid/v4');
-const shajs = require('sha.js')
-const dateFormat = require('date-format');
-const s3 = new AWS.S3();
+const AWS = require('aws-sdk')
+const zlib = require('zlib')
+const es = require('event-stream')
+const s3 = new AWS.S3()
+const customize = require("./customize.js")
 
-module.exports.unpackFirehose = function(event, context, cb) {
+module.exports.join = function(event, context, cb) {
 
-  console.log(`processing event records from S3 event ${JSON.stringify(event)}`)
+  console.log(`processing s3 event ${JSON.stringify(event)}`)
 
-  let now = new Date()
-  let filenameDatePart = dateFormat.asString("yyyy-MM-dd-hh-mm-ss", now)
-  let uuidPart = uuidv4() // use the same uuid across the files for this unpacking
-
-  let buffersByKey = {}
   let promises = []
 
   if (!event.Records || !event.Records.length > 0) {
@@ -29,114 +22,120 @@ module.exports.unpackFirehose = function(event, context, cb) {
       continue;
     }
 
-    promises.push(new Promise((resolve, reject) => {
+    const s3Record = event.Records[i].s3
 
-      let s3Record = event.Records[i].s3
-
-      let gunzip = zlib.createGunzip()
-
-      let stream = s3.getObject({
-          Bucket: s3Record.bucket.name,
-          Key: s3Record.object.key,
-        }).createReadStream()
-        .pipe(gunzip)
-        .pipe(es.split()) // parse line-by-line
-        .pipe(es.mapSync(function(line) {
-
-            // pause the readstream
-            stream.pause();
-
-            try {
-              if (!line) {
-                return;
-              }
-              let eventRecord = JSON.parse(line)
-
-              if (!eventRecord || !eventRecord.project_name) {
-                console.log(`WARN: skipping record - no project_name in ${line}`)
-                return;
-              }
-
-              if (!eventRecord.user_id) {
-                console.log(`WARN: skipping record - no user_id in ${line}`)
-                return;
-              }
-
-              let projectName = eventRecord.project_name;
-
-              // delete project_name from requestRecord in case its sensitive
-              delete eventRecord.project_name;
-
-              // allow alphanumeric, underscore, dash, space, period
-              if (!projectName.match(/^[\w\- .]+$/i)) {
-                console.log(`WARN: skipping record - invalid project_name, not alphanumeric, underscore, dash, space, period ${line}`)
-                return;
-              }
-
-              let hashedUserId = getHashedUserId(projectName, eventRecord.user_id);
-
-              // histories/projectName/hashedUserId/improve-v5-pending-events-projectName-hashedUserId-yyyy-MM-dd-hh-mm-ss-uuid.gz
-              let s3Key = `histories/${projectName}/${hashedUserId}/improve-v5-pending-events-${projectName}-${hashedUserId}-${filenameDatePart}-${uuidPart}.gz`
-
-              let buffers = buffersByKey[s3Key]
-              if (!buffers) {
-                buffers = []
-                buffersByKey[s3Key] = buffers
-              }
-              buffers.push(Buffer.from(JSON.stringify(eventRecord) + "\n"))
-
-            }
-            catch (err) {
-              console.log(`error ${err} skipping requestRecord`)
-            }
-            finally {
-              stream.resume();
-            }
-          })
-          .on('error', function(err) {
-            console.log('Error while reading file.', err);
-            return reject(err)
-          })
-          .on('end', function() {
-            return resolve()
-          }));
-    }))
+    // histories/projectName/hashedUserId/improve-v5-pending-events-projectName-hashedUserId-yyyy-MM-dd-hh-mm-ss-uuid.gz
+    const [projectName, hashedUserId] = s3Record.object.key.split('/').slice(1,3)
+    const s3Bucket = s3Record.bucket.name
+    
+    promises.push(listAllKeys({ Bucket: s3Bucket, Prefix: `histories/${projectName}/${hashedUserId}`}).then(s3Keys => {
+      return loadUserEventsForS3Keys(s3Bucket, s3Keys)
+    })).then(userEvents => {
+      userEvents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      // customize may return either a mapping of models -> joined events or a promise that will return the same
+      return customize.assignRewards(userEvents)
+    }).then(modelsToJoinedEvents => {
+      return writeModelsToJoinedEvents(modelsToJoinedEvents)
+    })
   }
 
+  // Really there should just be just one promise in promises because S3 events are
+  // one key at a time, but the format does allow multiple event Records
   return Promise.all(promises).then(results => {
-    // ignore results, just use the shared buffersByKey
-
-    let promises = []
-
-    for (var s3Key in buffersByKey) {
-      if (!buffersByKey.hasOwnProperty(s3Key)) {
-        continue
-      }
-
-      let buffers = buffersByKey[s3Key]
-      if (!buffers.length) {
-        continue;
-      }
-
-      console.log(`writing ${buffers.length} records to ${s3Key}`)
-
-      let params = {
-        Body: zlib.gzipSync(Buffer.concat(buffers)),
-        Bucket: process.env.RECORDS_BUCKET,
-        Key: s3Key
-      }
-
-      promises.push(s3.putObject(params).promise())
-    }
-
-    return Promise.all(promises)
-  }).then(results => {
     return cb(null, 'success')
   }, err => {
     return cb(err)
   })
 }
 
-function getHashedUserId(projectName, userId) {
-  return shajs('sha256').update(projectName.length + ":" + projectName + ":" + userId).digest('base64').replace(/[\W_]+/g, '').substring(0, 24); // remove all non-alphanumeric (+=/) then truncate to 144 bits
+function loadUserEventsForS3Keys(s3Bucket, s3Keys) {
+  let promises = []
+  for (let i = 0; i < s3Keys.length; i++) {
+    promises.push(loadUserEventsForS3Key(s3Bucket, s3Keys[i]))
+  }
+  return Promise.all(promises).then(arraysOfEvents => {
+    // Promise.all accumulates an array of results
+    return arraysOfEvents.flat()
+  })
+}
+
+function loadUserEventsForS3Key(s3Bucket, s3key) {
+  let events = []
+  
+  return new Promise((resolve, reject) => {
+    
+    let gunzip = zlib.createGunzip()
+
+    let stream = s3.getObject({ Bucket: s3Bucket, Key: s3key,}).createReadStream().pipe(gunzip).pipe(es.split()).pipe(es.mapSync(function(line) {
+
+      // pause the readstream
+      stream.pause();
+
+      try {
+        if (!line) {
+          return;
+        }
+        let eventRecord = JSON.parse(line)
+
+        if (!eventRecord || !eventRecord.timestamp || !isDate(eventRecord.timestamp)) {
+          console.log(`WARN: skipping record - no timestamp in ${line}`)
+          return;
+        }
+
+        events.push(eventRecord)
+      } catch (err) {
+        console.log(`error ${err} skipping record`)
+      } finally {
+        stream.resume();
+      }
+    })
+    .on('error', function(err) {
+      console.log('Error while reading file.', err);
+      return reject(err)
+    })
+    .on('end', function() {
+      return resolve(events)
+    }));
+  })
+}
+
+function writeModelsToJoinedEvents(projectName, hashedUserId, modelsToJoinedEvents) {
+  const promises = []
+  for (const [modelName, joinedEvents] of Object.entries(modelsToJoinedEvents)) {
+    promises.push(writeJoinedEvents(projectName, modelName, hashedUserId, joinedEvents))
+  }
+  return Promise.all(promises)
+}
+
+function writeJoinedEvents(projectName, modelName, hashedUserId, joinedEvents) {
+      
+      let jsonLines = ""
+      for (const joinedEvent of joinedEvents) {
+        jsonLines += (JSON.stringify(joinedEvent) + "\n")
+      }
+  
+      let s3Key = `joined/${projectName}/${modelName}/${hashedUserId}.gz`    
+      console.log(`writing ${joinedEvents.length} records to ${s3Key}`)
+        
+      let params = {
+        Body: zlib.gzipSync(Buffer.from(jsonLines)),
+        Bucket: process.env.RECORDS_BUCKET,
+        Key: s3Key
+      }
+      return s3.putObject(params).promise()
+}
+
+// from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
+const listAllKeys = (params, out = []) => new Promise((resolve, reject) => {
+  s3.listObjectsV2(params).promise()
+    .then(({Contents, IsTruncated, NextContinuationToken}) => {
+      out.push(...Contents);
+      !IsTruncated ? resolve(out) : resolve(listAllKeys(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
+    })
+    .catch(reject);
+});
+
+// from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
+function isDate(date) {
+  return (new Date(date) !== "Invalid Date") && !isNaN(new Date(date));
 }

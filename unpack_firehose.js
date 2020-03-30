@@ -1,14 +1,14 @@
 'use strict';
 
-const AWS = require('aws-sdk');
-const zlib = require('zlib');
-const es = require('event-stream');
-const uuidv4 = require('uuid/v4');
+const AWS = require('aws-sdk')
+const zlib = require('zlib')
+const es = require('event-stream')
+const uuidv4 = require('uuid/v4')
 const shajs = require('sha.js')
-const dateFormat = require('date-format');
-const s3 = new AWS.S3();
+const dateFormat = require('date-format')
+const s3 = new AWS.S3()
 
-module.exports.join = function(event, context, cb) {
+module.exports.unpackFirehose = function(event, context, cb) {
 
   console.log(`processing s3 event ${JSON.stringify(event)}`)
 
