@@ -55,23 +55,12 @@ function createTrainingJob(projectName, model) {
     },
     InputDataConfig: [ 
       {
-        ChannelName: 'using',
+        ChannelName: 'joined',
         CompressionType: 'Gzip',
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
-            S3Uri: recordsS3PrefixBase+getUsingS3KeyPrefix(projectName, model), 
-            S3DataDistributionType: "FullyReplicated",
-          }
-        },
-      },
-      {
-        ChannelName: 'rewards',
-        CompressionType: 'Gzip',
-        DataSource: { 
-          S3DataSource: { 
-            S3DataType:"S3Prefix",
-            S3Uri: recordsS3PrefixBase+getRewardsS3KeyPrefix(projectName), 
+            S3Uri: recordsS3PrefixBase+getJoinedS3KeyPrefix(projectName, model), 
             S3DataDistributionType: "FullyReplicated",
           }
         },
@@ -306,16 +295,8 @@ function getAlphaNumeric(s) {
   return s.replace(/[^A-Za-z0-9]/g, '')
 }
 
-function getRewardsS3KeyPrefix(projectName) {
-  return getS3KeyPrefix("rewards",projectName)
-}
-
-function getUsingS3KeyPrefix(projectName, model) {
-  return getS3KeyPrefix("using",projectName, model)
-}
-
-function getChooseS3KeyPrefix(projectName, model) {
-  return getS3KeyPrefix("choose",projectName, model)
+function getJoinedS3KeyPrefix(projectName, model) {
+  return getS3KeyPrefix("joined", projectName, model)
 }
 
 function getModelsS3KeyPrefix(projectName, model) {
@@ -323,7 +304,7 @@ function getModelsS3KeyPrefix(projectName, model) {
 }
 
 function getS3KeyPrefix(recordType, projectName, model) {
-  return `${projectName}/${recordType}/`+(model ? `${model}/` : "")
+  return `${recordType}/${projectName}/`+(model ? `${model}/` : "")
 }
 
 
