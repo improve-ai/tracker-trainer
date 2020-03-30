@@ -38,6 +38,25 @@ module.exports.getProjectName = (event, context) => {
 
 // This function may also return a promise for performing asynchronous processing
 module.exports.assignRewards = (sortedUserHistory) => {
+    const modelsToJoinedEvents = {}
+    const rewardKeysToEvents = {}
     
+    for (const record of sortedUserHistory) {
+        if (record.record_type) {
+            if (record.record_type === "using" && record.reward_key) {
+                record.reward = 0
+                modelsToJoinedEvents[record.model] = record
+                rewardKeysToEvents[record.reward_key] = record
+            } else if (record.record_type === "rewards" && record.rewards) {
+                for (const [rewardKey, reward] of Object.entries(record.rewards)) {
+                    if (rewardKey in rewardKeysToEvents) {
+                        rewardKeysToEvents[rewardKey].reward = rewardKeysToEvents[rewardKey].reward + reward
+                    }
+                }
+            }
+        }
+    }
+    
+    return modelsToJoinedEvents;
 }
 
