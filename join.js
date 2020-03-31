@@ -56,6 +56,7 @@ function loadUserEventsForS3Keys(s3Bucket, s3Keys) {
   }
   return Promise.all(promises).then(arraysOfEvents => {
     // Promise.all accumulates an array of results
+    console.log(`arrayOfEvents ${JSON.stringify(arraysOfEvents)}`)
     return arraysOfEvents.flat()
   })
 }
@@ -67,7 +68,7 @@ function loadUserEventsForS3Key(s3Bucket, s3Key) {
     
     let gunzip = zlib.createGunzip()
 
-    console.log(`loadUserEventsForS3Key s3Bucket: ${s3Bucket} s3Key : ${JSON.stringify(s3Key)}`)
+    console.log(`loadUserEventsForS3Key s3Bucket: ${s3Bucket} s3Key : ${s3Key}`)
 
     let stream = s3.getObject({ Bucket: s3Bucket, Key: s3Key,}).createReadStream().pipe(gunzip).pipe(es.split()).pipe(es.mapSync(function(line) {
 
