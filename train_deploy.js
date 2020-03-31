@@ -9,7 +9,6 @@ const _ = require('lodash');
 const s3 = new AWS.S3();
 const sagemaker = new AWS.SageMaker({ maxRetries: 100, retryDelayOptions: { customBackoff: sagemakerBackoff }});
 
-const unpack_firehose = require("./unpack_firehose.js")
 const customize = require("./customize.js")
 
 const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
@@ -235,6 +234,7 @@ function listAllProjects(arr, ContinuationToken) {
   const params = {
       Bucket: process.env.RECORDS_BUCKET,
       Delimiter: '/',
+      Prefix: 'joined/',
       ContinuationToken
   }
   

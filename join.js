@@ -29,14 +29,15 @@ module.exports.join = function(event, context, cb) {
     const s3Bucket = s3Record.bucket.name
     
     promises.push(listAllKeys({ Bucket: s3Bucket, Prefix: `histories/${projectName}/${hashedUserId}`}).then(s3Keys => {
+      console.log(`s3Keys : ${JSON.stringify(s3Keys)}`)
       return loadUserEventsForS3Keys(s3Bucket, s3Keys)
-    })).then(userEvents => {
+    }).then(userEvents => {
       userEvents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       // customize may return either a mapping of models -> joined events or a promise that will return the same
       return customize.assignRewards(userEvents)
     }).then(modelsToJoinedEvents => {
       return writeModelsToJoinedEvents(modelsToJoinedEvents)
-    })
+    }))
   }
 
   // Really there should just be just one promise in promises because S3 events are
@@ -59,14 +60,16 @@ function loadUserEventsForS3Keys(s3Bucket, s3Keys) {
   })
 }
 
-function loadUserEventsForS3Key(s3Bucket, s3key) {
+function loadUserEventsForS3Key(s3Bucket, s3Key) {
   let events = []
   
   return new Promise((resolve, reject) => {
     
     let gunzip = zlib.createGunzip()
 
-    let stream = s3.getObject({ Bucket: s3Bucket, Key: s3key,}).createReadStream().pipe(gunzip).pipe(es.split()).pipe(es.mapSync(function(line) {
+    console.log(`loadUserEventsForS3Key s3Bucket: ${s3Bucket} s3Key : ${JSON.stringify(s3Key)}`)
+
+    let stream = s3.getObject({ Bucket: s3Bucket, Key: s3Key,}).createReadStream().pipe(gunzip).pipe(es.split()).pipe(es.mapSync(function(line) {
 
       // pause the readstream
       stream.pause();
@@ -125,11 +128,11 @@ function writeJoinedEvents(projectName, modelName, hashedUserId, joinedEvents) {
       return s3.putObject(params).promise()
 }
 
-// from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
+// modified from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
 const listAllKeys = (params, out = []) => new Promise((resolve, reject) => {
   s3.listObjectsV2(params).promise()
     .then(({Contents, IsTruncated, NextContinuationToken}) => {
-      out.push(...Contents);
+      out.push(...Contents.map(o => o.Key));
       !IsTruncated ? resolve(out) : resolve(listAllKeys(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
     })
     .catch(reject);
