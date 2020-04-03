@@ -24,7 +24,6 @@ module.exports.dispatchTrainingJobs = function(event, context, cb) {
     let models = projectsToModels[projectName]    
     for (let j = 0; j < models.length; j++) {
       let model = models[j]
-      console.log(`creating feature training job for project ${projectName} model ${model}`)
       promises.push(createFeatureTrainingJob(projectName, model))
     }
   })
@@ -35,8 +34,7 @@ module.exports.dispatchTrainingJobs = function(event, context, cb) {
 function createFeatureTrainingJob(projectName, model) {
   
   let recordsS3PrefixBase = "s3://"+process.env.RECORDS_BUCKET+'/'
-  let modelsS3PrefixBase = "s3://"+process.env.MODELS_BUCKET+'/'
-  
+
   let hyperparameters = customize.hyperparameters.default;
   
   /* Disabling due to a type mismatch.  hyperparameters expects only strings
@@ -45,8 +43,12 @@ function createFeatureTrainingJob(projectName, model) {
     hyperparameters = Object.assign(hyperparameters, config.hyperparameters[projectName][model])
   }*/
   
+  const trainingJobName = getTrainingJobName(projectName, model)
+  
+  console.log(`creating feature training job ${trainingJobName} project ${projectName} model ${model}`)
+  
   var params = {
-    TrainingJobName: getTrainingJobName(projectName, model),
+    TrainingJobName: trainingJobName,
     HyperParameters: hyperparameters,
     AlgorithmSpecification: { /* required */
       TrainingImage: process.env.FEATURE_TRAINING_IMAGE,
@@ -102,7 +104,7 @@ module.exports.featureModelCreated = function(event, context, cb) {
     const s3Key = s3Record.object.key
 
     // feature_models/projectName/modelName/<feature training job>/model.tar.gz
-    const [projectName, hashedUserId] = s3Record.object.key.split('/').slice(1,3)
+    const [projectName, model, trainingJobName] = s3Record.object.key.split('/').slice(1,4)
     const s3Bucket = s3Record.bucket.name
 
     // Use the trainingJobName as the ModelName
@@ -114,10 +116,8 @@ module.exports.featureModelCreated = function(event, context, cb) {
         ModelDataUrl: `s3://${s3Bucket}/${s3Key}`,
       }
     }
-    
-    let [projectName, model] = getProjectNameAndModelFromS3OutputPath(trainingJobDescription.OutputDataConfig.S3OutputPath)
-    
-    console.log(`Attempting to Create Model ${trainingJobName}`);
+
+    console.log(`Attempting to create model ${trainingJobName}`);
     promises.push(sagemaker.createModel(params).promise().then((response) => {
       if (response.ModelArn) {
         return [projectName, model, trainingJobName]; // trainingJobName is the ModelName
@@ -146,7 +146,6 @@ function createTransformJob(projectName, model, trainingJobName) {
     TransformJobName: trainingJobName,
     ModelName: trainingJobName,
     TransformInput: {
-      ChannelName: 'joined',
       CompressionType: 'Gzip',
       DataSource: { 
         S3DataSource: { 
@@ -166,8 +165,13 @@ function createTransformJob(projectName, model, trainingJobName) {
     },
   };
   
-  console.log(`Attempting to Create Transfrorm Job ${trainingJobName}`);
+  console.log(`Attempting to create transfrorm Job ${trainingJobName}`);
   return sagemaker.createTransformJob(params).promise()
+}
+
+module.exports.transformJobCompleted = function(event, context, cb) {
+  console.log("Transform Job Completed")
+  cb(null, "success")
 }
 
 module.exports.deployUpdatedModels = function(event, context, cb) {
@@ -215,7 +219,7 @@ function maybeCreateOrUpdateEndpointForTrainingJob(trainingJobName) {
     }
     
     let [projectName, model] = getProjectNameAndModelFromS3OutputPath(trainingJobDescription.OutputDataConfig.S3OutputPath)
-    console.log(`Attempting to Create Model ${trainingJobName}`);
+    console.log(`Attempting to create model ${trainingJobName}`);
     return sagemaker.createModel(params).promise().then((response) => {
       if (response.ModelArn) {
         return [projectName, model, trainingJobName]; // trainingJobName is the ModelName
@@ -314,30 +318,6 @@ function listRecentlyCompletedTrainingJobs(arr, params) {
   })
 }
 
-function listAllProjects(arr, ContinuationToken) {
-  console.log(`listing all projects${ContinuationToken ? " at position "+ContinuationToken: ""}`)
-
-  if (!arr) arr=[];
-
-  const params = {
-      Bucket: process.env.RECORDS_BUCKET,
-      Delimiter: '/',
-      Prefix: 'joined/',
-      ContinuationToken
-  }
-  
-  return s3.listObjectsV2(params).promise().then(result => {
-      if (!result || !result.CommonPrefixes || !result.CommonPrefixes.length) {
-          return arr;
-      } else if (!result.IsTruncated) {
-          return arr.concat(pluckLastPrefixPart(result.CommonPrefixes))
-      } else {
-          return listAllProjects(arr.concat(pluckLastPrefixPart(result.CommonPrefixes)), result.NextContinuationToken)
-      }
-  })
-}
-
-
 function getEndpointName(projectName, model) {
   // this is a somewhat readable format for the sagemaker console
   return generateAlphaNumericDash63Name(`${process.env.STAGE}-${model}-${projectName}-${process.env.SERVICE}`);
@@ -388,7 +368,7 @@ function getJoinedS3KeyPrefix(projectName, model) {
 }
 
 function getFeatureModelS3KeyPrefix(projectName, model) {
-  return `feature_model/${projectName}/${model}`
+  return `feature_models/${projectName}/${model}`
 }
 
 function getTransformedS3KeyPrefix(projectName, model) {
