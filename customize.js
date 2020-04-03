@@ -45,7 +45,10 @@ module.exports.assignRewards = (sortedUserHistory) => {
         if (record.record_type) {
             if (record.record_type === "using" && record.reward_key) {
                 record.reward = 0
-                modelsToJoinedEvents[record.model] = record
+                if (!modelsToJoinedEvents[record.model]) {
+                    modelsToJoinedEvents[record.model] = []
+                }
+                modelsToJoinedEvents[record.model].push(record)
                 rewardKeysToEvents[record.reward_key] = record
             } else if (record.record_type === "rewards" && record.rewards) {
                 for (const [rewardKey, reward] of Object.entries(record.rewards)) {

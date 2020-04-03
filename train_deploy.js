@@ -24,15 +24,15 @@ module.exports.dispatchTrainingJobs = function(event, context, cb) {
     let models = projectsToModels[projectName]    
     for (let j = 0; j < models.length; j++) {
       let model = models[j]
-      console.log(`creating training job for project ${projectName} model ${model}`)
-      promises.push(createTrainingJob(projectName, model))
+      console.log(`creating feature training job for project ${projectName} model ${model}`)
+      promises.push(createFeatureTrainingJob(projectName, model))
     }
   })
 
   return Promise.all(promises)
 }
 
-function createTrainingJob(projectName, model) {
+function createFeatureTrainingJob(projectName, model) {
   
   let recordsS3PrefixBase = "s3://"+process.env.RECORDS_BUCKET+'/'
   let modelsS3PrefixBase = "s3://"+process.env.MODELS_BUCKET+'/'
@@ -49,7 +49,7 @@ function createTrainingJob(projectName, model) {
     TrainingJobName: getTrainingJobName(projectName, model),
     HyperParameters: hyperparameters,
     AlgorithmSpecification: { /* required */
-      TrainingImage: process.env.TRAINING_IMAGE,
+      TrainingImage: process.env.FEATURE_TRAINING_IMAGE,
       TrainingInputMode: "Pipe",
     },
     InputDataConfig: [ 
@@ -66,20 +66,108 @@ function createTrainingJob(projectName, model) {
       },
     ],
     OutputDataConfig: { 
-      S3OutputPath: modelsS3PrefixBase+getModelsS3KeyPrefix(projectName, model), 
+      S3OutputPath: recordsS3PrefixBase+getFeatureModelS3KeyPrefix(projectName, model), 
     },
     ResourceConfig: { 
-      InstanceCount: process.env.TRAINING_INSTANCE_COUNT, 
-      InstanceType: process.env.TRAINING_INSTANCE_TYPE,
-      VolumeSizeInGB: process.env.TRAINING_VOLUME_SIZE_IN_GB
+      InstanceCount: process.env.FEATURE_TRAINING_INSTANCE_COUNT, 
+      InstanceType: process.env.FEATURE_TRAINING_INSTANCE_TYPE,
+      VolumeSizeInGB: process.env.FEATURE_TRAINING_VOLUME_SIZE_IN_GB
     },
-    RoleArn: process.env.TRAINING_ROLE_ARN,
+    RoleArn: process.env.FEATURE_TRAINING_ROLE_ARN,
     StoppingCondition: { 
-      MaxRuntimeInSeconds: process.env.TRAINING_MAX_RUNTIME_IN_SECONDS,
+      MaxRuntimeInSeconds: process.env.FEATURE_TRAINING_MAX_RUNTIME_IN_SECONDS,
     },
   };
 
   return sagemaker.createTrainingJob(params).promise()
+}
+
+module.exports.featureModelCreated = function(event, context, cb) {
+
+  console.log(`processing s3 event ${JSON.stringify(event)}`)
+
+  let promises = []
+
+  if (!event.Records || !event.Records.length > 0) {
+    return cb(new Error(`WARN: Invalid S3 event ${JSON.stringify(event)}`))
+  }
+
+  for (let i = 0; i < event.Records.length; i++) {
+    if (!event.Records[i].s3) {
+      console.log(`WARN: Invalid S3 event ${JSON.stringify(event)}`)
+      continue;
+    }
+
+    const s3Record = event.Records[i].s3
+    const s3Key = s3Record.object.key
+
+    // feature_models/projectName/modelName/<feature training job>/model.tar.gz
+    const [projectName, hashedUserId] = s3Record.object.key.split('/').slice(1,3)
+    const s3Bucket = s3Record.bucket.name
+
+    // Use the trainingJobName as the ModelName
+    let params = {
+      ExecutionRoleArn: process.env.FEATURE_TRAINING_ROLE_ARN,
+      ModelName: trainingJobName,
+      PrimaryContainer: { 
+        Image: process.env.FEATURE_TRAINING_IMAGE,
+        ModelDataUrl: `s3://${s3Bucket}/${s3Key}`,
+      }
+    }
+    
+    let [projectName, model] = getProjectNameAndModelFromS3OutputPath(trainingJobDescription.OutputDataConfig.S3OutputPath)
+    
+    console.log(`Attempting to Create Model ${trainingJobName}`);
+    promises.push(sagemaker.createModel(params).promise().then((response) => {
+      if (response.ModelArn) {
+        return [projectName, model, trainingJobName]; // trainingJobName is the ModelName
+      } else {
+        throw new Error("No ModelArn in response, assuming failure");
+      }
+    }).then(([projectName, model, trainingJobName]) => {
+      return createTransformJob(projectName, model, trainingJobName)
+    }))
+  }
+  
+  // Really there should just be just one promise in promises because S3 events are
+  // one key at a time, but the format does allow multiple event Records
+  return Promise.all(promises).then(results => {
+    return cb(null, 'success')
+  }, err => {
+    return cb(err)
+  })
+}
+
+function createTransformJob(projectName, model, trainingJobName) {
+  
+  let recordsS3PrefixBase = "s3://"+process.env.RECORDS_BUCKET+'/'
+
+  var params = {
+    TransformJobName: trainingJobName,
+    ModelName: trainingJobName,
+    TransformInput: {
+      ChannelName: 'joined',
+      CompressionType: 'Gzip',
+      DataSource: { 
+        S3DataSource: { 
+          S3DataType: "S3Prefix",
+          S3Uri: recordsS3PrefixBase+getJoinedS3KeyPrefix(projectName, model), 
+        }
+      },
+      SplitType: "Line",
+    },
+    TransformOutput: { 
+      AssembleWith: "None",
+      S3OutputPath: recordsS3PrefixBase+getTransformedS3KeyPrefix(projectName, model), 
+    },
+    TransformResources: { 
+      InstanceType: process.env.TRANSFORM_INSTANCE_TYPE,
+      InstanceCount: process.env.TRANSFORM_INSTANCE_COUNT, 
+    },
+  };
+  
+  console.log(`Attempting to Create Transfrorm Job ${trainingJobName}`);
+  return sagemaker.createTransformJob(params).promise()
 }
 
 module.exports.deployUpdatedModels = function(event, context, cb) {
@@ -118,7 +206,7 @@ function maybeCreateOrUpdateEndpointForTrainingJob(trainingJobName) {
     
     // Use the trainingJobName as the ModelName
     let params = {
-      ExecutionRoleArn: process.env.TRAINING_ROLE_ARN,
+      ExecutionRoleArn: process.env.FEATURE_TRAINING_ROLE_ARN,
       ModelName: trainingJobName,
       PrimaryContainer: { 
         Image: process.env.HOSTING_IMAGE,
@@ -296,17 +384,16 @@ function getAlphaNumeric(s) {
 }
 
 function getJoinedS3KeyPrefix(projectName, model) {
-  return getS3KeyPrefix("joined", projectName, model)
+  return `joined/${projectName}/${model}`
 }
 
-function getModelsS3KeyPrefix(projectName, model) {
-  return `${projectName}/${model}`
+function getFeatureModelS3KeyPrefix(projectName, model) {
+  return `feature_model/${projectName}/${model}`
 }
 
-function getS3KeyPrefix(recordType, projectName, model) {
-  return `${recordType}/${projectName}/`+(model ? `${model}/` : "")
+function getTransformedS3KeyPrefix(projectName, model) {
+  return `transformed/${projectName}/${model}`
 }
-
 
 function getProjectNameAndModelFromS3OutputPath(S3OutputPath) {
   let parts = S3OutputPath.split('/');

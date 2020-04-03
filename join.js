@@ -34,9 +34,11 @@ module.exports.join = function(event, context, cb) {
     }).then(userEvents => {
       userEvents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       // customize may return either a mapping of models -> joined events or a promise that will return the same
+      console.log(`assigning rewards to ${JSON.stringify(userEvents)}`)
       return customize.assignRewards(userEvents)
     }).then(modelsToJoinedEvents => {
-      return writeModelsToJoinedEvents(modelsToJoinedEvents)
+      console.log(`writing joined events ${JSON.stringify(modelsToJoinedEvents)}`)
+      return writeModelsToJoinedEvents(projectName, hashedUserId, modelsToJoinedEvents)
     }))
   }
 
@@ -56,8 +58,7 @@ function loadUserEventsForS3Keys(s3Bucket, s3Keys) {
   }
   return Promise.all(promises).then(arraysOfEvents => {
     // Promise.all accumulates an array of results
-    console.log(`arrayOfEvents ${JSON.stringify(arraysOfEvents)}`)
-    return arraysOfEvents.flat()
+    return [].concat(...arraysOfEvents) // flatten array
   })
 }
 
