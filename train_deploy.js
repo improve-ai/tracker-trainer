@@ -245,6 +245,61 @@ function createXGBoostTrainingJob(projectName, model, trainingJobName) {
   return sagemaker.createTrainingJob(params).promise()
 }
 
+module.exports.xgboostModelCreated = function(event, context, cb) {
+
+  console.log(`processing s3 event ${JSON.stringify(event)}`)
+
+  let promises = []
+
+  if (!event.Records || !event.Records.length > 0) {
+    return cb(new Error(`WARN: Invalid S3 event ${JSON.stringify(event)}`))
+  }
+
+  for (let i = 0; i < event.Records.length; i++) {
+    if (!event.Records[i].s3) {
+      console.log(`WARN: Invalid S3 event ${JSON.stringify(event)}`)
+      continue;
+    }
+
+    const s3Record = event.Records[i].s3
+    const s3Key = s3Record.object.key
+
+    // feature_models/projectName/modelName/<feature training job>/model.tar.gz
+    const [projectName, model, trainingJobName] = s3Record.object.key.split('/').slice(1,4)
+    const s3Bucket = s3Record.bucket.name
+
+    // Use the trainingJobName as the ModelName
+    let params = {
+      ExecutionRoleArn: process.env.FEATURE_TRAINING_ROLE_ARN,
+      ModelName: trainingJobName,
+      PrimaryContainer: { 
+        Image: process.env.FEATURE_TRAINING_IMAGE,
+        ModelDataUrl: `s3://${s3Bucket}/${s3Key}`,
+      }
+    }
+
+    console.log(`Attempting to create model ${trainingJobName}`);
+    promises.push(sagemaker.createModel(params).promise().then((response) => {
+      if (response.ModelArn) {
+        return [projectName, model, trainingJobName]; // trainingJobName is the ModelName
+      } else {
+        throw new Error("No ModelArn in response, assuming failure");
+      }
+    }).then(([projectName, model, trainingJobName]) => {
+      trainingJobName = "t"+trainingJobName.substring(1)
+      return ""//createTransformJob(projectName, model, trainingJobName)
+    }))
+  }
+  
+  // Really there should just be just one promise in promises because S3 events are
+  // one key at a time, but the format does allow multiple event Records
+  return Promise.all(promises).then(results => {
+    return cb(null, 'success')
+  }, err => {
+    return cb(err)
+  })
+}
+
 module.exports.deployUpdatedModels = function(event, context, cb) {
 
   return listRecentlyCompletedTrainingJobs().then((trainingJobs) => {
@@ -399,7 +454,7 @@ module.exports.getEndpointName = getEndpointName;
 function getFeatureTrainingJobName(projectName, model) {
   
   // every single training job must have a unique name per AWS account
-  return `f-${getAlphaNumeric(process.env.STAGE).substring(0,5)}-${getAlphaNumeric(projectName).substring(0,10)}-${getAlphaNumeric(model).substring(0,16)}-${dateFormat.asString("yyyyMMddhhmmss",new Date())}-${uuidv4().slice(-12)}`
+  return `f-${getAlphaNumeric(process.env.STAGE).substring(0,5)}-${getAlphaNumeric(projectName).substring(0,12)}-${getAlphaNumeric(model).substring(0,16)}-${dateFormat.asString("yyyyMMddhhmm",new Date())}-${uuidv4().slice(-12)}`
 }
 
 /**
