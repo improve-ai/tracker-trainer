@@ -13,6 +13,9 @@ const customize = require("./customize.js")
 
 const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
 
+const recordsS3PrefixBase = "s3://"+process.env.RECORDS_BUCKET+'/'
+
+
 module.exports.dispatchTrainingJobs = function(event, context, cb) {
 
   console.log(`dispatching training jobs`)
@@ -33,8 +36,6 @@ module.exports.dispatchTrainingJobs = function(event, context, cb) {
 
 function createFeatureTrainingJob(projectName, model) {
   
-  let recordsS3PrefixBase = "s3://"+process.env.RECORDS_BUCKET+'/'
-
   let hyperparameters = customize.hyperparameters.default;
   
   /* Disabling due to a type mismatch.  hyperparameters expects only strings
@@ -43,7 +44,7 @@ function createFeatureTrainingJob(projectName, model) {
     hyperparameters = Object.assign(hyperparameters, config.hyperparameters[projectName][model])
   }*/
   
-  const trainingJobName = getTrainingJobName(projectName, model)
+  const trainingJobName = getFeatureTrainingJobName(projectName, model)
   
   console.log(`creating feature training job ${trainingJobName} project ${projectName} model ${model}`)
   
@@ -68,7 +69,7 @@ function createFeatureTrainingJob(projectName, model) {
       },
     ],
     OutputDataConfig: { 
-      S3OutputPath: recordsS3PrefixBase+getFeatureModelS3KeyPrefix(projectName, model), 
+      S3OutputPath: recordsS3PrefixBase+getFeatureModelsS3KeyPrefix(projectName, model), 
     },
     ResourceConfig: { 
       InstanceCount: process.env.FEATURE_TRAINING_INSTANCE_COUNT, 
@@ -125,6 +126,7 @@ module.exports.featureModelCreated = function(event, context, cb) {
         throw new Error("No ModelArn in response, assuming failure");
       }
     }).then(([projectName, model, trainingJobName]) => {
+      trainingJobName = "t"+trainingJobName.substring(1)
       return createTransformJob(projectName, model, trainingJobName)
     }))
   }
@@ -140,8 +142,6 @@ module.exports.featureModelCreated = function(event, context, cb) {
 
 function createTransformJob(projectName, model, trainingJobName) {
   
-  let recordsS3PrefixBase = "s3://"+process.env.RECORDS_BUCKET+'/'
-
   var params = {
     TransformJobName: trainingJobName,
     ModelName: trainingJobName,
@@ -169,9 +169,80 @@ function createTransformJob(projectName, model, trainingJobName) {
   return sagemaker.createTransformJob(params).promise()
 }
 
-module.exports.transformJobCompleted = function(event, context, cb) {
-  console.log("Transform Job Completed")
-  cb(null, "success")
+module.exports.transformJobCompleted = async function(event, context) {
+  console.log(`processing cloudwatch event ${JSON.stringify(event)}`)
+
+  if (!event.detail || !event.detail.TransformJobName || event.detail.TransformJobStatus !== "Completed" ||
+      !event.detail.TransformOutput || !event.detail.TransformOutput.S3OutputPath) {
+    throw new Error(`WARN: Invalid cloudwatch event ${JSON.stringify(event)}`)
+  }
+  
+  const transformJobName = event.detail.TransformJobName
+  const [projectName, model] = getProjectNameAndModelFromS3OutputPath(event.detail.TransformOutput.S3OutputPath)
+  
+  const trainingJobName = "x"+transformJobName.substring(1)
+  
+  return createXGBoostTrainingJob(projectName, model, trainingJobName)
+}
+
+function createXGBoostTrainingJob(projectName, model, trainingJobName) {
+  
+  let hyperparameters = customize.hyperparameters.default;
+  
+  /* Disabling due to a type mismatch.  hyperparameters expects only strings
+  
+  if (projectName in config.hyperparameters && model in config.hyperparameters[projectName]) {
+    hyperparameters = Object.assign(hyperparameters, config.hyperparameters[projectName][model])
+  }*/
+
+  console.log(`creating xgboost training job ${trainingJobName} project ${projectName} model ${model}`)
+  
+  var params = {
+    TrainingJobName: trainingJobName,
+    HyperParameters: hyperparameters,
+    AlgorithmSpecification: { /* required */
+      TrainingImage: process.env.XGBOOST_TRAINING_IMAGE,
+      TrainingInputMode: "File",
+    },
+    InputDataConfig: [ 
+      {
+        ChannelName: 'train',
+        CompressionType: 'None',
+        DataSource: { 
+          S3DataSource: { 
+            S3DataType:"S3Prefix",
+            S3Uri: recordsS3PrefixBase+getTransformedS3KeyPrefix(projectName, model), 
+            S3DataDistributionType: "ShardedByS3Key",
+          }
+        },
+      },
+      {
+        ChannelName: 'validation',
+        CompressionType: 'None',
+        DataSource: { 
+          S3DataSource: { 
+            S3DataType:"S3Prefix",
+            S3Uri: recordsS3PrefixBase+getTransformedS3KeyPrefix(projectName, model), 
+            S3DataDistributionType: "ShardedByS3Key",
+          }
+        },
+      },
+    ],
+    OutputDataConfig: { 
+      S3OutputPath: recordsS3PrefixBase+getXGBoostModelsS3KeyPrefix(projectName, model), 
+    },
+    ResourceConfig: { 
+      InstanceCount: process.env.XGBOOST_TRAINING_INSTANCE_COUNT, 
+      InstanceType: process.env.XGBOOST_TRAINING_INSTANCE_TYPE,
+      VolumeSizeInGB: process.env.XGBOOST_TRAINING_VOLUME_SIZE_IN_GB
+    },
+    RoleArn: process.env.FEATURE_TRAINING_ROLE_ARN,
+    StoppingCondition: { 
+      MaxRuntimeInSeconds: process.env.XGBOOST_TRAINING_MAX_RUNTIME_IN_SECONDS,
+    },
+  };
+
+  return sagemaker.createTrainingJob(params).promise()
 }
 
 module.exports.deployUpdatedModels = function(event, context, cb) {
@@ -325,10 +396,10 @@ function getEndpointName(projectName, model) {
 
 module.exports.getEndpointName = getEndpointName;
 
-function getTrainingJobName(projectName, model) {
+function getFeatureTrainingJobName(projectName, model) {
   
   // every single training job must have a unique name per AWS account
-  return `${getAlphaNumeric(process.env.STAGE).substring(0,5)}-${getAlphaNumeric(projectName).substring(0,12)}-${getAlphaNumeric(model).substring(0,16)}-${dateFormat.asString("yyyyMMddhhmmss",new Date())}-${uuidv4().slice(-12)}`
+  return `f-${getAlphaNumeric(process.env.STAGE).substring(0,5)}-${getAlphaNumeric(projectName).substring(0,10)}-${getAlphaNumeric(model).substring(0,16)}-${dateFormat.asString("yyyyMMddhhmmss",new Date())}-${uuidv4().slice(-12)}`
 }
 
 /**
@@ -367,8 +438,12 @@ function getJoinedS3KeyPrefix(projectName, model) {
   return `joined/${projectName}/${model}`
 }
 
-function getFeatureModelS3KeyPrefix(projectName, model) {
+function getFeatureModelsS3KeyPrefix(projectName, model) {
   return `feature_models/${projectName}/${model}`
+}
+
+function getXGBoostModelsS3KeyPrefix(projectName, model) {
+  return `xgboost_models/${projectName}/${model}`
 }
 
 function getTransformedS3KeyPrefix(projectName, model) {
