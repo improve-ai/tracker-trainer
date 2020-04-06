@@ -105,7 +105,9 @@ module.exports.featureModelCreated = function(event, context, cb) {
     const s3Key = s3Record.object.key
 
     // feature_models/projectName/modelName/<feature training job>/model.tar.gz
-    const [projectName, model, trainingJobName] = s3Record.object.key.split('/').slice(1,4)
+    let [projectName, model, trainingJobName] = s3Record.object.key.split('/').slice(1,4)
+    trainingJobName = "t"+trainingJobName.substring(1)
+
     const s3Bucket = s3Record.bucket.name
 
     // Use the trainingJobName as the ModelName
@@ -126,7 +128,6 @@ module.exports.featureModelCreated = function(event, context, cb) {
         throw new Error("No ModelArn in response, assuming failure");
       }
     }).then(([projectName, model, trainingJobName]) => {
-      trainingJobName = "t"+trainingJobName.substring(1)
       return createTransformJob(projectName, model, trainingJobName)
     }))
   }
@@ -165,7 +166,7 @@ function createTransformJob(projectName, model, trainingJobName) {
     },
   };
   
-  console.log(`Attempting to create transfrorm Job ${trainingJobName}`);
+  console.log(`Attempting to create transform job ${trainingJobName}`);
   return sagemaker.createTransformJob(params).promise()
 }
 

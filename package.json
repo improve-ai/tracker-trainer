@@ -10,11 +10,12 @@
     "url": "git://github.com/"
   },
   "dependencies": {
-    "event-stream": "3.3.4",
+    "event-stream": "^4.0.1",
     "date-format": "^1.2.0",
     "uuid": "^3.2.1",
     "lodash": "^4.0.0",
     "sha.js": "^2.4.0",
-    "serverless-pseudo-parameters": "^2.2.0"
+    "serverless-pseudo-parameters": "^2.2.0",
+    "murmurhash3": "^0.4.3"
   }
 }

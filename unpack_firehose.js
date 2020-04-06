@@ -8,7 +8,9 @@ const shajs = require('sha.js')
 const dateFormat = require('date-format')
 const s3 = new AWS.S3()
 
-module.exports.unpackFirehose = function(event, context, cb) {
+const HISTORY_SHARD_COUNT = 10000 // WARN: re-sharding requires deleting the entire resources bucket and re-generating all history files
+
+module.exports.unpackFirehose = async function(event, context, cb) {
 
   console.log(`processing s3 event ${JSON.stringify(event)}`)
 
@@ -130,10 +132,6 @@ module.exports.unpackFirehose = function(event, context, cb) {
     }
 
     return Promise.all(promises)
-  }).then(results => {
-    return cb(null, 'success')
-  }, err => {
-    return cb(err)
   })
 }
 

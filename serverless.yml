@@ -3,30 +3,36 @@ provider:
   name: aws
   region: us-west-2
   runtime: nodejs10.x
-  timeout: 300
+  timeout: 900
   memorySize: 192
   environment:
     #
     # Customize your deployment here:
     #
+    TRAINING_JOB_SHEDULE: rate(24 hours) # trades off between learning latency and cost
     FEATURE_TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
     FEATURE_TRAINING_INSTANCE_TYPE: ml.m5.large
     FEATURE_TRAINING_INSTANCE_COUNT: 1
     FEATURE_TRAINING_VOLUME_SIZE_IN_GB: 1
     FEATURE_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
     TRANSFORM_INSTANCE_TYPE: ml.m5.large
-    TRANSFORM_INSTANCE_COUNT: 2
-    XGBOOST_TRAINING_IMAGE: 246618743249.dkr.ecr.us-west-2.amazonaws.com/xgboost:latest # FIX don't use latest in production
+    TRANSFORM_INSTANCE_COUNT: 4
+    XGBOOST_TRAINING_IMAGE: 433757028032.dkr.ecr.us-west-2.amazonaws.com/xgboost:latest # 246618743249.dkr.ecr.us-west-2.amazonaws.com/xgboost:latest # FIX don't use latest in production
     XGBOOST_TRAINING_INSTANCE_TYPE: ml.m5.large
     XGBOOST_TRAINING_INSTANCE_COUNT: 2
     XGBOOST_TRAINING_VOLUME_SIZE_IN_GB: 10
     XGBOOST_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
+    HOSTING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/decision_service-dev:latest 
     HOSTING_INSTANCE_TYPE: ml.t2.medium # Note that t* instance types don't support autoscaling
     HOSTING_INITIAL_INSTANCE_COUNT: 1 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
+    DEFAULT_REWARD_WINDOW: 3600 # 2 hours
+    REWARD_PROCESSING_WORKER_COUNT_PER_FIREHOSE_PROCESSING_INVOCATION: 10 # trades off between learning latency and cost. Invoked once each time a firehose file is processed
+    REWARD_PROCESSING_WORKER_MEMORY_IN_MB: 1024 # must be large enough to hold a reward window's worth of events for a single history shard
+    FIREHOSE_PROCESSING_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory. Buffer size is configured in resources/serverless.yml
     # 
     # End customization
     #
-    HOSTING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/decision_service-dev:latest 
+    HISTORY_SHARD_COUNT: 64 # CAUTION: changes require re-sharding all records. Increase if reward processing workers time out or run out of memory.
     FEATURE_TRAINING_ROLE_ARN: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
     FIREHOSE_DELIVERY_STREAM_NAME: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.V4Firehose}
     RECORDS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
@@ -55,10 +61,7 @@ functions:
   dispatchTrainingJobs:
     handler: train_deploy.dispatchTrainingJobs
     events:
-      #
-      # CUSTOMIZE: The training rate trades off between learning latency and cost
-      #
-      - schedule: rate(24 hours)
+      - schedule: ${self:provider.environment.TRAINING_JOB_SHEDULE}
   choose:
     handler: api.choose
     timeout: 6
@@ -97,7 +100,7 @@ functions:
           private: true
   firehoseFileCreated:
     handler: unpack_firehose.unpackFirehose
-    memorySize: 1024 # needs to be able to unpack the entire firehose buffer into memory. Buffer size is configured in resources/serverless.yml
+    memorySize: ${self:provider.environment.FIREHOSE_PROCESSING_WORKER_MEMORY_IN_MB} 
     events:
       - s3:
           bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3Bucket}
@@ -105,6 +108,7 @@ functions:
           event: s3:ObjectCreated:*
   join:
     handler: join.join
+    memorySize: ${self:provider.environment.REWARD_PROCESSING_WORKER_MEMORY_IN_MB}
     events:
       - s3:
           bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
