@@ -4,11 +4,12 @@ const AWS = require('aws-sdk')
 const zlib = require('zlib')
 const es = require('event-stream')
 const uuidv4 = require('uuid/v4')
-const shajs = require('sha.js')
+const mmh3 = require('murmurhash3js')
 const dateFormat = require('date-format')
 const s3 = new AWS.S3()
+const lambda = new AWS.Lambda()
 
-const HISTORY_SHARD_COUNT = 10000 // WARN: re-sharding requires deleting the entire resources bucket and re-generating all history files
+const utils = require("./utils.js")
 
 module.exports.unpackFirehose = async function(event, context, cb) {
 
@@ -18,7 +19,7 @@ module.exports.unpackFirehose = async function(event, context, cb) {
   let filenameDatePart = dateFormat.asString("yyyy-MM-dd-hh-mm-ss", now)
   let uuidPart = uuidv4() // use the same uuid across the files for this unpacking
 
-  let buffersByKey = {}
+  let buffersByShardId = {}
   let promises = []
 
   if (!event.Records || !event.Records.length > 0) {
@@ -63,6 +64,8 @@ module.exports.unpackFirehose = async function(event, context, cb) {
                 console.log(`WARN: skipping record - no user_id in ${line}`)
                 return;
               }
+              
+              // FIX check for timestamp in the future
 
               let projectName = eventRecord.project_name;
 
@@ -75,15 +78,12 @@ module.exports.unpackFirehose = async function(event, context, cb) {
                 return;
               }
 
-              let hashedUserId = getHashedUserId(projectName, eventRecord.user_id);
+              let shardId = getShardId(projectName, eventRecord.user_id, SHARD_COUNT);
 
-              // histories/projectName/hashedUserId/improve-v5-pending-events-projectName-hashedUserId-yyyy-MM-dd-hh-mm-ss-uuid.gz
-              let s3Key = `histories/${projectName}/${hashedUserId}/improve-v5-pending-events-${projectName}-${hashedUserId}-${filenameDatePart}-${uuidPart}.gz`
-
-              let buffers = buffersByKey[s3Key]
+              let buffers = buffersByShardId[shardId]
               if (!buffers) {
                 buffers = []
-                buffersByKey[s3Key] = buffers
+                buffersByShardId[shardId] = buffers
               }
               buffers.push(Buffer.from(JSON.stringify(eventRecord) + "\n"))
 
@@ -108,20 +108,26 @@ module.exports.unpackFirehose = async function(event, context, cb) {
   return Promise.all(promises).then(results => {
     // ignore results, just use the shared buffersByKey
 
+  let now = new Date()
+  let pathDatePart = dateFormat.asString("yyyy/MM/dd/hh", now)
+  let filenameDatePart = dateFormat.asString("yyyy-MM-dd-hh-mm-ss",now)
+  let uuidPart = uuidv4() // use the same uuid across the files for this unpacking
+
     let promises = []
 
-    for (var s3Key in buffersByKey) {
-      if (!buffersByKey.hasOwnProperty(s3Key)) {
+    for (var s3Key in buffersByShardId) {
+      if (!buffersByShardId.hasOwnProperty(s3Key)) {
         continue
       }
 
-      let buffers = buffersByKey[s3Key]
+      let buffers = buffersByShardId[s3Key]
       if (!buffers.length) {
         continue;
       }
 
       console.log(`writing ${buffers.length} records to ${s3Key}`)
 
+      // write the data
       let params = {
         Body: zlib.gzipSync(Buffer.concat(buffers)),
         Bucket: process.env.RECORDS_BUCKET,
@@ -129,12 +135,31 @@ module.exports.unpackFirehose = async function(event, context, cb) {
       }
 
       promises.push(s3.putObject(params).promise())
+      
+      // write the stale file indicating this key should be processed
+      params = {
+        Body: JSON.stringify({ "key": s3Key }),
+        Bucket: process.env.RECORDS_BUCKET,
+        Key: utils.getStaleJanitoryS3Key(s3Key)
+      }
+
+      promises.push(s3.putObject(params).promise())
     }
 
     return Promise.all(promises)
+  }).then(results => {
+    const params = {
+      FunctionName: "lambda-invokes-lambda-node-dev-print_strings",
+      InvocationType: "Event",
+      Payload: JSON.stringify(message_s)
+    };
+    
+    return lambda.invoke(params).promise()
   })
 }
 
-function getHashedUserId(projectName, userId) {
-  return shajs('sha256').update(projectName.length + ":" + projectName + ":" + userId).digest('base64').replace(/[\W_]+/g, '').substring(0, 24); // remove all non-alphanumeric (+=/) then truncate to 144 bits
+function getShardId(projectName, userId, shardCount) {
+  const bitCount = Math.floor(Math.log2(shardCount))
+  // generate a 32 bit bit string so that we can possibly do different subspace queries later
+  return mmh3.x86.hash32(projectName.length + ":" + projectName + ":" + userId).toString(2).padStart(32, '0').substring(0, bitCount)
 }

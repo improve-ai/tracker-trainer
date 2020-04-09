@@ -253,6 +253,7 @@ module.exports.rewards = function(event, context, cb) {
 function sendToFirehose(projectName, body, receivedAt, log) {
   body["project_name"] = projectName;
   body["received_at"] = receivedAt.toISOString();
+  // FIX timestamp must never be in the future
   if (!body["timestamp"]) {
     body["timestamp"] = body["received_at"];
   }
