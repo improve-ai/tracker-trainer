@@ -27,21 +27,24 @@ module.exports.processHistoryShard = async function(event, context) {
 
   console.log(`processing event ${JSON.stringify(event)}`)
 
-  // may have to relist to get all stale files for this shard
+  // FIX may have to relist to get all stale files for this shard
 
   if (!event.s3Key) {
-    throw new Error(`WARN: Invalid S3 event ${JSON.stringify(event)}`)
+    throw new Error(`WARN: missing s3Key ${JSON.stringify(event)}`)
   }
 
-  // histories/projectName/hashedUserId/improve-v5-pending-events-projectName-hashedUserId-yyyy-MM-dd-hh-mm-ss-uuid.gz
-  // histories/events/projectName/shardCount/shardId/yyyy/MM/dd/hh/improve-events-projectName-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
-
-  const [projectName, hashedUserId] = s3Record.object.key.split('/').slice(1,3)
-  const s3Bucket = s3Record.bucket.name
+  const params = {
+    Bucket: process.env.RECORDS_BUCKET,
+    Prefix: naming.getHistoryShardS3KeyPrefix(event.s3Key)
+  }
   
-  return listAllKeys({ Bucket: s3Bucket, Prefix: `histories/${projectName}/${hashedUserId}`}).then(s3Keys => {
+  const projectName = naming.getProjectNameFromHistoryS3Key(event.s3Key)
+  
+  // FIX scope to just the necessary files by date
+  
+  return listAllKeys(params).then(s3Keys => {
     console.log(`s3Keys : ${JSON.stringify(s3Keys)}`)
-    return loadUserEventsForS3Keys(s3Bucket, s3Keys)
+    return loadUserEventsForS3Keys(s3Keys)
   }).then(userEvents => {
     userEvents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
     // customize may return either a mapping of models -> joined events or a promise that will return the same
@@ -53,10 +56,10 @@ module.exports.processHistoryShard = async function(event, context) {
   })
 }
 
-function loadUserEventsForS3Keys(s3Bucket, s3Keys) {
+function loadUserEventsForS3Keys(s3Keys) {
   let promises = []
   for (let i = 0; i < s3Keys.length; i++) {
-    promises.push(loadUserEventsForS3Key(s3Bucket, s3Keys[i]))
+    promises.push(loadUserEventsForS3Key(s3Keys[i]))
   }
   return Promise.all(promises).then(arraysOfEvents => {
     // Promise.all accumulates an array of results
@@ -64,16 +67,16 @@ function loadUserEventsForS3Keys(s3Bucket, s3Keys) {
   })
 }
 
-function loadUserEventsForS3Key(s3Bucket, s3Key) {
+function loadUserEventsForS3Key(s3Key) {
   let events = []
   
   return new Promise((resolve, reject) => {
     
     let gunzip = zlib.createGunzip()
 
-    console.log(`loadUserEventsForS3Key s3Bucket: ${s3Bucket} s3Key : ${s3Key}`)
+    console.log(`loadUserEventsForS3Key ${s3Key}`)
 
-    let stream = s3.getObject({ Bucket: s3Bucket, Key: s3Key,}).createReadStream().pipe(gunzip).pipe(es.split()).pipe(es.mapSync(function(line) {
+    let stream = s3.getObject({ Bucket: process.env.RECORDS_BUCKET, Key: s3Key,}).createReadStream().pipe(gunzip).pipe(es.split()).pipe(es.mapSync(function(line) {
 
       // pause the readstream
       stream.pause();
@@ -84,7 +87,7 @@ function loadUserEventsForS3Key(s3Bucket, s3Key) {
         }
         let eventRecord = JSON.parse(line)
 
-        if (!eventRecord || !eventRecord.timestamp || !isDate(eventRecord.timestamp)) {
+        if (!eventRecord || !eventRecord.timestamp || !naming.isValidDate(eventRecord.timestamp)) {
           console.log(`WARN: skipping record - no timestamp in ${line}`)
           return;
         }
@@ -121,8 +124,8 @@ function writeJoinedEventsByModel(historyS3Key, modelsToJoinedEvents) {
 function writeJoinedEvents(historyS3Key, modelName, joinedEvents) {
       
       // allow alphanumeric, underscore, dash, space, period
-      if (!modelName.match(/^[\w\- .]+$/i)) {
-        console.log(`WARN: skipping record - invalid modelName, not alphanumeric, underscore, dash, space, period ${modelName}`)
+      if (!naming.isValidModelName(modelName)) {
+        console.log(`WARN: skipping ${joinedEvents.length} records - invalid modelName, not alphanumeric, underscore, dash, space, period ${modelName}`)
         return;
       }
       
@@ -131,8 +134,6 @@ function writeJoinedEvents(historyS3Key, modelName, joinedEvents) {
         jsonLines += (JSON.stringify(joinedEvent) + "\n")
       }
       
-      // joined/data/projectName/modelName/shardCount/(train|validation)/yyyy/MM/dd/hh/improve-joined-projectName-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
-
       let s3Key = naming.getJoinedS3Key(historyS3Key, modelName)
       console.log(`writing ${joinedEvents.length} records to ${s3Key}`)
         
@@ -144,22 +145,6 @@ function writeJoinedEvents(historyS3Key, modelName, joinedEvents) {
       return s3.putObject(params).promise()
 }
 
-/* 
- Implements the train/validation split based on the hash of the file name.  
- All file name transformations are idempotent to avoid duplicate records.
- projectName and modelName are not included in the hash to allow files to be copied between models
-*/
-function getTrainValidationPathPart(fileName) {
-  let validationProportion = parseFloat(process.env.VALIDATION_PROPORTION)
-  
-  console.log(`mmh32 ${mmh3.x86.hash32(fileName)}`)
-  if (mmh3.x86.hash32(fileName) / (2.0 ** 32) < validationProportion) {
-    return naming.getValidationPathPart()
-  } else {
-    return naming.getTrainPathPart()
-  }
-}
-
 // modified from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
 const listAllKeys = (params, out = []) => new Promise((resolve, reject) => {
   s3.listObjectsV2(params).promise()
@@ -169,8 +154,3 @@ const listAllKeys = (params, out = []) => new Promise((resolve, reject) => {
     })
     .catch(reject);
 });
-
-// from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
-function isDate(date) {
-  return (new Date(date) !== "Invalid Date") && !isNaN(new Date(date));
-}

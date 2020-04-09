@@ -90,20 +90,13 @@ module.exports.unpackFirehose = async function(event, context, cb) {
                 return;
               }
               
-              if (!eventRecord.timestamp) {
-                console.log(`WARN: skipping record - no timestamp in ${line}`)
+              if (!eventRecord.timestamp || !naming.isValidDate(eventRecord.timestamp)) {
+                console.log(`WARN: skipping record - invalid timestamp in ${line}`)
                 return;
               }
-              
-              const timestamp = new Date(eventRecord.timestamp)
-              
-              if (isNaN(timestamp.getTime())) {
-                console.log(`WARN: skipping record - invalid timestamp ${line}`)
-                return;
-              }
-              
+
               // client reporting of timestamps in the future are handled in sendToFireHose. This should only happen with some clock skew.
-              if (timestamp > Date.now()) {
+              if (new Date(eventRecord.timestamp) > Date.now()) {
                 console.log(`WARN: timestamp in the future ${line}`)
               }
 
@@ -112,8 +105,7 @@ module.exports.unpackFirehose = async function(event, context, cb) {
               // delete project_name from requestRecord in case its sensitive
               delete eventRecord.project_name;
 
-              // allow alphanumeric, underscore, dash, space, period
-              if (!projectName.match(/^[\w\- .]+$/i)) {
+              if (!naming.isValidProjectName(projectName)) {
                 console.log(`WARN: skipping record - invalid project_name, not alphanumeric, underscore, dash, space, period ${line}`)
                 return;
               }

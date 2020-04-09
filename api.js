@@ -4,7 +4,7 @@ const AWS = require('aws-sdk');
 const _ = require('lodash');
 const sagemakerRuntime = new AWS.SageMakerRuntime();
 
-const unpack_firehose = require("./unpack_firehose.js")
+const unpackFirehose = require("./unpack_firehose.js")
 const train_deploy = require("./train_deploy.js")
 const customize = require("./customize.js")
 
@@ -84,7 +84,7 @@ module.exports.choose = function(event, context, cb) {
   
   // send to firehose in parallel with sagemaker invoke
   body["record_type"] = "choose";
-  sendToFirehose(projectName, body, receivedAt, logging).catch((error) =>
+  unpackFirehose.sendToFirehose(projectName, body, receivedAt, logging).catch((error) =>
     console.log(error)
   );
   
@@ -143,7 +143,7 @@ module.exports.track = function(event, context, cb) {
     return sendErrorResponse(cb,"the 'user_id' field is required")
   }
 
-  return sendToFirehose(projectName, body, receivedAt, logging).then((result) => {
+  return unpackFirehose.sendToFirehose(projectName, body, receivedAt, logging).then((result) => {
     consoleTimeEnd('track', logging)
     return sendSuccessResponse(cb);
   }).catch(err =>{
@@ -188,7 +188,7 @@ module.exports.using = function(event, context, cb) {
   
   body["record_type"] = "using";
     
-  return sendToFirehose(projectName, body, receivedAt, logging).then((result) => {
+  return unpackFirehose.sendToFirehose(projectName, body, receivedAt, logging).then((result) => {
     consoleTimeEnd('using', logging)
     return sendSuccessResponse(cb);
   }).catch(err =>{
@@ -237,7 +237,7 @@ module.exports.rewards = function(event, context, cb) {
 
   body["record_type"] = "rewards";
   
-  return sendToFirehose(projectName, body, receivedAt, logging).then((result) => {
+  return unpackFirehose.sendToFirehose(projectName, body, receivedAt, logging).then((result) => {
     consoleTimeEnd('rewards',logging)
     return sendSuccessResponse(cb);
   }).catch(err =>{

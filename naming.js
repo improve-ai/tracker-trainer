@@ -7,7 +7,7 @@ const me = module.exports
   All naming in this system is designed to allow idempotent re-processing of files at any point in the processing pipeline without creating duplicate data downstream.  For this reason
   pipelines are seperated by SHARD_COUNT.  If the SHARD_COUNT is changed then a new processing pipeline will be created to ensure that s3 keys stay consistent and idempotent.
   
-  History files are further seperated by the HISTORY_FILE_WINDOW
+  History files are further seperated by the history file window
   
   joined/transformed files are further seperated by the VALIDATION_PROPORTION
   
@@ -42,7 +42,9 @@ module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt, firehos
   return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}/${pathDatePart}/improve-events-${projectName}-${SHARD_COUNT}-${shardId}-${filenameDatePart}-${firehoseUuid}`
 }
 
-module.exports.getHistoryS3KeyPrefix = (projectName, shardId) => {
+module.exports.getHistoryShardS3KeyPrefix = (historyS3Key) => {
+  const [histories, data, projectName, shardCount, shardId, year, month, day, hour, historyFileName] = historyS3Key.split('/')
+
   return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}`
 }
 
@@ -50,9 +52,16 @@ module.exports.getStaleHistoryS3Key = (s3Key) => {
   return `histories/janitor/stale/${s3Key.substring("histories/data/".length)}`
 }
 
+module.exports.getProjectNameFromHistoryS3Key = (historyS3Key) => {
+  return historyS3Key.split('/')[2]
+}
+
 module.exports.getJoinedS3Key = (historyS3Key, modelName) => {
+  const [histories, data, projectName, shardCount, shardId, year, month, day, hour, historyFileName] = historyS3Key.split('/')
+  const joinedFileName = `improve-joined${historyFileName.substring('improve-events'.length)}`
+  
   // joined/data/projectName/modelName/shardCount/(train|validation)/(trainSplit|validationSplit)/yyyy/MM/dd/hh/improve-joined-projectName-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
-  return `joined/${projectName}/${modelName}/${SHARD_COUNT}/${getTrainValidationPathPart(fileName)}/${fileName}`
+  return `joined/data/${projectName}/${modelName}/${shardCount}/${getTrainValidationPathPart(joinedFileName)}/${year}/${month}/${day}/${hour}/${joinedFileName}`
 }
 
 module.exports.getJoinedS3Uri = (projectName, modelName) => {
@@ -109,4 +118,18 @@ module.exports.getFeatureModelsS3Uri = (projectName, modelName) => {
 
 module.exports.getXGBoostModelsS3Uri = (projectName, modelName) => {
   return `s3://${process.env.RECORDS_BUCKET}/xgboost_models/${projectName}/${modelName}`
+}
+
+// allow alphanumeric, underscore, dash, space, period
+module.exports.isValidModelName = (modelName) => {
+  return modelName.match(/^[\w\- .]+$/i)
+}
+
+module.exports.isValidProjectName = (projectName) => {
+  return me.isValidModelName(projectName) // same rules
+}
+
+// from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
+module.exports.isValidDate = (date) => {
+  return (new Date(date) !== "Invalid Date") && !isNaN(new Date(date));
 }
