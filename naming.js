@@ -6,19 +6,25 @@ const me = module.exports
 /*
   All naming in this system is designed to allow idempotent re-processing of files at any point in the processing pipeline without creating duplicate data downstream.  For this reason
   pipelines are seperated by SHARD_COUNT.  If the SHARD_COUNT is changed then a new processing pipeline will be created to ensure that s3 keys stay consistent and idempotent.
+  
+  History files are further seperated by the HISTORY_FILE_WINDOW
+  
+  joined/transformed files are further seperated by the VALIDATION_PROPORTION
+  
+  As long as these variables stay constant, re-processing of firehose files should be idempotent
 */
 
 // using power of 2 bit string shards makes future re-sharding easier than a modulo based approach
 const SHARD_COUNT = 2**Math.floor(Math.log2(process.env.HISTORY_SHARD_COUNT)) // round to floor power of 2
 
-// intentionally not including this in the configuration. changing it would technically require regenerating all files from the firehose files tsince this would
+// intentionally not including this in the configuration. changing it would technically require regenerating all files from the firehose files since this would
 // change which history files some events are assigned to.  In practice, changing this window shouldn't change performance much unless a lot of delayed events were coming in from client SDKs.
-// the reward windows and shard count are much more important for controlling performance.
+// the reward windows and shard count are much more important for controlling performance.  The maximum buffer window for firehose is 15 minutes so this should catch most events.
 const HISTORY_FILE_WINDOW = 3600
 
 // the history file is named based on its earliest event. Only allow events within the window in the file.
-module.exports.getHistoryFileWindow = () => {
-  return HISTORY_FILE_WINDOW
+module.exports.getHistoryFileWindowMillis = () => {
+  return HISTORY_FILE_WINDOW * 1000
 }
 
 module.exports.getShardId = (userId) => {
@@ -29,7 +35,7 @@ module.exports.getShardId = (userId) => {
   return mmh3.x86.hash32(userId).toString(2).padStart(32, '0').substring(0, bitCount)
 }
     
-module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt, firehoseUuid) => {
+module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt, firehoseS3Key) => {
   const pathDatePart = dateFormat.asString("yyyy/MM/dd/hh", earliestEventAt)
   const filenameDatePart = dateFormat.asString("yyyy-MM-dd-hh-mm-ss", earliestEventAt)
 

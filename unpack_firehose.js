@@ -160,28 +160,43 @@ module.exports.unpackFirehose = async function(event, context, cb) {
           // sort by timestamp
           buffers.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
           
-          // the file is named based on the earlest timestamp in the set
-          const s3Key = naming.getHistoryS3Key(projectName, shardId, new Date(buffers[0].timestamp), firehoseS3Key)
-          
-          console.log(`writing ${buffers.length} records to ${s3Key}`)
-    
-          // write the data
-          let params = {
-            Body: zlib.gzipSync(Buffer.concat(buffers)),
-            Bucket: process.env.RECORDS_BUCKET,
-            Key: s3Key
+          // process the buffers by splitting it into chunks based on the history file window
+          while (buffers.length) {
+            const earliestTimestamp = new Date(buffers[0].timestamp)
+            let lastIndex = buffers.length-1
+            while (new Date(buffers[lastIndex].timestamp) > new Date(earliestTimestamp.getTime() + naming.getHistoryFileWindowMillis())) {
+              lastIndex++
+            }
+            
+            const bufferSlice = buffers.slice(0, lastIndex+1)
+            buffers = buffers.slice(lastIndex+1, buffers.length)
+            if (buffers.length) {
+              console.log(`WARN: event timestamps don't all fit within one history file window, splitting`)
+            }
+            
+            // the file is named based on the earlest timestamp in the set
+            const s3Key = naming.getHistoryS3Key(projectName, shardId, earliestTimestamp, firehoseS3Key)
+            
+            console.log(`writing ${bufferSlice.length} records to ${s3Key}`)
+      
+            // write the data
+            let params = {
+              Body: zlib.gzipSync(Buffer.concat(bufferSlice)),
+              Bucket: process.env.RECORDS_BUCKET,
+              Key: s3Key
+            }
+      
+            promises.push(s3.putObject(params).promise())
+            
+            // write the stale file indicating this key should be processed
+            params = {
+              Body: JSON.stringify({ "key": s3Key }),
+              Bucket: process.env.RECORDS_BUCKET,
+              Key: naming.getStaleJanitorS3Key(s3Key)
+            }
+      
+            promises.push(s3.putObject(params).promise())
           }
-    
-          promises.push(s3.putObject(params).promise())
-          
-          // write the stale file indicating this key should be processed
-          params = {
-            Body: JSON.stringify({ "key": s3Key }),
-            Bucket: process.env.RECORDS_BUCKET,
-            Key: naming.getStaleJanitorS3Key(s3Key)
-          }
-    
-          promises.push(s3.putObject(params).promise())
         }
       }
     }
