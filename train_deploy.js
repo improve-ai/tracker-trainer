@@ -10,7 +10,7 @@ const s3 = new AWS.S3();
 const sagemaker = new AWS.SageMaker({ maxRetries: 100, retryDelayOptions: { customBackoff: sagemakerBackoff }});
 
 const customize = require("./customize.js")
-const utils = require("./utils.js")
+const naming = require("./naming.js")
 
 const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
 
@@ -60,7 +60,7 @@ function createFeatureTrainingJob(projectName, model) {
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
-            S3Uri: utils.getJoinedTrainS3Uri(projectName, model),
+            S3Uri: naming.getJoinedTrainS3Uri(projectName, model),
             S3DataDistributionType: "FullyReplicated",
           }
         },
@@ -71,14 +71,14 @@ function createFeatureTrainingJob(projectName, model) {
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
-            S3Uri: utils.getJoinedValidationS3Uri(projectName, model), 
+            S3Uri: naming.getJoinedValidationS3Uri(projectName, model), 
             S3DataDistributionType: "FullyReplicated",
           }
         },
       },
     ],
     OutputDataConfig: { 
-      S3OutputPath: utils.getFeatureModelsS3Uri(projectName, model), 
+      S3OutputPath: naming.getFeatureModelsS3Uri(projectName, model), 
     },
     ResourceConfig: { 
       InstanceCount: process.env.FEATURE_TRAINING_INSTANCE_COUNT, 
@@ -160,14 +160,14 @@ function createTransformJob(projectName, model, trainingJobName) {
       DataSource: { 
         S3DataSource: { 
           S3DataType: "S3Prefix",
-          S3Uri: utils.getJoinedS3Uri(projectName, model),
+          S3Uri: naming.getJoinedS3Uri(projectName, model),
         }
       },
       SplitType: "Line",
     },
     TransformOutput: { 
       AssembleWith: "None",
-      S3OutputPath: utils.getTransformedS3Uri(projectName, model),
+      S3OutputPath: naming.getTransformedS3Uri(projectName, model),
     },
     TransformResources: { 
       InstanceType: process.env.TRANSFORM_INSTANCE_TYPE,
@@ -221,7 +221,7 @@ function createXGBoostTrainingJob(projectName, model, trainingJobName) {
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
-            S3Uri: utils.getTransformedTrainS3Uri(projectName, model), 
+            S3Uri: naming.getTransformedTrainS3Uri(projectName, model), 
             S3DataDistributionType: "ShardedByS3Key",
           }
         },
@@ -232,14 +232,14 @@ function createXGBoostTrainingJob(projectName, model, trainingJobName) {
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
-            S3Uri: utils.getTransformedValidationS3Uri(projectName, model), 
+            S3Uri: naming.getTransformedValidationS3Uri(projectName, model), 
             S3DataDistributionType: "ShardedByS3Key",
           }
         },
       },
     ],
     OutputDataConfig: { 
-      S3OutputPath: utils.getXGBoostModelsS3Uri(projectName, model), 
+      S3OutputPath: naming.getXGBoostModelsS3Uri(projectName, model), 
     },
     ResourceConfig: { 
       InstanceCount: process.env.XGBOOST_TRAINING_INSTANCE_COUNT, 

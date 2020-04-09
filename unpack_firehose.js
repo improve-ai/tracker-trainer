@@ -3,24 +3,47 @@
 const AWS = require('aws-sdk')
 const zlib = require('zlib')
 const es = require('event-stream')
-const uuidv4 = require('uuid/v4')
-const mmh3 = require('murmurhash3js')
-const dateFormat = require('date-format')
 const s3 = new AWS.S3()
+const uuidv4 = require('uuid/v4');
+const firehose = new AWS.Firehose();
 const lambda = new AWS.Lambda()
 
-const utils = require("./utils.js")
+const naming = require("./naming.js")
+
+
+// Send the event with the timestamp and project name to firehose
+module.exports.sendToFirehose = (projectName, body, receivedAt, log) => {
+  body["project_name"] = projectName;
+  body["received_at"] = receivedAt.toISOString();
+  // FIX timestamp must never be in the future
+  if (!body["timestamp"]) {
+    body["timestamp"] = body["received_at"];
+  }
+  if (!body["message_id"]) {
+    body["message_id"] = uuidv4()
+  }
+  let firehoseData = new Buffer(JSON.stringify(body)+'\n')
+  consoleTime('firehose',log)
+  consoleTime('firehose-create',log)
+
+  let firehosePromise = firehose.putRecord({
+    DeliveryStreamName: process.env.FIREHOSE_DELIVERY_STREAM_NAME,
+    Record: { 
+        Data: firehoseData
+    }
+  }).promise().then(result => {
+    consoleTimeEnd('firehose',log)
+    return result
+  })
+  consoleTimeEnd('firehose-create',log)
+  return firehosePromise;
+}
 
 module.exports.unpackFirehose = async function(event, context, cb) {
 
   console.log(`processing s3 event ${JSON.stringify(event)}`)
 
-  let now = new Date()
-  let filenameDatePart = dateFormat.asString("yyyy-MM-dd-hh-mm-ss", now)
-  let uuidPart = uuidv4() // use the same uuid across the files for this unpacking
-
-  let buffersByShardId = {}
-  let promises = []
+  const promises = []
 
   if (!event.Records || !event.Records.length > 0) {
     return cb(new Error(`WARN: Invalid S3 event ${JSON.stringify(event)}`))
@@ -34,11 +57,13 @@ module.exports.unpackFirehose = async function(event, context, cb) {
 
     promises.push(new Promise((resolve, reject) => {
 
-      let s3Record = event.Records[i].s3
+      const buffersByShardIdByProjectName = {}
 
-      let gunzip = zlib.createGunzip()
+      const s3Record = event.Records[i].s3
 
-      let stream = s3.getObject({
+      const gunzip = zlib.createGunzip()
+
+      const stream = s3.getObject({
           Bucket: s3Record.bucket.name,
           Key: s3Record.object.key,
         }).createReadStream()
@@ -65,7 +90,22 @@ module.exports.unpackFirehose = async function(event, context, cb) {
                 return;
               }
               
-              // FIX check for timestamp in the future
+              if (!eventRecord.timestamp) {
+                console.log(`WARN: skipping record - no timestamp in ${line}`)
+                return;
+              }
+              
+              const timestamp = new Date(eventRecord.timestamp)
+              
+              if (isNaN(timestamp.getTime())) {
+                console.log(`WARN: skipping record - invalid timestamp ${line}`)
+                return;
+              }
+              
+              // client reporting of timestamps in the future are handled in sendToFireHose. This should only happen with some clock skew.
+              if (timestamp > Date.now()) {
+                console.log(`WARN: timestamp in the future ${line}`)
+              }
 
               let projectName = eventRecord.project_name;
 
@@ -78,7 +118,13 @@ module.exports.unpackFirehose = async function(event, context, cb) {
                 return;
               }
 
-              let shardId = getShardId(projectName, eventRecord.user_id, SHARD_COUNT);
+              let buffersByShardId = buffersByShardIdByProjectName[projectName]
+              if (!buffersByShardId) {
+                buffersByShardId = {}
+                buffersByShardIdByProjectName[projectName] = buffersByShardId
+              }
+
+              const shardId = naming.getShardId(eventRecord.user_id);
 
               let buffers = buffersByShardId[shardId]
               if (!buffers) {
@@ -86,7 +132,6 @@ module.exports.unpackFirehose = async function(event, context, cb) {
                 buffersByShardId[shardId] = buffers
               }
               buffers.push(Buffer.from(JSON.stringify(eventRecord) + "\n"))
-
             }
             catch (err) {
               console.log(`error ${err} skipping requestRecord`)
@@ -100,52 +145,46 @@ module.exports.unpackFirehose = async function(event, context, cb) {
             return reject(err)
           })
           .on('end', function() {
-            return resolve()
+            return resolve([s3Record.object.key, buffersByShardIdByProjectName])
           }));
     }))
   }
 
   return Promise.all(promises).then(results => {
-    // ignore results, just use the shared buffersByKey
-
-  let now = new Date()
-  let pathDatePart = dateFormat.asString("yyyy/MM/dd/hh", now)
-  let filenameDatePart = dateFormat.asString("yyyy-MM-dd-hh-mm-ss",now)
-  let uuidPart = uuidv4() // use the same uuid across the files for this unpacking
 
     let promises = []
-
-    for (var s3Key in buffersByShardId) {
-      if (!buffersByShardId.hasOwnProperty(s3Key)) {
-        continue
+    for (let [firehoseS3Key, buffersByShardIdByProjectName] of results) {
+      for (let [projectName, buffersByShardId] of buffersByShardIdByProjectName) {
+        for (let [shardId, buffers] of buffersByShardId) {
+  
+          // sort by timestamp
+          buffers.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+          
+          // the file is named based on the earlest timestamp in the set
+          const s3Key = naming.getHistoryS3Key(projectName, shardId, new Date(buffers[0].timestamp), firehoseS3Key)
+          
+          console.log(`writing ${buffers.length} records to ${s3Key}`)
+    
+          // write the data
+          let params = {
+            Body: zlib.gzipSync(Buffer.concat(buffers)),
+            Bucket: process.env.RECORDS_BUCKET,
+            Key: s3Key
+          }
+    
+          promises.push(s3.putObject(params).promise())
+          
+          // write the stale file indicating this key should be processed
+          params = {
+            Body: JSON.stringify({ "key": s3Key }),
+            Bucket: process.env.RECORDS_BUCKET,
+            Key: naming.getStaleJanitorS3Key(s3Key)
+          }
+    
+          promises.push(s3.putObject(params).promise())
+        }
       }
-
-      let buffers = buffersByShardId[s3Key]
-      if (!buffers.length) {
-        continue;
-      }
-
-      console.log(`writing ${buffers.length} records to ${s3Key}`)
-
-      // write the data
-      let params = {
-        Body: zlib.gzipSync(Buffer.concat(buffers)),
-        Bucket: process.env.RECORDS_BUCKET,
-        Key: s3Key
-      }
-
-      promises.push(s3.putObject(params).promise())
-      
-      // write the stale file indicating this key should be processed
-      params = {
-        Body: JSON.stringify({ "key": s3Key }),
-        Bucket: process.env.RECORDS_BUCKET,
-        Key: utils.getStaleJanitoryS3Key(s3Key)
-      }
-
-      promises.push(s3.putObject(params).promise())
     }
-
     return Promise.all(promises)
   }).then(results => {
     const params = {
@@ -158,8 +197,14 @@ module.exports.unpackFirehose = async function(event, context, cb) {
   })
 }
 
-function getShardId(projectName, userId, shardCount) {
-  const bitCount = Math.floor(Math.log2(shardCount))
-  // generate a 32 bit bit string so that we can possibly do different subspace queries later
-  return mmh3.x86.hash32(projectName.length + ":" + projectName + ":" + userId).toString(2).padStart(32, '0').substring(0, bitCount)
+function consoleTime(name, shouldLog) {
+  if (shouldLog) {
+    console.time(name);
+  }
+}
+
+function consoleTimeEnd(name, shouldLog) {
+  if (shouldLog) {
+    console.timeEnd(name);
+  }
 }

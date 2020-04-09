@@ -1,18 +1,40 @@
+const dateFormat = require('date-format')
 const mmh3 = require('murmurhash3js')
+
 const me = module.exports
+
+/*
+  All naming in this system is designed to allow idempotent re-processing of files at any point in the processing pipeline without creating duplicate data downstream.  For this reason
+  pipelines are seperated by SHARD_COUNT.  If the SHARD_COUNT is changed then a new processing pipeline will be created to ensure that s3 keys stay consistent and idempotent.
+*/
 
 // using power of 2 bit string shards makes future re-sharding easier than a modulo based approach
 const SHARD_COUNT = 2**Math.floor(Math.log2(process.env.HISTORY_SHARD_COUNT)) // round to floor power of 2
 
-module.exports.getShardId = (projectName, userId) => {
+// intentionally not including this in the configuration. changing it would technically require regenerating all files from the firehose files tsince this would
+// change which history files some events are assigned to.  In practice, changing this window shouldn't change performance much unless a lot of delayed events were coming in from client SDKs.
+// the reward windows and shard count are much more important for controlling performance.
+const HISTORY_FILE_WINDOW = 3600
+
+// the history file is named based on its earliest event. Only allow events within the window in the file.
+module.exports.getHistoryFileWindow = () => {
+  return HISTORY_FILE_WINDOW
+}
+
+module.exports.getShardId = (userId) => {
   const bitCount = Math.floor(Math.log2(SHARD_COUNT))
   // generate a 32 bit bit string and truncate so that we're possibly forward compatible with different subspace queries and re-sharding logic
-  return mmh3.x86.hash32(projectName.length + ":" + projectName + ":" + userId).toString(2).padStart(32, '0').substring(0, bitCount)
+  // a modulo based approach would require a complete remapping every time the number of shards changes
+  // only depends on the userId to allow files to moved between projects and models with the same shard count and still avoid duplicates if the firehose file is reprocessed
+  return mmh3.x86.hash32(userId).toString(2).padStart(32, '0').substring(0, bitCount)
 }
     
 module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt, firehoseUuid) => {
+  const pathDatePart = dateFormat.asString("yyyy/MM/dd/hh", earliestEventAt)
+  const filenameDatePart = dateFormat.asString("yyyy-MM-dd-hh-mm-ss", earliestEventAt)
+
   // histories/data/projectName/shardCount/shardId/yyyy/MM/dd/hh/improve-events-projectName-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
-  return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}/improve-events-${SHARD_COUNT}-${shardId}-${firehoseUuid}`
+  return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}/${pathDatePart}/improve-events-${projectName}-${SHARD_COUNT}-${shardId}-${filenameDatePart}-${firehoseUuid}`
 }
 
 module.exports.getHistoryS3KeyPrefix = (projectName, shardId) => {
@@ -84,12 +106,4 @@ module.exports.getFeatureModelsS3Uri = (projectName, modelName) => {
 
 module.exports.getXGBoostModelsS3Uri = (projectName, modelName) => {
   return `s3://${process.env.RECORDS_BUCKET}/xgboost_models/${projectName}/${modelName}`
-}
-
-function getFeatureModelsS3KeyPrefix(projectName, modelName) {
-  return `feature_models/${projectName}/${modelName}`
-}
-
-function getXGBoostModelsS3KeyPrefix(projectName, modelName) {
-  return `xgboost_models/${projectName}/${modelName}`
 }

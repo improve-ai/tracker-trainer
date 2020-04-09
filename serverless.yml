@@ -25,7 +25,7 @@ provider:
     HOSTING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/decision_service-dev:latest 
     HOSTING_INSTANCE_TYPE: ml.t2.medium # Note that t* instance types don't support autoscaling
     HOSTING_INITIAL_INSTANCE_COUNT: 1 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
-    DEFAULT_REWARD_WINDOW: 3600 # 2 hours
+    DEFAULT_REWARD_WINDOW: 3600 # 1 hour
     REWARD_PROCESSING_WORKERS_PER_HISTORY_SHARD: .1 # trades off between learning latency and cost. Invoked once each time a firehose file is processed. A value of 1.0 would process each new firehose file without delay.
     REWARD_PROCESSING_WORKER_MEMORY_IN_MB: 1024 # must be large enough to hold a reward window's worth of events for a single history shard
     FIREHOSE_PROCESSING_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory. Buffer size is configured in resources/serverless.yml
@@ -33,7 +33,7 @@ provider:
     # End customization
     #
     HISTORY_SHARD_COUNT: 64 # CAUTION: changes require re-sharding all records. Increase if reward processing workers time out or run out of memory.
-    VALIDATION_PROPORTION: .3 # CAUTION: changes require re-mapping all files in /joined to the proper train/validation directories
+    VALIDATION_PROPORTION: .3 # CAUTION: changes require re-mapping all files in /joined to the proper train/validation directories.
     FEATURE_TRAINING_ROLE_ARN: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
     FIREHOSE_DELIVERY_STREAM_NAME: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.V4Firehose}
     RECORDS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}

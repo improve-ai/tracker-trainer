@@ -1,9 +1,7 @@
 'use strict';
 
 const AWS = require('aws-sdk');
-const uuidv4 = require('uuid/v4');
 const _ = require('lodash');
-const firehose = new AWS.Firehose();
 const sagemakerRuntime = new AWS.SageMakerRuntime();
 
 const unpack_firehose = require("./unpack_firehose.js")
@@ -247,34 +245,6 @@ module.exports.rewards = function(event, context, cb) {
     console.log(err);
     sendErrorResponse(cb,err);
   });
-}
-
-// Send the event with the timestamp and project name to firehose
-function sendToFirehose(projectName, body, receivedAt, log) {
-  body["project_name"] = projectName;
-  body["received_at"] = receivedAt.toISOString();
-  // FIX timestamp must never be in the future
-  if (!body["timestamp"]) {
-    body["timestamp"] = body["received_at"];
-  }
-  if (!body["message_id"]) {
-    body["message_id"] = uuidv4()
-  }
-  let firehoseData = new Buffer(JSON.stringify(body)+'\n')
-  consoleTime('firehose',log)
-  consoleTime('firehose-create',log)
-
-  let firehosePromise = firehose.putRecord({
-    DeliveryStreamName: process.env.FIREHOSE_DELIVERY_STREAM_NAME,
-    Record: { 
-        Data: firehoseData
-    }
-  }).promise().then(result => {
-    consoleTimeEnd('firehose',log)
-    return result
-  })
-  consoleTimeEnd('firehose-create',log)
-  return firehosePromise;
 }
 
 function chooseRandomVariants(variantMap) {

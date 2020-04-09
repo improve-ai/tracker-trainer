@@ -7,7 +7,7 @@ const mmh3 = require('murmurhash3js')
 const s3 = new AWS.S3()
 const lambda = new AWS.Lambda()
 const customize = require("./customize.js")
-const utils = require("./utils.js")
+const naming = require("./naming.js")
 
 module.exports.dispatchRewardProcessingWorkers = async function(event, context) {
   
@@ -148,9 +148,9 @@ function getTrainValidationPathPart(fileName) {
   
   console.log(`mmh32 ${mmh3.x86.hash32(fileName)}`)
   if (mmh3.x86.hash32(fileName) / (2.0 ** 32) < validationProportion) {
-    return utils.getValidationPathPart()
+    return naming.getValidationPathPart()
   } else {
-    return utils.getTrainPathPart()
+    return naming.getTrainPathPart()
   }
 }
 
