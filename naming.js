@@ -17,14 +17,12 @@ const me = module.exports
 // using power of 2 bit string shards makes future re-sharding easier than a modulo based approach
 const SHARD_COUNT = 2**Math.floor(Math.log2(process.env.HISTORY_SHARD_COUNT)) // round to floor power of 2
 
-// intentionally not including this in the configuration. changing it would technically require regenerating all files from the firehose files since this would
-// change which history files some events are assigned to.  In practice, changing this window shouldn't change performance much unless a lot of delayed events were coming in from client SDKs.
-// the reward windows and shard count are much more important for controlling performance.  The maximum buffer window for firehose is 15 minutes so this should catch most events.
-const HISTORY_FILE_WINDOW = 3600
-
+// intentionally not including this in the configuration and thus also not including it in the path names. Changing it would technically require deleting and regenerating all files from the firehose files since this would
+// change which history files some events are assigned to.  In practice, changing this window shouldn't change cost/performance much unless a lot of delayed events were coming in from client SDKs.
+// the reward windows and shard count are much more important for controlling cost/performance.  The maximum buffer window for firehose is 15 minutes (as of 2020/4) so this should catch most events.
 // the history file is named based on its earliest event. Only allow events within the window in the file.
 module.exports.getHistoryFileWindowMillis = () => {
-  return HISTORY_FILE_WINDOW * 1000
+  return 3600 * 1000 // one hour
 }
 
 module.exports.getShardId = (userId) => {
@@ -38,14 +36,13 @@ module.exports.getShardId = (userId) => {
 module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt, firehoseS3Key) => {
   const pathDatePart = dateFormat.asString("yyyy/MM/dd/hh", earliestEventAt)
   const filenameDatePart = dateFormat.asString("yyyy-MM-dd-hh-mm-ss", earliestEventAt)
+  const firehoseUuid = firehoseS3Key.substring(firehoseS3Key.length-39, firehoseS3Key.length-3) // 36 uuid characters, 3 .gz characters
 
   // histories/data/projectName/shardCount/shardId/yyyy/MM/dd/hh/improve-events-projectName-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
   return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}/${pathDatePart}/improve-events-${projectName}-${SHARD_COUNT}-${shardId}-${filenameDatePart}-${firehoseUuid}`
 }
 
 module.exports.getHistoryS3KeyPrefix = (projectName, shardId) => {
-  // histories/projectName/hashedUserId/improve-v5-pending-events-projectName-hashedUserId-yyyy-MM-dd-hh-mm-ss-uuid.gz
-  // histories/events/projectName/shardCount/shardId/yyyy/MM/dd/hh/improve-events-projectName-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
   return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}`
 }
 
@@ -53,7 +50,7 @@ module.exports.getStaleHistoryS3Key = (s3Key) => {
   return `histories/janitor/stale/${s3Key.substring("histories/data/".length)}`
 }
 
-module.exports.getJoinedS3Key = (projectName, modelName, historyS3Key) => {
+module.exports.getJoinedS3Key = (historyS3Key, modelName) => {
   // joined/data/projectName/modelName/shardCount/(train|validation)/(trainSplit|validationSplit)/yyyy/MM/dd/hh/improve-joined-projectName-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
   return `joined/${projectName}/${modelName}/${SHARD_COUNT}/${getTrainValidationPathPart(fileName)}/${fileName}`
 }

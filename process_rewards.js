@@ -46,10 +46,10 @@ module.exports.processHistoryShard = async function(event, context) {
     userEvents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
     // customize may return either a mapping of models -> joined events or a promise that will return the same
     console.log(`assigning rewards to ${JSON.stringify(userEvents)}`)
-    return customize.assignRewards(userEvents)
+    return customize.assignRewards(projectName, userEvents)
   }).then(joinedEventsByModel => {
     console.log(`writing joined events ${JSON.stringify(joinedEventsByModel)}`)
-    return writeJoinedEventsByModel(projectName, fileName, joinedEventsByModel)
+    return writeJoinedEventsByModel(event.s3Key, joinedEventsByModel)
   })
 }
 
@@ -106,10 +106,10 @@ function loadUserEventsForS3Key(s3Bucket, s3Key) {
   })
 }
 
-function writeJoinedEventsByModel(projectName, fileName, modelsToJoinedEvents) {
+function writeJoinedEventsByModel(historyS3Key, modelsToJoinedEvents) {
   const promises = []
   for (const [modelName, joinedEvents] of Object.entries(modelsToJoinedEvents)) {
-    promises.push(writeJoinedEvents(projectName, modelName, fileName, joinedEvents))
+    promises.push(writeJoinedEvents(historyS3Key, modelName, joinedEvents))
   }
   return Promise.all(promises)
 }
@@ -118,7 +118,13 @@ function writeJoinedEventsByModel(projectName, fileName, modelsToJoinedEvents) {
  All file name transformations are idempotent to avoid duplicate records.
  projectName and modelName are not included in the fileName to allow files to be copied between models
 */
-function writeJoinedEvents(projectName, modelName, fileName, joinedEvents) {
+function writeJoinedEvents(historyS3Key, modelName, joinedEvents) {
+      
+      // allow alphanumeric, underscore, dash, space, period
+      if (!modelName.match(/^[\w\- .]+$/i)) {
+        console.log(`WARN: skipping record - invalid modelName, not alphanumeric, underscore, dash, space, period ${modelName}`)
+        return;
+      }
       
       let jsonLines = ""
       for (const joinedEvent of joinedEvents) {
@@ -127,7 +133,7 @@ function writeJoinedEvents(projectName, modelName, fileName, joinedEvents) {
       
       // joined/data/projectName/modelName/shardCount/(train|validation)/yyyy/MM/dd/hh/improve-joined-projectName-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
 
-      let s3Key = `joined/${projectName}/${modelName}/${getTrainValidationPathPart(fileName)}/${fileName}`
+      let s3Key = naming.getJoinedS3Key(historyS3Key, modelName)
       console.log(`writing ${joinedEvents.length} records to ${s3Key}`)
         
       let params = {

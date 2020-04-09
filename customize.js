@@ -37,7 +37,7 @@ module.exports.getProjectName = (event, context) => {
 }
 
 // This function may also return a promise for performing asynchronous processing
-module.exports.assignRewards = (sortedUserHistory) => {
+module.exports.assignRewards = (projectName, sortedUserHistory) => {
     const modelsToJoinedEvents = {}
     const rewardKeysToEvents = {}
     

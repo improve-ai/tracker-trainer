@@ -153,25 +153,25 @@ module.exports.unpackFirehose = async function(event, context, cb) {
   return Promise.all(promises).then(results => {
 
     let promises = []
-    for (let [firehoseS3Key, buffersByShardIdByProjectName] of results) {
+    for (let [firehoseS3Key, buffersByShardIdByProjectName] of results) { // aggregated by Promise.all
       for (let [projectName, buffersByShardId] of buffersByShardIdByProjectName) {
         for (let [shardId, buffers] of buffersByShardId) {
   
           // sort by timestamp
           buffers.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
           
-          // process the buffers by splitting it into chunks based on the history file window
+          // process buffers by splitting it into chunks based on the history file window
           while (buffers.length) {
             const earliestTimestamp = new Date(buffers[0].timestamp)
             let lastIndex = buffers.length-1
             while (new Date(buffers[lastIndex].timestamp) > new Date(earliestTimestamp.getTime() + naming.getHistoryFileWindowMillis())) {
-              lastIndex++
+              lastIndex--
             }
             
             const bufferSlice = buffers.slice(0, lastIndex+1)
             buffers = buffers.slice(lastIndex+1, buffers.length)
             if (buffers.length) {
-              console.log(`WARN: event timestamps don't all fit within one history file window, splitting`)
+              console.log(`WARN: event timestamps don't all fall within one history file window, splitting`) // this should be rare unless SDKs are queueing events
             }
             
             // the file is named based on the earlest timestamp in the set
