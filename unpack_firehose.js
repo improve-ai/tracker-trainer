@@ -57,7 +57,8 @@ module.exports.unpackFirehose = async function(event, context, cb) {
 
     promises.push(new Promise((resolve, reject) => {
 
-      const buffersByShardIdByProjectName = {}
+      const eventsByShardIdByProjectName = {}
+      const variantRecordsByModelByProjectName = {}
 
       const s3Record = event.Records[i].s3
 
@@ -80,14 +81,24 @@ module.exports.unpackFirehose = async function(event, context, cb) {
               }
               let eventRecord = JSON.parse(line)
 
+              if (eventRecord.record_type === "choose") { // DEPRECATED
+                console.log(`WARN: skipping choose record`)
+                return;
+              }
+
               if (!eventRecord || !eventRecord.project_name) {
                 console.log(`WARN: skipping record - no project_name in ${line}`)
                 return;
               }
 
-              if (!eventRecord.user_id) {
-                console.log(`WARN: skipping record - no user_id in ${line}`)
+              // user_id is deprecated
+              if (!eventRecord.user_id && !eventRecord.history_id) {
+                console.log(`WARN: skipping record - no history_id in ${line}`)
                 return;
+              }
+              
+              if (!eventRecord.history_id) {
+                eventRecord.history_id = eventRecord.user_id
               }
               
               if (!eventRecord.timestamp || !naming.isValidDate(eventRecord.timestamp)) {
@@ -104,26 +115,50 @@ module.exports.unpackFirehose = async function(event, context, cb) {
 
               // delete project_name from requestRecord in case its sensitive
               delete eventRecord.project_name;
-
+              
               if (!naming.isValidProjectName(projectName)) {
                 console.log(`WARN: skipping record - invalid project_name, not alphanumeric, underscore, dash, space, period ${line}`)
                 return;
               }
-
-              let buffersByShardId = buffersByShardIdByProjectName[projectName]
-              if (!buffersByShardId) {
-                buffersByShardId = {}
-                buffersByShardIdByProjectName[projectName] = buffersByShardId
+              
+              // Handle variants records
+              if (eventRecord.type && eventRecord.type === "variants") {
+                if (!eventRecord.model) {
+                  console.log(`WARN: skipping record - missing model for variants type ${line}`)
+                  return
+                }
+                
+                let variantRecordsByModel = variantRecordsByModelByProjectName[projectName]
+                if (!variantRecordsByModel) {
+                  variantRecordsByModel = {}
+                  variantRecordsByModelByProjectName[projectName] = variantRecordsByModel
+                }
+                
+                let variantRecords = variantRecordsByModel[eventRecord.model]
+                if (!variantRecords) {
+                  variantRecords = []
+                  variantRecordsByModel[eventRecord.model] = variantRecords
+                }
+                variantRecords.push(eventRecord)
+                
+                return
               }
 
-              const shardId = naming.getShardId(eventRecord.user_id);
-
-              let buffers = buffersByShardId[shardId]
-              if (!buffers) {
-                buffers = []
-                buffersByShardId[shardId] = buffers
+              // Handle all other events
+              let eventsByShardId = eventsByShardIdByProjectName[projectName]
+              if (!eventsByShardId) {
+                eventsByShardId = {}
+                eventsByShardIdByProjectName[projectName] = eventsByShardId
               }
-              buffers.push(Buffer.from(JSON.stringify(eventRecord) + "\n"))
+
+              const shardId = naming.getShardId(eventRecord.history_id);
+
+              let events = eventsByShardId[shardId]
+              if (!events) {
+                events = []
+                eventsByShardId[shardId] = events
+              }
+              events.push(eventRecord)
             }
             catch (err) {
               console.log(`error ${err} skipping requestRecord`)
@@ -137,7 +172,7 @@ module.exports.unpackFirehose = async function(event, context, cb) {
             return reject(err)
           })
           .on('end', function() {
-            return resolve([s3Record.object.key, buffersByShardIdByProjectName])
+            return resolve([s3Record.object.key, eventsByShardIdByProjectName, variantRecordsByModelByProjectName])
           }));
     }))
   }
@@ -145,35 +180,53 @@ module.exports.unpackFirehose = async function(event, context, cb) {
   return Promise.all(promises).then(results => {
 
     let promises = []
-    for (let [firehoseS3Key, buffersByShardIdByProjectName] of results) { // aggregated by Promise.all
-      for (let [projectName, buffersByShardId] of buffersByShardIdByProjectName) {
-        for (let [shardId, buffers] of buffersByShardId) {
+    for (const [firehoseS3Key, eventsByShardIdByProjectName, variantRecordsByModelByProjectName] of results) { // aggregated by Promise.all
+      for (const [projectName, variantRecordsByModel] of Object.entries(variantRecordsByModelByProjectName)) {
+        for (const [modelName, variantRecords] of Object.entries(variantRecordsByModel)) {
+          
+            const s3Key = naming.getVariantsS3Key(projectName, modelName, firehoseS3Key)
+            
+            console.log(`writing ${variantRecords.length} records to ${s3Key}`)
+            
+            // write the data
+            let params = {
+              Body: zlib.gzipSync(Buffer.concat(variantRecords.map(event => Buffer.from(JSON.stringify(event) + "\n")))),
+              Bucket: process.env.RECORDS_BUCKET,
+              Key: s3Key
+            }
+      
+            promises.push(s3.putObject(params).promise())
+        }
+      }
+      
+      for (let [projectName, eventsByShardId] of Object.entries(eventsByShardIdByProjectName)) {
+        for (let [shardId, events] of Object.entries(eventsByShardId)) {
   
           // sort by timestamp
-          buffers.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+          events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
           
-          // process buffers by splitting it into chunks based on the history file window
-          while (buffers.length) {
-            const earliestTimestamp = new Date(buffers[0].timestamp)
-            let lastIndex = buffers.length-1
-            while (new Date(buffers[lastIndex].timestamp) > new Date(earliestTimestamp.getTime() + naming.getHistoryFileWindowMillis())) {
+          // process events by splitting it into chunks based on the history file window
+          while (events.length) {
+            const earliestTimestamp = new Date(events[0].timestamp)
+            let lastIndex = events.length-1
+            while (new Date(events[lastIndex].timestamp) > new Date(earliestTimestamp.getTime() + naming.getHistoryFileWindowMillis())) {
               lastIndex--
             }
             
-            const bufferSlice = buffers.slice(0, lastIndex+1)
-            buffers = buffers.slice(lastIndex+1, buffers.length)
-            if (buffers.length) {
+            const eventsSlice = events.slice(0, lastIndex+1)
+            events = events.slice(lastIndex+1, events.length)
+            if (events.length) {
               console.log(`WARN: event timestamps don't all fall within one history file window, splitting`) // this should be rare unless SDKs are queueing events
             }
             
             // the file is named based on the earlest timestamp in the set
             const s3Key = naming.getHistoryS3Key(projectName, shardId, earliestTimestamp, firehoseS3Key)
             
-            console.log(`writing ${bufferSlice.length} records to ${s3Key}`)
-      
+            console.log(`writing ${eventsSlice.length} records to ${s3Key}`)
+            
             // write the data
             let params = {
-              Body: zlib.gzipSync(Buffer.concat(bufferSlice)),
+              Body: zlib.gzipSync(Buffer.concat(eventsSlice.map(event => Buffer.from(JSON.stringify(event) + "\n")))),
               Bucket: process.env.RECORDS_BUCKET,
               Key: s3Key
             }
@@ -184,7 +237,7 @@ module.exports.unpackFirehose = async function(event, context, cb) {
             params = {
               Body: JSON.stringify({ "key": s3Key }),
               Bucket: process.env.RECORDS_BUCKET,
-              Key: naming.getStaleJanitorS3Key(s3Key)
+              Key: naming.getStaleHistoryS3Key(s3Key)
             }
       
             promises.push(s3.putObject(params).promise())
@@ -194,6 +247,7 @@ module.exports.unpackFirehose = async function(event, context, cb) {
     }
     return Promise.all(promises)
   }).then(results => {
+    /*
     const params = {
       FunctionName: "lambda-invokes-lambda-node-dev-print_strings",
       InvocationType: "Event",
@@ -201,6 +255,7 @@ module.exports.unpackFirehose = async function(event, context, cb) {
     };
     
     return lambda.invoke(params).promise()
+    */
   })
 }
 

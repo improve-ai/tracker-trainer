@@ -82,11 +82,13 @@ module.exports.choose = function(event, context, cb) {
     }
   }
   
+  /* disable choose tracking until a new design is figured out
   // send to firehose in parallel with sagemaker invoke
   body["record_type"] = "choose";
   unpackFirehose.sendToFirehose(projectName, body, receivedAt, logging).catch((error) =>
     console.log(error)
   );
+  */
   
   var params = {
     Body: new Buffer(event.body),

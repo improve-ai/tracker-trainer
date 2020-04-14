@@ -32,14 +32,27 @@ module.exports.getShardId = (userId) => {
   // only depends on the userId to allow files to moved between projects and models with the same shard count and still avoid duplicates if the firehose file is reprocessed
   return mmh3.x86.hash32(userId).toString(2).padStart(32, '0').substring(0, bitCount)
 }
+
+module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {
+  const dashSplitS3Key = firehoseS3Key.split('-')
+  const [year, month, day, hour, minute, second] = dashSplitS3Key.slice(dashSplitS3Key.length-11, dashSplitS3Key.length - 5)
+  const firehoseUuid = firehoseS3Key.substring(firehoseS3Key.length-39, firehoseS3Key.length-3) // 36 uuid characters, 3 .gz characters
+
+  // variants/data/projectName/modelName/yyyy/MM/dd/hh/improve-variants-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
+  return `variants/data/${projectName}/${modelName}/${year}/${month}/${day}/${hour}/improve-variants-${year}-${month}-${day}-${hour}-${minute}-${second}-${firehoseUuid}.gz`
+}
     
 module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt, firehoseS3Key) => {
+  if (isNaN(earliestEventAt)) {
+    throw `invalid earliestEventAt ${JSON.stringify(earliestEventAt)}`
+  }
+  
   const pathDatePart = dateFormat.asString("yyyy/MM/dd/hh", earliestEventAt)
   const filenameDatePart = dateFormat.asString("yyyy-MM-dd-hh-mm-ss", earliestEventAt)
   const firehoseUuid = firehoseS3Key.substring(firehoseS3Key.length-39, firehoseS3Key.length-3) // 36 uuid characters, 3 .gz characters
 
-  // histories/data/projectName/shardCount/shardId/yyyy/MM/dd/hh/improve-events-projectName-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
-  return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}/${pathDatePart}/improve-events-${projectName}-${SHARD_COUNT}-${shardId}-${filenameDatePart}-${firehoseUuid}`
+  // histories/data/projectName/shardCount/shardId/yyyy/MM/dd/hh/improve-events-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
+  return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}/${pathDatePart}/improve-events-${SHARD_COUNT}-${shardId}-${filenameDatePart}-${firehoseUuid}.gz`
 }
 
 module.exports.getHistoryShardS3KeyPrefix = (historyS3Key) => {
@@ -60,7 +73,7 @@ module.exports.getJoinedS3Key = (historyS3Key, modelName) => {
   const [histories, data, projectName, shardCount, shardId, year, month, day, hour, historyFileName] = historyS3Key.split('/')
   const joinedFileName = `improve-joined${historyFileName.substring('improve-events'.length)}`
   
-  // joined/data/projectName/modelName/shardCount/(train|validation)/(trainSplit|validationSplit)/yyyy/MM/dd/hh/improve-joined-projectName-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
+  // joined/data/projectName/modelName/shardCount/(train|validation)/(trainSplit|validationSplit)/yyyy/MM/dd/hh/improve-joined-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
   return `joined/data/${projectName}/${modelName}/${shardCount}/${getTrainValidationPathPart(joinedFileName)}/${year}/${month}/${day}/${hour}/${joinedFileName}`
 }
 
