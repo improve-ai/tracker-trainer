@@ -91,16 +91,6 @@ module.exports.unpackFirehose = async function(event, context, cb) {
                 return;
               }
 
-              // user_id is deprecated
-              if (!eventRecord.user_id && !eventRecord.history_id) {
-                console.log(`WARN: skipping record - no history_id in ${line}`)
-                return;
-              }
-              
-              if (!eventRecord.history_id) {
-                eventRecord.history_id = eventRecord.user_id
-              }
-              
               if (!eventRecord.timestamp || !naming.isValidDate(eventRecord.timestamp)) {
                 console.log(`WARN: skipping record - invalid timestamp in ${line}`)
                 return;
@@ -147,6 +137,17 @@ module.exports.unpackFirehose = async function(event, context, cb) {
                 variantRecords.push(eventRecord)
                 
                 return
+              }
+              
+              // user_id is deprecated
+              // history_id is not required for variants records
+              if (!eventRecord.user_id && !eventRecord.history_id) {
+                console.log(`WARN: skipping record - no history_id in ${line}`)
+                return;
+              }
+              
+              if (!eventRecord.history_id) {
+                eventRecord.history_id = eventRecord.user_id
               }
 
               // Handle all other events

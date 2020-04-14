@@ -79,6 +79,8 @@ module.exports.choose = function(event, context, cb) {
   }
   
   /* disable choose tracking until a new design is figured out
+  // probably have history_id be optional
+  
   // if (!body.user_id) {
   //   return sendErrorResponse(cb, 'user_id is required')
   // }
