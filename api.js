@@ -60,10 +60,6 @@ module.exports.choose = function(event, context, cb) {
     return sendErrorResponse(cb, 'model is required')
   }
   
-  if (!body.user_id) {
-    return sendErrorResponse(cb, 'user_id is required')
-  }
-
   if (!body.variants || !(typeof body.variants === 'object')) {
     return sendErrorResponse(cb, "the 'variants' object is required")
   }
@@ -83,6 +79,10 @@ module.exports.choose = function(event, context, cb) {
   }
   
   /* disable choose tracking until a new design is figured out
+  // if (!body.user_id) {
+  //   return sendErrorResponse(cb, 'user_id is required')
+  // }
+
   // send to firehose in parallel with sagemaker invoke
   body["record_type"] = "choose";
   unpackFirehose.sendToFirehose(projectName, body, receivedAt, logging).catch((error) =>
@@ -141,8 +141,13 @@ module.exports.track = function(event, context, cb) {
     return sendErrorResponse(cb,"project misconfigured or missing credentials")
   }
 
-  if (!body || !body.user_id) {
-    return sendErrorResponse(cb,"the 'user_id' field is required")
+  // user_id is deprecated
+  if (!body || (!body.history_id && !body.user_id)) {
+    return sendErrorResponse(cb,"the 'history_id' field is required")
+  }
+  
+  if (!body.history_id) {
+    body.history_id = body.user_id
   }
 
   return unpackFirehose.sendToFirehose(projectName, body, receivedAt, logging).then((result) => {

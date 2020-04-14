@@ -127,6 +127,11 @@ module.exports.unpackFirehose = async function(event, context, cb) {
                   console.log(`WARN: skipping record - missing model for variants type ${line}`)
                   return
                 }
+
+                if (!naming.isValidModelName(eventRecord.model)) {
+                  console.log(`WARN: skipping record - invalid model name, not alphanumeric, underscore, dash, space, period ${line}`)
+                  return;
+                }
                 
                 let variantRecordsByModel = variantRecordsByModelByProjectName[projectName]
                 if (!variantRecordsByModel) {
@@ -180,6 +185,8 @@ module.exports.unpackFirehose = async function(event, context, cb) {
   return Promise.all(promises).then(results => {
 
     let promises = []
+    
+    // write out variants
     for (const [firehoseS3Key, eventsByShardIdByProjectName, variantRecordsByModelByProjectName] of results) { // aggregated by Promise.all
       for (const [projectName, variantRecordsByModel] of Object.entries(variantRecordsByModelByProjectName)) {
         for (const [modelName, variantRecords] of Object.entries(variantRecordsByModel)) {
@@ -199,6 +206,7 @@ module.exports.unpackFirehose = async function(event, context, cb) {
         }
       }
       
+      // write out histories
       for (let [projectName, eventsByShardId] of Object.entries(eventsByShardIdByProjectName)) {
         for (let [shardId, events] of Object.entries(eventsByShardId)) {
   

@@ -35,7 +35,7 @@ module.exports.getShardId = (userId) => {
 
 module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {
   const dashSplitS3Key = firehoseS3Key.split('-')
-  const [year, month, day, hour, minute, second] = dashSplitS3Key.slice(dashSplitS3Key.length-11, dashSplitS3Key.length - 5)
+  const [year, month, day, hour, minute, second] = dashSplitS3Key.slice(dashSplitS3Key.length-11, dashSplitS3Key.length - 5) // parse from the back to avoid unexpected dashes
   const firehoseUuid = firehoseS3Key.substring(firehoseS3Key.length-39, firehoseS3Key.length-3) // 36 uuid characters, 3 .gz characters
 
   // variants/data/projectName/modelName/yyyy/MM/dd/hh/improve-variants-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
