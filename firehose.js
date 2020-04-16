@@ -186,6 +186,7 @@ module.exports.unpackFirehose = async function(event, context, cb) {
   return Promise.all(promises).then(results => {
 
     let promises = []
+    const staleShardsByProjectName = {}
     
     // write out variants
     for (const [firehoseS3Key, eventsByShardIdByProjectName, variantRecordsByModelByProjectName] of results) { // aggregated by Promise.all
@@ -211,6 +212,14 @@ module.exports.unpackFirehose = async function(event, context, cb) {
       for (let [projectName, eventsByShardId] of Object.entries(eventsByShardIdByProjectName)) {
         for (let [shardId, events] of Object.entries(eventsByShardId)) {
   
+          // keep track of the stale shards to kick off history processing workers
+          let staleShards = staleShardsByProjectName[projectName]
+          if (!staleShards) {
+            staleShards = new Set()
+            staleShardsByProjectName[projectName] = staleShards
+          }
+          staleShards.add(shardId)
+          
           // sort by timestamp
           events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
           
@@ -242,11 +251,11 @@ module.exports.unpackFirehose = async function(event, context, cb) {
       
             promises.push(s3.putObject(params).promise())
             
-            // write the stale file indicating this key should be processed
+            // write the incoming meta file indicating this key should be processed
             params = {
               Body: JSON.stringify({ "key": s3Key }),
               Bucket: process.env.RECORDS_BUCKET,
-              Key: naming.getStaleHistoryS3Key(s3Key)
+              Key: naming.getIncomingHistoryS3Key(s3Key)
             }
       
             promises.push(s3.putObject(params).promise())
@@ -254,17 +263,27 @@ module.exports.unpackFirehose = async function(event, context, cb) {
         }
       }
     }
-    return Promise.all(promises)
-  }).then(results => {
-    /*
-    const params = {
-      FunctionName: "lambda-invokes-lambda-node-dev-print_strings",
-      InvocationType: "Event",
-      Payload: JSON.stringify(message_s)
-    };
+    return Promise.all(promises).then(results => {
+      return staleShardsByProjectName
+    })
+  }).then(staleShardsByProjectName => {
+    // TODO list all meta files to find really old stale ones.  Can probably get rid of the staleShardsByProjectName and just use the list results
+    const promises = []
+    for (const [projectName, staleShards] of Object.entries(staleShardsByProjectName)) {
+      for (const staleShard of staleShards) {
+        const lambdaArn = naming.getLambdaFunctionArn("processHistoryShard", context.invokedFunctionArn)
+        console.log(`invoking processHistoryShard for project ${projectName} shard ${staleShard}`)
     
-    return lambda.invoke(params).promise()
-    */
+        const params = {
+          FunctionName: lambdaArn,
+          InvocationType: "Event",
+          Payload: JSON.stringify({project_name: projectName, shard_id: staleShard})
+        };
+        
+        promises.push(lambda.invoke(params).promise())
+      }
+    }
+    return Promise.all(promises)
   })
 }
 

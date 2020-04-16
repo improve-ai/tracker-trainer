@@ -37,11 +37,11 @@ module.exports.getProjectName = (event, context) => {
 }
 
 // This function may also return a promise for performing asynchronous processing
-module.exports.assignRewards = (projectName, sortedUserHistory) => {
+module.exports.generateActionsFromHistoryEvents = (projectName, sortedHistoryEvents) => {
     const modelsToJoinedEvents = {}
     const rewardKeysToEvents = {}
     
-    for (const record of sortedUserHistory) {
+    for (const record of sortedHistoryEvents) {
         if (record.record_type) {
             if (record.record_type === "using" && record.reward_key) {
                 record.reward = 0

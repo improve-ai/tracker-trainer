@@ -10,6 +10,7 @@ provider:
     # Customize your deployment here:
     #
     TRAINING_JOB_SHEDULE: rate(24 hours) # trades off between learning latency and cost
+    CLIENT_TRAINING_HINTS_ENABLED: true # allows clients to specify how user events map to actions and rewards
     FEATURE_TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
     FEATURE_TRAINING_INSTANCE_TYPE: ml.m5.large
     FEATURE_TRAINING_INSTANCE_COUNT: 1
@@ -25,14 +26,14 @@ provider:
     HOSTING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/decision_service-dev:latest 
     HOSTING_INSTANCE_TYPE: ml.t2.medium # Note that t* instance types don't support autoscaling
     HOSTING_INITIAL_INSTANCE_COUNT: 1 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
-    DEFAULT_REWARD_WINDOW: 3600 # 1 hour
-    REWARD_PROCESSING_WORKERS_PER_HISTORY_SHARD: .1 # trades off between learning latency and cost. Invoked once each time a firehose file is processed. A value of 1.0 would process each new firehose file without delay.
-    REWARD_PROCESSING_WORKER_MEMORY_IN_MB: 1024 # must be large enough to hold a reward window's worth of events for a single history shard
+    DEFAULT_REWARD_WINDOW: 3600 # 1 hour. linearly scale either history processing worker memory or shard count with increased reward window sizes
+    HISTORY_PROCESSING_WORKER_CONCURRENCY: 1 # Lower values allow batching for efficiency. Concurrent invocations should dip below the limit at least once per 24 hours to avoid falling behind.
+    HISTORY_PROCESSING_WORKER_MEMORY_IN_MB: 1024 # must be large enough to hold a reward window's worth of events for a single history shard
     FIREHOSE_PROCESSING_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory. Buffer size is configured in resources/serverless.yml
     # 
     # End customization
     #
-    HISTORY_SHARD_COUNT: 64 # CAUTION: changes require re-sharding all records. Increase if reward processing workers time out or run out of memory.
+    HISTORY_SHARD_COUNT: 64 # CAUTION: changes require re-sharding all records. Increase if history processing workers time out or run out of memory.
     VALIDATION_PROPORTION: .3 # CAUTION: changes require re-mapping all files in /joined to the proper train/validation directories.
     FEATURE_TRAINING_ROLE_ARN: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
     FIREHOSE_DELIVERY_STREAM_NAME: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.V4Firehose}
@@ -57,12 +58,13 @@ provider:
       Action:
         - "iam:PassRole"
       Resource: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
+    - Effect: Allow
+      Action:
+        - "lambda:InvokeFunction"
+        - "lambda:InvokeAsync"
+      Resource: "arn:aws:lambda:${self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-*"
 
 functions:
-  dispatchTrainingJobs:
-    handler: train_deploy.dispatchTrainingJobs
-    events:
-      - schedule: ${self:provider.environment.TRAINING_JOB_SHEDULE}
   choose:
     handler: api.choose
     timeout: 6
@@ -99,27 +101,23 @@ functions:
           method: post
           cors: true
           private: true
+  dispatchTrainingJobs:
+    handler: train.dispatchTrainingJobs
+    events:
+      - schedule: ${self:provider.environment.TRAINING_JOB_SHEDULE}
   firehoseFileCreated:
-    handler: unpack_firehose.unpackFirehose
+    handler: firehose.unpackFirehose
     memorySize: ${self:provider.environment.FIREHOSE_PROCESSING_WORKER_MEMORY_IN_MB} 
     events:
       - s3:
           bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3Bucket}
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
-  join:
-    handler: join.join
-    memorySize: ${self:provider.environment.REWARD_PROCESSING_WORKER_MEMORY_IN_MB}
-    events:
-      - s3:
-          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
-          existing: true # created in resources/serverless.yml
-          event: s3:ObjectCreated:*
-          rules:
-            - prefix: histories/
-            - suffix: .gz
+  processHistoryShard:
+    handler: history.processHistoryShard
+    memorySize: ${self:provider.environment.HISTORY_PROCESSING_WORKER_MEMORY_IN_MB}
   featureModelCreated:
-    handler: train_deploy.featureModelCreated
+    handler: train.featureModelCreated
     events:
       - s3:
           bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
@@ -129,7 +127,7 @@ functions:
             - prefix: feature_models/
             - suffix: model.tar.gz
   xgboostModelCreated:
-    handler: train_deploy.xgboostModelCreated
+    handler: train.xgboostModelCreated
     events:
       - s3:
           bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
@@ -139,7 +137,7 @@ functions:
             - prefix: xgboost_models/
             - suffix: model.tar.gz
   transformJobCompleted:
-    handler: train_deploy.transformJobCompleted
+    handler: train.transformJobCompleted
     events:
       - cloudwatchEvent:
           event:

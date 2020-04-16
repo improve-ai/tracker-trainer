@@ -55,15 +55,34 @@ module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt, firehos
   return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}/${pathDatePart}/improve-events-${SHARD_COUNT}-${shardId}-${filenameDatePart}-${firehoseUuid}.gz`
 }
 
-module.exports.getHistoryShardS3KeyPrefix = (historyS3Key) => {
-  const [histories, data, projectName, shardCount, shardId, year, month, day, hour, historyFileName] = historyS3Key.split('/')
-
-  return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}`
+module.exports.getHistoryShardS3KeyPrefix = (projectName, shardId) => {
+  return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}/`
 }
 
 module.exports.getStaleHistoryS3Key = (s3Key) => {
-  return `histories/janitor/stale/${s3Key.substring("histories/data/".length)}`
+  return `${me.getStaleHistoryS3KeyPrefix()}${s3Key.substring("histories/data/".length)}`
 }
+
+module.exports.getStaleHistoryS3KeyPrefix = () => {
+  return "histories/meta/stale/"
+}
+
+module.exports.getStaleHistoryShardS3KeyPrefix = (projectName, shardId) => {
+  return `${me.getStaleHistoryS3KeyPrefix()}${projectName}/${SHARD_COUNT}/${shardId}/`
+}
+
+module.exports.getIncomingHistoryS3Key = (s3Key) => {
+  return `${me.getIncomingHistoryS3KeyPrefix()}${s3Key.substring("histories/data/".length)}`
+}
+
+module.exports.getIncomingHistoryS3KeyPrefix = () => {
+  return "histories/meta/incoming/"
+}
+
+module.exports.getIncomingHistoryShardS3KeyPrefix = (projectName, shardId) => {
+  return `${me.getIncomingHistoryS3KeyPrefix()}${projectName}/${SHARD_COUNT}/${shardId}/`
+}
+
 
 module.exports.getProjectNameFromHistoryS3Key = (historyS3Key) => {
   return historyS3Key.split('/')[2]
@@ -145,4 +164,10 @@ module.exports.isValidProjectName = (projectName) => {
 // from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
 module.exports.isValidDate = (date) => {
   return (new Date(date) !== "Invalid Date") && !isNaN(new Date(date));
+}
+
+module.exports.getLambdaFunctionArn = (functionName, invokedFunctionArn) => {
+  // arn:aws:lambda:us-west-2:117097735164:function:improve-v5-test-firehoseFileCreated
+  const splitted = invokedFunctionArn.split('-')
+  return `${splitted.slice(0,splitted.length-1).join('-')}-${functionName}`
 }
