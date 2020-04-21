@@ -7,6 +7,11 @@ const s3 = new AWS.S3()
 const customize = require("./customize.js")
 const naming = require("./naming.js")
 
+module.exports.dispatchHistoryProcessingWorkers = async function(event, context) {
+
+
+}
+
 module.exports.processHistoryShard = async function(event, context) {
 
   console.log(`processing event ${JSON.stringify(event)}`)
@@ -27,34 +32,44 @@ module.exports.processHistoryShard = async function(event, context) {
       // filter the history by which ones should be newly stale
       const staleS3Keys = naming.filterStaleS3KeysFromIncomingS3Keys(historyS3Keys, incomingS3Keys)
       // mark them stale
+      console.log(`creating stale keys: ${JSON.stringify(staleS3Keys)}`)
       return markStale(staleS3Keys).then(result => {
         // incoming has been processed, delete them.
-        return deleteAllKeys(incomingS3Keys)
+        console.log(`deleting incoming keys: ${JSON.stringify(incomingS3Keys)}`)
+        return deleteAllKeys(incomingS3Keys).then(result => {
+          return historyS3Keys
+        })
       })
     })
-  }).then(result => { 
+  }).then(historyS3Keys => { 
     // list the stale keys for this shard
-    return listAllStaleHistoryShardS3Keys(projectName, shardId)
-  }).then(staleS3Keys => {
-    const cache = {}
-    
-    console.log(`processing stale keys : ${JSON.stringify(incomingS3Keys)}`)
+    return listAllStaleHistoryShardS3Keys(projectName, shardId).then(staleS3Keys => {
+      const cache = {}
 
-    return loadHistoryEventsForS3Key(s3Key).then(historyEvents => {
-      cache[s3Key] = historyEvents
-      
-      // TODO separate by user before sorting
-      
-      historyEvents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      // customize may return either a mapping of models -> joined events or a promise that will return the same
-      console.log(`assigning rewards to ${JSON.stringify(historyEvents)}`)
-      return customize.generateActionsFromHistoryEvents(projectName, historyEvents)
-    }).then(joinedActionsByModel => {
-      console.log(`writing joined events ${JSON.stringify(joinedActionsByModel)}`)
-      return writeJoinedActionsByModel(staleS3Key, joinedActionsByModel).then(result => {
-        // stale has been processed, delete it
-        return deleteKey(staleS3Key)
-      })
+      for (const staleS3Key in staleS3Keys) {      
+        console.log(`processing stale key : ${JSON.stringify(staleS3Key)}`)
+    
+        const rewardWindowS3Keys = naming.filterWindowS3KeysFromStaleS3Key(historyS3Keys, staleS3Key)
+        for (const rewardWindowS3Key of rewardWindowS3Keys) {
+          
+        }
+        return loadHistoryEventsForS3Key(s3Key).then(historyEvents => {
+          cache[s3Key] = historyEvents
+          
+          // TODO separate by user before sorting
+          
+          historyEvents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+          // customize may return either a mapping of models -> joined events or a promise that will return the same
+          console.log(`assigning rewards to ${JSON.stringify(historyEvents)}`)
+          return customize.assignRewardedActionsToModelsFromHistoryEvents(projectName, historyEvents)
+        }).then(joinedActionsByModel => {
+          console.log(`writing joined events ${JSON.stringify(joinedActionsByModel)}`)
+          return writeJoinedActionsByModel(staleS3Key, joinedActionsByModel).then(result => {
+            // stale has been processed, delete it
+            return deleteKey(staleS3Key)
+          })
+        })
+      }
     })
   })
 }
@@ -155,9 +170,9 @@ function loadHistoryEventsForS3Key(s3Key) {
   })
 }
 
-function writeJoinedActionsByModel(historyS3Key, modelsToJoinedEvents) {
+function writeJoinedActionsByModel(historyS3Key, modelsToJoinedActions) {
   const promises = []
-  for (const [modelName, joinedActions] of Object.entries(modelsToJoinedEvents)) {
+  for (const [modelName, joinedActions] of Object.entries(modelsToJoinedActions)) {
     promises.push(writeJoinedActions(historyS3Key, modelName, joinedActions))
   }
   return Promise.all(promises)

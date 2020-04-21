@@ -1,5 +1,6 @@
 const dateFormat = require('date-format')
 const mmh3 = require('murmurhash3js')
+const uuidv4 = require('uuid/v4');
 
 const me = module.exports
 
@@ -15,7 +16,7 @@ const me = module.exports
 */
 
 // using power of 2 bit string shards makes future re-sharding easier than a modulo based approach
-const SHARD_COUNT = 2**Math.floor(Math.log2(process.env.HISTORY_SHARD_COUNT)) // round to floor power of 2
+//const SHARD_COUNT = 2**Math.floor(Math.log2(process.env.HISTORY_SHARD_COUNT)) // round to floor power of 2
 
 // intentionally not including this in the configuration and thus also not including it in the path names. Changing it would technically require deleting and regenerating all files from the firehose files since this would
 // change which history files some events are assigned to.  In practice, changing this window shouldn't change cost/performance much unless a lot of delayed events were coming in from client SDKs.
@@ -25,9 +26,8 @@ module.exports.getHistoryFileWindowMillis = () => {
   return 3600 * 1000 // one hour
 }
 
-module.exports.getShardId = (userId) => {
-  const bitCount = Math.floor(Math.log2(SHARD_COUNT))
-  // generate a 32 bit bit string and truncate so that we're possibly forward compatible with different subspace queries and re-sharding logic
+module.exports.getShardId = (bitCount, userId) => {
+  // generate a 32 bit bit string and truncate so that we can easily reshard
   // a modulo based approach would require a complete remapping every time the number of shards changes
   // only depends on the userId to allow files to moved between projects and models with the same shard count and still avoid duplicates if the firehose file is reprocessed
   return mmh3.x86.hash32(userId).toString(2).padStart(32, '0').substring(0, bitCount)
@@ -38,8 +38,8 @@ module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {
   const [year, month, day, hour, minute, second] = dashSplitS3Key.slice(dashSplitS3Key.length-11, dashSplitS3Key.length - 5) // parse from the back to avoid unexpected dashes
   const firehoseUuid = firehoseS3Key.substring(firehoseS3Key.length-39, firehoseS3Key.length-3) // 36 uuid characters, 3 .gz characters
 
-  // variants/data/projectName/modelName/yyyy/MM/dd/hh/improve-variants-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
-  return `variants/data/${projectName}/${modelName}/${year}/${month}/${day}/${hour}/improve-variants-${year}-${month}-${day}-${hour}-${minute}-${second}-${firehoseUuid}.gz`
+  // variants/data/projectName/modelName/yyyy/MM/dd/improve-variants-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
+  return `variants/data/${projectName}/${modelName}/${year}/${month}/${day}/improve-variants-${year}-${month}-${day}-${hour}-${minute}-${second}-${firehoseUuid}.gz`
 }
     
 module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt, firehoseS3Key) => {
@@ -47,16 +47,20 @@ module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt, firehos
     throw `invalid earliestEventAt ${JSON.stringify(earliestEventAt)}`
   }
   
-  const pathDatePart = dateFormat.asString("yyyy/MM/dd/hh", earliestEventAt)
-  const filenameDatePart = dateFormat.asString("yyyy-MM-dd-hh-mm-ss", earliestEventAt)
-  const firehoseUuid = firehoseS3Key.substring(firehoseS3Key.length-39, firehoseS3Key.length-3) // 36 uuid characters, 3 .gz characters
+  const pathDatePart = dateFormat.asString("yyyy/MM/dd", earliestEventAt)
+  const filenameDatePart = dateFormat.asString("yyyy-MM-dd", earliestEventAt)
 
-  // histories/data/projectName/shardCount/shardId/yyyy/MM/dd/hh/improve-events-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
-  return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}/${pathDatePart}/improve-events-${SHARD_COUNT}-${shardId}-${filenameDatePart}-${firehoseUuid}.gz`
+  // histories/data/projectName/shardId/yyyy/MM/dd/improve-events-shardId-yyyy-MM-dd-uuid.gz
+  return `histories/data/${projectName}/${shardId}/${pathDatePart}/improve-events-${shardId}-${filenameDatePart}-${uuidv4()}.gz`
 }
 
+module.exports.getHistoryS3KeyPrefix = (projectName) => {
+  return `histories/data/${projectName}/`
+}
+
+
 module.exports.getHistoryShardS3KeyPrefix = (projectName, shardId) => {
-  return `histories/data/${projectName}/${SHARD_COUNT}/${shardId}/`
+  return `histories/data/${projectName}/${shardId}/`
 }
 
 module.exports.getStaleHistoryS3Key = (s3Key) => {
@@ -68,7 +72,7 @@ module.exports.getStaleHistoryS3KeyPrefix = () => {
 }
 
 module.exports.getStaleHistoryShardS3KeyPrefix = (projectName, shardId) => {
-  return `${me.getStaleHistoryS3KeyPrefix()}${projectName}/${SHARD_COUNT}/${shardId}/`
+  return `${me.getStaleHistoryS3KeyPrefix()}${projectName}/${shardId}/`
 }
 
 module.exports.getIncomingHistoryS3Key = (s3Key) => {
@@ -80,7 +84,7 @@ module.exports.getIncomingHistoryS3KeyPrefix = () => {
 }
 
 module.exports.getIncomingHistoryShardS3KeyPrefix = (projectName, shardId) => {
-  return `${me.getIncomingHistoryS3KeyPrefix()}${projectName}/${SHARD_COUNT}/${shardId}/`
+  return `${me.getIncomingHistoryS3KeyPrefix()}${projectName}/${shardId}/`
 }
 
 
@@ -89,15 +93,15 @@ module.exports.getProjectNameFromHistoryS3Key = (historyS3Key) => {
 }
 
 module.exports.getJoinedS3Key = (historyS3Key, modelName) => {
-  const [histories, data, projectName, shardCount, shardId, year, month, day, hour, historyFileName] = historyS3Key.split('/')
+  const [histories, data, projectName, shardId, year, month, day, hour, historyFileName] = historyS3Key.split('/')
   const joinedFileName = `improve-joined${historyFileName.substring('improve-events'.length)}`
   
-  // joined/data/projectName/modelName/shardCount/(train|validation)/(trainSplit|validationSplit)/yyyy/MM/dd/hh/improve-joined-shardCount-shardId-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
-  return `joined/data/${projectName}/${modelName}/${shardCount}/${getTrainValidationPathPart(joinedFileName)}/${year}/${month}/${day}/${hour}/${joinedFileName}`
+  // rewarded_actions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-actions-shardId-yyyy-MM-dd.gz
+  return `rewarded_actions/data/${projectName}/${modelName}/${getTrainValidationPathPart(joinedFileName)}/${shardId}/${year}/${month}/${day}/${joinedFileName}`
 }
 
 module.exports.getJoinedS3Uri = (projectName, modelName) => {
-  return `s3://${process.env.RECORDS_BUCKET}/joined/${projectName}/${modelName}/${SHARD_COUNT}`
+  return `s3://${process.env.RECORDS_BUCKET}/rewarded_actions/${projectName}/${modelName}`
 }
 
 module.exports.getJoinedTrainS3Uri = (projectName, modelName) => {
