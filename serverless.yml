@@ -114,7 +114,7 @@ functions:
           event: s3:ObjectCreated:*
   processHistoryShard:
     handler: history.processHistoryShard
-    memorySize: ${self:provider.environment.HISTORY_WORKER_MEMORY_IN_MB}
+    memorySize: ${self:provider.environment.HISTORY_SHARD_WORKER_MEMORY_IN_MB}
   featureModelCreated:
     handler: train.featureModelCreated
     events:

@@ -4,8 +4,8 @@ const AWS = require('aws-sdk')
 const zlib = require('zlib')
 const es = require('event-stream')
 const s3 = new AWS.S3()
-const uuidv4 = require('uuid/v4');
-const firehose = new AWS.Firehose();
+const uuidv4 = require('uuid/v4')
+const firehose = new AWS.Firehose()
 const lambda = new AWS.Lambda()
 
 const customize = require("./customize.js")
@@ -49,16 +49,17 @@ module.exports.unpackFirehose = async function(event, context) {
   }
 
   // list all of the shards so that we can decide which shard to write to
-  return listShardsByProjectName().then(shardsByProjectName => {
-    console.log(`shardsByProjectName ${JSON.stringify(shardsByProjectName)}`)
+  return listSortedShardsByProjectName().then(sortedShardsByProjectName => {
+    console.log(`shardsByProjectName ${JSON.stringify(sortedShardsByProjectName)}`)
     // s3 only ever includes one record per event, but this spec allows multiple, so multiple we will process.
     return Promise.all(event.Records.map(s3EventRecord => {
-      return processFirehoseFile(s3EventRecord.s3.bucket.name, s3EventRecord.s3.object.key, shardsByProjectName)
+      return processFirehoseFile(s3EventRecord.s3.bucket.name, s3EventRecord.s3.object.key, sortedShardsByProjectName)
     }))
   })
 }
  
-function processFirehoseFile(s3Bucket, s3Key, shardsByProjectName) {
+function processFirehoseFile(s3Bucket, s3Key, sortedShardsByProjectName) {
+  
   return new Promise((resolve, reject) => {
 
     const eventsByShardIdByProjectName = {}
@@ -159,7 +160,8 @@ function processFirehoseFile(s3Bucket, s3Key, shardsByProjectName) {
             eventsByShardIdByProjectName[projectName] = eventsByShardId
           }
 
-          const shardId = naming.getShardId(eventRecord.history_id);
+          // look at the list of available shards and assign the event to one.
+          const shardId = naming.assignToShard(sortedShardsByProjectName[projectName], eventRecord.history_id)
 
           let events = eventsByShardId[shardId]
           if (!events) {
@@ -182,8 +184,9 @@ function processFirehoseFile(s3Bucket, s3Key, shardsByProjectName) {
       .on('end', function() {
         return resolve([s3Key, eventsByShardIdByProjectName, variantRecordsByModelByProjectName])
       }));
-  }).then((firehoseS3Key, eventsByShardIdByProjectName, variantRecordsByModelByProjectName) => {
+  }).then(([firehoseS3Key, eventsByShardIdByProjectName, variantRecordsByModelByProjectName]) => {
 
+    console.log(`${JSON.stringify(firehoseS3Key)} ${JSON.stringify(variantRecordsByModelByProjectName)}`)
     let promises = []
     const staleShardsByProjectName = {}
     
@@ -285,7 +288,7 @@ function processFirehoseFile(s3Bucket, s3Key, shardsByProjectName) {
   })
 }
 
-function listShardsByProjectName() {
+function listSortedShardsByProjectName() {
   const projectNames = Object.keys(customize.getProjectNamesToModelNamesMapping())
   return Promise.all(projectNames.map(projectName => {
     console.log(`listing shards for project ${projectName}`)
@@ -302,6 +305,7 @@ function listShardsByProjectName() {
   })).then(projectNamesAndShardIds => {
     const shardsByProjectNames = {}
     for (const [projectName, shardIds] of projectNamesAndShardIds) {
+      shardIds.sort() // sort the shards
       shardsByProjectNames[projectName] = shardIds
     }
     return shardsByProjectNames

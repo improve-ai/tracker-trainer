@@ -1,19 +1,10 @@
 const dateFormat = require('date-format')
 const mmh3 = require('murmurhash3js')
 const uuidv4 = require('uuid/v4');
+const _ = require('lodash')
 
 const me = module.exports
 
-/*
-  All naming in this system is designed to allow idempotent re-processing of files at any point in the processing pipeline without creating duplicate data downstream.  For this reason
-  pipelines are seperated by SHARD_COUNT.  If the SHARD_COUNT is changed then a new processing pipeline will be created to ensure that s3 keys stay consistent and idempotent.
-  
-  History files are further seperated by the history file window
-  
-  joined/transformed files are further seperated by the VALIDATION_PROPORTION
-  
-  As long as these variables stay constant, re-processing of firehose files should be idempotent
-*/
 
 // using power of 2 bit string shards makes future re-sharding easier than a modulo based approach
 //const SHARD_COUNT = 2**Math.floor(Math.log2(process.env.HISTORY_SHARD_COUNT)) // round to floor power of 2
@@ -26,11 +17,24 @@ module.exports.getHistoryFileWindowMillis = () => {
   return 3600 * 1000 // one hour
 }
 
-module.exports.getShardId = (bitCount, userId) => {
+module.exports.getShardId = (historyId, bitCount=32) => {
   // generate a 32 bit bit string and truncate so that we can easily reshard
   // a modulo based approach would require a complete remapping every time the number of shards changes
-  // only depends on the userId to allow files to moved between projects and models with the same shard count and still avoid duplicates if the firehose file is reprocessed
-  return mmh3.x86.hash32(userId).toString(2).padStart(32, '0').substring(0, bitCount)
+  return mmh3.x86.hash32(historyId).toString(2).padStart(32, '0').substring(0, bitCount)
+}
+
+// If a shard is in the process of being resharded, the longer child bitstring shard will be returned
+module.exports.assignToShard = (sortedShards, historyId) => {
+  const fullShardId = me.getShardId(historyId)
+  
+  // do a binary search for the full shard id
+  const index = _.sortedIndex(sortedShards, fullShardId)
+  // the previous index should be a parent of this id, if not, create either shard '0' or '1'
+  if (index <= 0 || !fullShardId.startsWith(sortedShards[index-1])) {
+    return me.getShardId(historyId, 1) // create either shard '0' or '1'
+  } else {
+    return sortedShards[index-1] // this fullShardId startsWith the previous shard, so use that
+  }
 }
 
 module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {
