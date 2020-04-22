@@ -1,5 +1,4 @@
 const mmh3 = require('murmurhash3js')
-const uuidv4 = require('uuid/v4');
 const _ = require('lodash')
 
 const me = module.exports
@@ -60,18 +59,6 @@ module.exports.isHistoryS3Key = (s3Key) => {
   return s3Key.startsWith("histories/data")
 }
     
-module.exports.getHistoryS3Key = (projectName, shardId, timestamp) => {
-  
-  // FIX double check for UTC time on earliest Event
-  
-  if (isNaN(earliestEventAt)) {
-    throw `invalid earliestEventAt ${JSON.stringify(earliestEventAt)}`
-  }
-  
-  const pathDatePart = dateFormat.asString("yyyy/MM/dd", earliestEventAt)
-  const filenameDatePart = dateFormat.asString("yyyy-MM-dd", earliestEventAt)
-}
-
 module.exports.getHistoryS3KeyPrefix = (projectName) => {
   return `histories/data/${projectName}/`
 }

@@ -51,9 +51,10 @@ module.exports.unpackFirehose = async function(event, context) {
   return history.listSortedShardsByProjectName().then(sortedShardsByProjectName => {
     // s3 only ever includes one record per event, but this spec allows multiple, so multiple we will process.
     return Promise.all(event.Records.map(s3EventRecord => {
+      // process the fire hose file and write results to s3
       return processFirehoseFile(s3EventRecord.s3.bucket.name, s3EventRecord.s3.object.key, sortedShardsByProjectName)
     }))
-  }).then(results => {
+  }).then(() => {
     // all of the files have been written and meta incoming files have been touched, dispatch the workers to process
     const lambdaArn = naming.getLambdaFunctionArn("dispatchHistoryShardWorkers", context.invokedFunctionArn)
     console.log(`invoking dispatchHistoryShardWorkers`)
@@ -95,7 +96,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
       console.log(`WARN: timestamp in the future ${JSON.stringify(eventRecord)}`)
     }
 
-    let projectName = eventRecord.project_name;
+    const projectName = eventRecord.project_name;
 
     // delete project_name from requestRecord in case its sensitive
     delete eventRecord.project_name;
@@ -137,7 +138,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
       s3Key = naming.assignToHistoryS3Key(sortedShardsByProjectName[projectName], projectName, eventRecord, uuidPart)
     }
 
-    let buffers = buffersByS3Key[s3Key]
+    const buffers = buffersByS3Key[s3Key]
     if (!buffers) {
       buffers = []
       buffersByS3Key[s3Key] = buffers
@@ -153,7 +154,7 @@ function writeRecords(buffersByS3Key) {
   const promises = []
     
   // write out histories
-  for (let [s3Key, buffers] of Object.entries(buffersByS3Key)) {
+  for (const [s3Key, buffers] of Object.entries(buffersByS3Key)) {
 
       console.log(`writing ${buffers.length} records to ${s3Key}`)
       
