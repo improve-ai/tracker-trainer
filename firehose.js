@@ -71,6 +71,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
   
   let buffersByS3Key = {}
   
+  // keep the uuid the same so that events in the same date, project, and shard get mapped to the same key
   const uuidPart = uuidv4()
 
   return history.processCompressedJsonLines(s3Bucket, firehoseS3Key, eventRecord => {
@@ -132,8 +133,8 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
       }
   
       // look at the list of available shards and assign the event to one
-      // events are also segmented by date
-      s3Key = naming.assignToHistoryS3Key(sortedShardsByProjectName[projectName], eventRecord)
+      // events are also segmented by event date
+      s3Key = naming.assignToHistoryS3Key(sortedShardsByProjectName[projectName], projectName, eventRecord, uuidPart)
     }
 
     let buffers = buffersByS3Key[s3Key]
@@ -148,81 +149,34 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
   })
 }
 
-function writeVariantRecords(firehoseS3Key, variantRecordsByModelByProjectName) {
+function writeRecords(buffersByS3Key) {
   const promises = []
     
-  // write out variants
-  for (const [projectName, variantRecordsByModel] of Object.entries(variantRecordsByModelByProjectName)) {
-    for (const [modelName, variantRecords] of Object.entries(variantRecordsByModel)) {
-      
-        const s3Key = naming.getVariantsS3Key(projectName, modelName, firehoseS3Key)
-        
-        console.log(`writing ${variantRecords.length} records to ${s3Key}`)
-        
-        // write the data
-        let params = {
-          Body: zlib.gzipSync(Buffer.concat(variantRecords.map(event => Buffer.from(JSON.stringify(event) + "\n")))),
-          Bucket: process.env.RECORDS_BUCKET,
-          Key: s3Key
-        }
-  
-        promises.push(s3.putObject(params).promise())
-    }
-  }
-
-  return Promise.all(promises)
-}
-
-function writeHistoryRecords(eventsByShardIdByProjectName) {
-  // TODO just make this events by s3Key
-  
-  const promises = []
   // write out histories
-  for (let [projectName, eventsByShardId] of Object.entries(eventsByShardIdByProjectName)) {
-    for (let [shardId, events] of Object.entries(eventsByShardId)) {
+  for (let [s3Key, buffers] of Object.entries(buffersByS3Key)) {
 
-      // sort by timestamp
-      events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      console.log(`writing ${buffers.length} records to ${s3Key}`)
       
-      // process events by splitting it into chunks based on the history file window
-      while (events.length) {
-        const earliestTimestamp = new Date(events[0].timestamp)
-        let lastIndex = events.length-1
-        while (new Date(events[lastIndex].timestamp) > new Date(earliestTimestamp.getTime() + naming.getHistoryFileWindowMillis())) {
-          lastIndex--
-        }
-        
-        const eventsSlice = events.slice(0, lastIndex+1)
-        events = events.slice(lastIndex+1, events.length)
-        if (events.length) {
-          console.log(`WARN: event timestamps don't all fall within one history file window, splitting`) // this should be rare unless SDKs are queueing events
-        }
-        
-        // the file is named based on the earlest timestamp in the set
-        const s3Key = naming.getHistoryS3Key(projectName, shardId, earliestTimestamp)
-        
-        console.log(`writing ${eventsSlice.length} records to ${s3Key}`)
-        
-        // write the data
-        let params = {
-          Body: zlib.gzipSync(Buffer.concat(eventsSlice.map(event => Buffer.from(JSON.stringify(event) + "\n")))),
-          Bucket: process.env.RECORDS_BUCKET,
-          Key: s3Key
-        }
-  
-        promises.push(s3.putObject(params).promise())
-        
-        // write the incoming meta file indicating this key should be processed
+      // write the data
+      let params = {
+        Body: zlib.gzipSync(Buffer.concat(buffers)),
+        Bucket: process.env.RECORDS_BUCKET,
+        Key: s3Key
+      }
+
+      promises.push(s3.putObject(params).promise())
+      
+      // if its a normal history key (not a variants key) write out the incoming meta file indicating this key should be processed
+      if (naming.isHistoryS3Key(s3Key)) {
         params = {
           Body: JSON.stringify({ "key": s3Key }),
           Bucket: process.env.RECORDS_BUCKET,
           Key: naming.getIncomingHistoryS3Key(s3Key)
         }
-  
+    
         promises.push(s3.putObject(params).promise())
       }
     }
-  }
 
   return Promise.all(promises)
 }

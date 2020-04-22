@@ -37,12 +37,13 @@ module.exports.assignToShard = (sortedShards, historyId) => {
 }
 
 // If a shard is in the process of being resharded, the longer child bitstring shard will be returned
-module.exports.assignToHistoryS3Key = (sortedShards, event) => {
+module.exports.assignToHistoryS3Key = (sortedShards, projectName, event, uuid) => {
   // ensure that we're using UTC
-  const [year, month, day] = new Date(event.timestamp).toISOString().slice(0,10).split(-)
-
+  const [year, month, day] = new Date(event.timestamp).toISOString().slice(0,10).split('-')
+  const shardId = me.assignToShard(sortedShards, event.history_id)
+  
   // histories/data/projectName/shardId/yyyy/MM/dd/improve-events-shardId-yyyy-MM-dd-uuid.gz
-  return `histories/data/${projectName}/${shardId}/${pathDatePart}/improve-events-${shardId}-${filenameDatePart}-${uuidv4()}.gz`
+  return `histories/data/${projectName}/${shardId}/${year}/${month}/${day}/improve-events-${shardId}-${year}-${month}-${day}-${uuid}.gz`
 }
 
 
