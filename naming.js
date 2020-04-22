@@ -1,4 +1,3 @@
-const dateFormat = require('date-format')
 const mmh3 = require('murmurhash3js')
 const uuidv4 = require('uuid/v4');
 const _ = require('lodash')
@@ -37,6 +36,16 @@ module.exports.assignToShard = (sortedShards, historyId) => {
   }
 }
 
+// If a shard is in the process of being resharded, the longer child bitstring shard will be returned
+module.exports.assignToHistoryS3Key = (sortedShards, event) => {
+  // ensure that we're using UTC
+  const [year, month, day] = new Date(event.timestamp).toISOString().slice(0,10).split(-)
+
+  // histories/data/projectName/shardId/yyyy/MM/dd/improve-events-shardId-yyyy-MM-dd-uuid.gz
+  return `histories/data/${projectName}/${shardId}/${pathDatePart}/improve-events-${shardId}-${filenameDatePart}-${uuidv4()}.gz`
+}
+
+
 module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {
   const dashSplitS3Key = firehoseS3Key.split('-')
   const [year, month, day, hour, minute, second] = dashSplitS3Key.slice(dashSplitS3Key.length-11, dashSplitS3Key.length - 5) // parse from the back to avoid unexpected dashes
@@ -50,7 +59,7 @@ module.exports.isHistoryS3Key = (s3Key) => {
   return s3Key.startsWith("histories/data")
 }
     
-module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt) => {
+module.exports.getHistoryS3Key = (projectName, shardId, timestamp) => {
   
   // FIX double check for UTC time on earliest Event
   
@@ -60,9 +69,6 @@ module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt) => {
   
   const pathDatePart = dateFormat.asString("yyyy/MM/dd", earliestEventAt)
   const filenameDatePart = dateFormat.asString("yyyy-MM-dd", earliestEventAt)
-
-  // histories/data/projectName/shardId/yyyy/MM/dd/improve-events-shardId-yyyy-MM-dd-uuid.gz
-  return `histories/data/${projectName}/${shardId}/${pathDatePart}/improve-events-${shardId}-${filenameDatePart}-${uuidv4()}.gz`
 }
 
 module.exports.getHistoryS3KeyPrefix = (projectName) => {

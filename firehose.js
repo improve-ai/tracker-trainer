@@ -67,12 +67,13 @@ module.exports.unpackFirehose = async function(event, context) {
   })
 }
  
-function processFirehoseFile(s3Bucket, s3Key, sortedShardsByProjectName) {
+function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName) {
   
-  const eventsByShardIdByProjectName = {}
-  const variantRecordsByModelByProjectName = {}
+  let buffersByS3Key = {}
+  
+  const uuidPart = uuidv4()
 
-  return history.processCompressedJsonLines(s3Bucket, s3Key, eventRecord => {
+  return history.processCompressedJsonLines(s3Bucket, firehoseS3Key, eventRecord => {
     if (eventRecord.record_type === "choose") { // DEPRECATED
       console.log(`WARN: skipping choose record`)
       return;
@@ -103,6 +104,8 @@ function processFirehoseFile(s3Bucket, s3Key, sortedShardsByProjectName) {
       return;
     }
     
+    let s3Key
+    
     // Handle variants records
     if (eventRecord.type && eventRecord.type === "variants") {
       if (!eventRecord.model) {
@@ -115,52 +118,33 @@ function processFirehoseFile(s3Bucket, s3Key, sortedShardsByProjectName) {
         return;
       }
       
-      let variantRecordsByModel = variantRecordsByModelByProjectName[projectName]
-      if (!variantRecordsByModel) {
-        variantRecordsByModel = {}
-        variantRecordsByModelByProjectName[projectName] = variantRecordsByModel
+      s3Key = naming.getVariantsS3Key(projectName, eventRecord.model, firehoseS3Key)
+    } else {
+      // user_id is deprecated
+      // history_id is not required for variants records
+      if (!eventRecord.user_id && !eventRecord.history_id) {
+        console.log(`WARN: skipping record - no history_id in ${JSON.stringify(eventRecord)}`)
+        return;
       }
       
-      let variantRecords = variantRecordsByModel[eventRecord.model]
-      if (!variantRecords) {
-        variantRecords = []
-        variantRecordsByModel[eventRecord.model] = variantRecords
+      if (!eventRecord.history_id) {
+        eventRecord.history_id = eventRecord.user_id
       }
-      variantRecords.push(eventRecord)
-      
-      return
-    }
-    
-    // user_id is deprecated
-    // history_id is not required for variants records
-    if (!eventRecord.user_id && !eventRecord.history_id) {
-      console.log(`WARN: skipping record - no history_id in ${JSON.stringify(eventRecord)}`)
-      return;
-    }
-    
-    if (!eventRecord.history_id) {
-      eventRecord.history_id = eventRecord.user_id
+  
+      // look at the list of available shards and assign the event to one
+      // events are also segmented by date
+      s3Key = naming.assignToHistoryS3Key(sortedShardsByProjectName[projectName], eventRecord)
     }
 
-    // Handle all other events
-    let eventsByShardId = eventsByShardIdByProjectName[projectName]
-    if (!eventsByShardId) {
-      eventsByShardId = {}
-      eventsByShardIdByProjectName[projectName] = eventsByShardId
+    let buffers = buffersByS3Key[s3Key]
+    if (!buffers) {
+      buffers = []
+      buffersByS3Key[s3Key] = buffers
     }
+    buffers.push(Buffer.from(JSON.stringify(eventRecord)+"\n"))
 
-    // look at the list of available shards and assign the event to one.
-    const shardId = naming.assignToShard(sortedShardsByProjectName[projectName], eventRecord.history_id)
-
-    let events = eventsByShardId[shardId]
-    if (!events) {
-      events = []
-      eventsByShardId[shardId] = events
-    }
-    events.push(eventRecord)
   }).then(() => {
-    // write variant records and history records
-    return Promise.all([writeVariantRecords(s3Key, variantRecordsByModelByProjectName), writeHistoryRecords(eventsByShardIdByProjectName)])
+    return writeRecords(buffersByS3Key)
   })
 }
 
