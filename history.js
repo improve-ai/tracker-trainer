@@ -7,10 +7,28 @@ const s3 = new AWS.S3()
 const customize = require("./customize.js")
 const naming = require("./naming.js")
 
-module.exports.dispatchHistoryProcessingWorkers = async function(event, context) {
+module.exports.dispatchHistoryShardWorkers = async function(event, context) {
+  console.log(`processing event ${JSON.stringify(event)}`)
 
-
+  // list all of the shards so that we can decide which shard to write to
+  return module.exports.listSortedShardsByProjectName().then(sortedShardsByProjectName => {
+    for (const [projectName, sortedShards] of Object.entries(sortedShardsByProjectName)) {
+      
+    }
+  })
 }
+
+module.exports.reshardFile = async function(event, context) {
+  console.log(`processing event ${JSON.stringify(event)}`)
+
+  const s3Key = event.s3Key
+  
+  if (!s3Key) {
+    throw new Error(`WARN: missing s3Key ${event}`)
+  }
+}
+
+
 
 module.exports.processHistoryShard = async function(event, context) {
 
@@ -206,6 +224,48 @@ function writeJoinedActions(historyS3Key, modelName, joinedActions) {
       return s3.putObject(params).promise()
 }
 
+// get object stream, unpack json lines and process each json object one by one using mapFunction
+module.exports.processCompressedJsonLines = (s3Bucket, s3Key, mapFunction) => {
+  let results = []
+  
+  return new Promise((resolve, reject) => {
+    
+    let gunzip = zlib.createGunzip()
+
+    console.log(`loading ${s3Key} from ${s3Bucket}`)
+
+    let stream = s3.getObject({ Bucket: s3Bucket, Key: s3Key,}).createReadStream().pipe(gunzip).pipe(es.split()).pipe(es.mapSync(function(line) {
+
+      // pause the readstream
+      stream.pause();
+
+      try {
+        if (!line) {
+          return;
+        }
+        let record = JSON.parse(line)
+
+        if (!record) {
+          return;
+        }
+
+        results.push(mapFunction(record))
+      } catch (err) {
+        console.log(`error ${err} skipping record`)
+      } finally {
+        stream.resume();
+      }
+    })
+    .on('error', function(err) {
+      console.log('Error while reading file.', err);
+      return reject(err)
+    })
+    .on('end', function() {
+      return resolve(results)
+    }));
+  })
+}
+
 function deleteAllKeys(s3Keys) {
   const promises = []
   for (const s3Key of s3Keys) {
@@ -221,6 +281,40 @@ function deleteKey(s3Key) {
   }
   return s3.deleteObject(params).promise()
 }
+
+module.exports.listSortedShardsByProjectName = () => {
+  const projectNames = Object.keys(customize.getProjectNamesToModelNamesMapping())
+  return Promise.all(projectNames.map(projectName => {
+    console.log(`listing shards for project ${projectName}`)
+    const params = {
+      Bucket: process.env.RECORDS_BUCKET,
+      Delimiter: '/',
+      Prefix: naming.getHistoryS3KeyPrefix(projectName)
+    }
+    
+    return listAllCommonPrefixes(params).then(shardIds => {
+      console.log(`shardIds ${JSON.stringify(shardIds)}`)
+      return [projectName, shardIds]
+    })
+  })).then(projectNamesAndShardIds => {
+    const shardsByProjectNames = {}
+    for (const [projectName, shardIds] of projectNamesAndShardIds) {
+      shardIds.sort() // sort the shards
+      shardsByProjectNames[projectName] = shardIds
+    }
+    return shardsByProjectNames
+  })
+}
+
+// modified from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
+const listAllCommonPrefixes = (params, out = []) => new Promise((resolve, reject) => {
+  s3.listObjectsV2(params).promise()
+    .then(({CommonPrefixes, IsTruncated, NextContinuationToken}) => {
+      out.push(...CommonPrefixes.map(o => o.Prefix.split('/').slice(-2)[0])); // split and grab the second to last item from the Prefix
+      !IsTruncated ? resolve(out) : resolve(listAllCommonPrefixes(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
+    })
+    .catch(reject);
+});
 
 // modified from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
 const listAllKeys = (params, out = []) => new Promise((resolve, reject) => {

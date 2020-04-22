@@ -27,9 +27,12 @@ provider:
     HOSTING_INSTANCE_TYPE: ml.t2.medium # Note that t* instance types don't support autoscaling
     HOSTING_INITIAL_INSTANCE_COUNT: 1 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
     DEFAULT_REWARD_WINDOW: 7200 # 2 hours
-    HISTORY_SHARD_REPROCESS_WAIT_TIME_IN_SECONDS: 7200 # 2 hours. Increasing this will decrease Lambda and S3 costs by re-processing history shards less often.
-    HISTORY_SHARD_WORKER_MEMORY_IN_MB: 1024 # must be large enough to hold a reward window's worth of events for a single history shard
     FIREHOSE_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory. Buffer size is configured in resources/serverless.yml
+    HISTORY_SHARD_WORKER_MEMORY_IN_MB: 1024 # must be large enough to hold a reward window's worth of events for a single history shard
+    HISTORY_SHARD_REPROCESS_WAIT_TIME_IN_SECONDS: 7200 # 2 hours. Increasing this will decrease Lambda and S3 costs by re-processing history shards less often.
+    RESHARD_REWARD_WINDOW_SIZE_IN_MB: 128 # If the size of the data processed for a reward window exceeds this size, a reshard will be triggered, splitting the shard in half
+    RESHARD_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack a single day's data for one shard in memory.
+    RESHARD_WORKER_RESERVED_CONCURRENCY: 50 # limits maximum concurrency, but reduces the shared lambda pool for this account
     # 
     # End customization
     #
@@ -112,9 +115,15 @@ functions:
           bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3Bucket}
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
+  dispatchHistoryShardWorkers:
+    handler: history.dispatchHistoryShardWorkers
   processHistoryShard:
     handler: history.processHistoryShard
     memorySize: ${self:provider.environment.HISTORY_SHARD_WORKER_MEMORY_IN_MB}
+  reshardFile:
+    handler: history.reshardFile
+    memorySize: ${self:provider.environment.RESHARD_WORKER_MEMORY_IN_MB}
+    reservedConcurrency: ${self:provider.environment.RESHARD_WORKER_RESERVED_CONCURRENCY}
   featureModelCreated:
     handler: train.featureModelCreated
     events:

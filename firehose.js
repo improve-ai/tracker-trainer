@@ -8,9 +8,8 @@ const uuidv4 = require('uuid/v4')
 const firehose = new AWS.Firehose()
 const lambda = new AWS.Lambda()
 
-const customize = require("./customize.js")
 const naming = require("./naming.js")
-const utils = require("./utils.js")
+const history = require("./history.js")
 
 // Send the event with the timestamp and project name to firehose
 module.exports.sendToFirehose = (projectName, body, receivedAt, log) => {
@@ -49,278 +48,200 @@ module.exports.unpackFirehose = async function(event, context) {
   }
 
   // list all of the shards so that we can decide which shard to write to
-  return listSortedShardsByProjectName().then(sortedShardsByProjectName => {
-    console.log(`shardsByProjectName ${JSON.stringify(sortedShardsByProjectName)}`)
+  return history.listSortedShardsByProjectName().then(sortedShardsByProjectName => {
     // s3 only ever includes one record per event, but this spec allows multiple, so multiple we will process.
     return Promise.all(event.Records.map(s3EventRecord => {
       return processFirehoseFile(s3EventRecord.s3.bucket.name, s3EventRecord.s3.object.key, sortedShardsByProjectName)
     }))
+  }).then(results => {
+    // all of the files have been written and meta incoming files have been touched, dispatch the workers to process
+    const lambdaArn = naming.getLambdaFunctionArn("dispatchHistoryShardWorkers", context.invokedFunctionArn)
+    console.log(`invoking dispatchHistoryShardWorkers`)
+
+    const params = {
+      FunctionName: lambdaArn,
+      InvocationType: "Event",
+    };
+    
+    return lambda.invoke(params).promise()
   })
 }
  
 function processFirehoseFile(s3Bucket, s3Key, sortedShardsByProjectName) {
   
-  return new Promise((resolve, reject) => {
+  const eventsByShardIdByProjectName = {}
+  const variantRecordsByModelByProjectName = {}
 
-    const eventsByShardIdByProjectName = {}
-    const variantRecordsByModelByProjectName = {}
+  return history.processCompressedJsonLines(s3Bucket, s3Key, eventRecord => {
+    if (eventRecord.record_type === "choose") { // DEPRECATED
+      console.log(`WARN: skipping choose record`)
+      return;
+    }
 
-    const gunzip = zlib.createGunzip()
+    if (!eventRecord || !eventRecord.project_name) {
+      console.log(`WARN: skipping record - no project_name in ${JSON.stringify(eventRecord)}`)
+      return;
+    }
 
-    const stream = s3.getObject({
-        Bucket: s3Bucket,
-        Key: s3Key,
-      }).createReadStream()
-      .pipe(gunzip)
-      .pipe(es.split()) // parse line-by-line
-      .pipe(es.mapSync(function(line) {
+    if (!eventRecord.timestamp || !naming.isValidDate(eventRecord.timestamp)) {
+      console.log(`WARN: skipping record - invalid timestamp in ${JSON.stringify(eventRecord)}`)
+      return;
+    }
 
-        // pause the readstream
-        stream.pause();
+    // client reporting of timestamps in the future are handled in sendToFireHose. This should only happen with some clock skew.
+    if (new Date(eventRecord.timestamp) > Date.now()) {
+      console.log(`WARN: timestamp in the future ${JSON.stringify(eventRecord)}`)
+    }
 
-        try {
-          if (!line) {
-            return;
-          }
-          let eventRecord = JSON.parse(line)
+    let projectName = eventRecord.project_name;
 
-          if (eventRecord.record_type === "choose") { // DEPRECATED
-            console.log(`WARN: skipping choose record`)
-            return;
-          }
-
-          if (!eventRecord || !eventRecord.project_name) {
-            console.log(`WARN: skipping record - no project_name in ${line}`)
-            return;
-          }
-
-          if (!eventRecord.timestamp || !naming.isValidDate(eventRecord.timestamp)) {
-            console.log(`WARN: skipping record - invalid timestamp in ${line}`)
-            return;
-          }
-
-          // client reporting of timestamps in the future are handled in sendToFireHose. This should only happen with some clock skew.
-          if (new Date(eventRecord.timestamp) > Date.now()) {
-            console.log(`WARN: timestamp in the future ${line}`)
-          }
-
-          let projectName = eventRecord.project_name;
-
-          // delete project_name from requestRecord in case its sensitive
-          delete eventRecord.project_name;
-          
-          if (!naming.isValidProjectName(projectName)) {
-            console.log(`WARN: skipping record - invalid project_name, not alphanumeric, underscore, dash, space, period ${line}`)
-            return;
-          }
-          
-          // Handle variants records
-          if (eventRecord.type && eventRecord.type === "variants") {
-            if (!eventRecord.model) {
-              console.log(`WARN: skipping record - missing model for variants type ${line}`)
-              return
-            }
-
-            if (!naming.isValidModelName(eventRecord.model)) {
-              console.log(`WARN: skipping record - invalid model name, not alphanumeric, underscore, dash, space, period ${line}`)
-              return;
-            }
-            
-            let variantRecordsByModel = variantRecordsByModelByProjectName[projectName]
-            if (!variantRecordsByModel) {
-              variantRecordsByModel = {}
-              variantRecordsByModelByProjectName[projectName] = variantRecordsByModel
-            }
-            
-            let variantRecords = variantRecordsByModel[eventRecord.model]
-            if (!variantRecords) {
-              variantRecords = []
-              variantRecordsByModel[eventRecord.model] = variantRecords
-            }
-            variantRecords.push(eventRecord)
-            
-            return
-          }
-          
-          // user_id is deprecated
-          // history_id is not required for variants records
-          if (!eventRecord.user_id && !eventRecord.history_id) {
-            console.log(`WARN: skipping record - no history_id in ${line}`)
-            return;
-          }
-          
-          if (!eventRecord.history_id) {
-            eventRecord.history_id = eventRecord.user_id
-          }
-
-          // Handle all other events
-          let eventsByShardId = eventsByShardIdByProjectName[projectName]
-          if (!eventsByShardId) {
-            eventsByShardId = {}
-            eventsByShardIdByProjectName[projectName] = eventsByShardId
-          }
-
-          // look at the list of available shards and assign the event to one.
-          const shardId = naming.assignToShard(sortedShardsByProjectName[projectName], eventRecord.history_id)
-
-          let events = eventsByShardId[shardId]
-          if (!events) {
-            events = []
-            eventsByShardId[shardId] = events
-          }
-          events.push(eventRecord)
-        }
-        catch (err) {
-          console.log(`error ${err} skipping requestRecord`)
-        }
-        finally {
-          stream.resume();
-        }
-      })
-      .on('error', function(err) {
-        console.log('Error while reading file.', err);
-        return reject(err)
-      })
-      .on('end', function() {
-        return resolve([s3Key, eventsByShardIdByProjectName, variantRecordsByModelByProjectName])
-      }));
-  }).then(([firehoseS3Key, eventsByShardIdByProjectName, variantRecordsByModelByProjectName]) => {
-
-    console.log(`${JSON.stringify(firehoseS3Key)} ${JSON.stringify(variantRecordsByModelByProjectName)}`)
-    let promises = []
-    const staleShardsByProjectName = {}
+    // delete project_name from requestRecord in case its sensitive
+    delete eventRecord.project_name;
     
-    // write out variants
-    for (const [projectName, variantRecordsByModel] of Object.entries(variantRecordsByModelByProjectName)) {
-      for (const [modelName, variantRecords] of Object.entries(variantRecordsByModel)) {
-        
-          const s3Key = naming.getVariantsS3Key(projectName, modelName, firehoseS3Key)
-          
-          console.log(`writing ${variantRecords.length} records to ${s3Key}`)
-          
-          // write the data
-          let params = {
-            Body: zlib.gzipSync(Buffer.concat(variantRecords.map(event => Buffer.from(JSON.stringify(event) + "\n")))),
-            Bucket: process.env.RECORDS_BUCKET,
-            Key: s3Key
-          }
-    
-          promises.push(s3.putObject(params).promise())
-      }
+    if (!naming.isValidProjectName(projectName)) {
+      console.log(`WARN: skipping record - invalid project_name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(eventRecord)}`)
+      return;
     }
     
-    // write out histories
-    for (let [projectName, eventsByShardId] of Object.entries(eventsByShardIdByProjectName)) {
-      for (let [shardId, events] of Object.entries(eventsByShardId)) {
-
-        // keep track of the stale shards to kick off history processing workers
-        let staleShards = staleShardsByProjectName[projectName]
-        if (!staleShards) {
-          staleShards = new Set()
-          staleShardsByProjectName[projectName] = staleShards
-        }
-        staleShards.add(shardId)
-        
-        // sort by timestamp
-        events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        
-        // process events by splitting it into chunks based on the history file window
-        while (events.length) {
-          const earliestTimestamp = new Date(events[0].timestamp)
-          let lastIndex = events.length-1
-          while (new Date(events[lastIndex].timestamp) > new Date(earliestTimestamp.getTime() + naming.getHistoryFileWindowMillis())) {
-            lastIndex--
-          }
-          
-          const eventsSlice = events.slice(0, lastIndex+1)
-          events = events.slice(lastIndex+1, events.length)
-          if (events.length) {
-            console.log(`WARN: event timestamps don't all fall within one history file window, splitting`) // this should be rare unless SDKs are queueing events
-          }
-          
-          // the file is named based on the earlest timestamp in the set
-          const s3Key = naming.getHistoryS3Key(projectName, shardId, earliestTimestamp, firehoseS3Key)
-          
-          console.log(`writing ${eventsSlice.length} records to ${s3Key}`)
-          
-          // write the data
-          let params = {
-            Body: zlib.gzipSync(Buffer.concat(eventsSlice.map(event => Buffer.from(JSON.stringify(event) + "\n")))),
-            Bucket: process.env.RECORDS_BUCKET,
-            Key: s3Key
-          }
-    
-          promises.push(s3.putObject(params).promise())
-          
-          // write the incoming meta file indicating this key should be processed
-          params = {
-            Body: JSON.stringify({ "key": s3Key }),
-            Bucket: process.env.RECORDS_BUCKET,
-            Key: naming.getIncomingHistoryS3Key(s3Key)
-          }
-    
-          promises.push(s3.putObject(params).promise())
-        }
+    // Handle variants records
+    if (eventRecord.type && eventRecord.type === "variants") {
+      if (!eventRecord.model) {
+        console.log(`WARN: skipping record - missing model for variants type ${JSON.stringify(eventRecord)}`)
+        return
       }
+
+      if (!naming.isValidModelName(eventRecord.model)) {
+        console.log(`WARN: skipping record - invalid model name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(eventRecord)}`)
+        return;
+      }
+      
+      let variantRecordsByModel = variantRecordsByModelByProjectName[projectName]
+      if (!variantRecordsByModel) {
+        variantRecordsByModel = {}
+        variantRecordsByModelByProjectName[projectName] = variantRecordsByModel
+      }
+      
+      let variantRecords = variantRecordsByModel[eventRecord.model]
+      if (!variantRecords) {
+        variantRecords = []
+        variantRecordsByModel[eventRecord.model] = variantRecords
+      }
+      variantRecords.push(eventRecord)
+      
+      return
     }
+    
+    // user_id is deprecated
+    // history_id is not required for variants records
+    if (!eventRecord.user_id && !eventRecord.history_id) {
+      console.log(`WARN: skipping record - no history_id in ${JSON.stringify(eventRecord)}`)
+      return;
+    }
+    
+    if (!eventRecord.history_id) {
+      eventRecord.history_id = eventRecord.user_id
+    }
+
+    // Handle all other events
+    let eventsByShardId = eventsByShardIdByProjectName[projectName]
+    if (!eventsByShardId) {
+      eventsByShardId = {}
+      eventsByShardIdByProjectName[projectName] = eventsByShardId
+    }
+
+    // look at the list of available shards and assign the event to one.
+    const shardId = naming.assignToShard(sortedShardsByProjectName[projectName], eventRecord.history_id)
+
+    let events = eventsByShardId[shardId]
+    if (!events) {
+      events = []
+      eventsByShardId[shardId] = events
+    }
+    events.push(eventRecord)
+  }).then(() => {
+    // write variant records and history records
+    return Promise.all([writeVariantRecords(s3Key, variantRecordsByModelByProjectName), writeHistoryRecords(eventsByShardIdByProjectName)])
+  })
+}
+
+function writeVariantRecords(firehoseS3Key, variantRecordsByModelByProjectName) {
+  const promises = []
+    
+  // write out variants
+  for (const [projectName, variantRecordsByModel] of Object.entries(variantRecordsByModelByProjectName)) {
+    for (const [modelName, variantRecords] of Object.entries(variantRecordsByModel)) {
+      
+        const s3Key = naming.getVariantsS3Key(projectName, modelName, firehoseS3Key)
+        
+        console.log(`writing ${variantRecords.length} records to ${s3Key}`)
+        
+        // write the data
+        let params = {
+          Body: zlib.gzipSync(Buffer.concat(variantRecords.map(event => Buffer.from(JSON.stringify(event) + "\n")))),
+          Bucket: process.env.RECORDS_BUCKET,
+          Key: s3Key
+        }
   
-    return Promise.all(promises).then(results => {
-      return staleShardsByProjectName
-    })
-  }).then(staleShardsByProjectName => {
-    // TODO list all meta files to find really old stale ones.  Can probably get rid of the staleShardsByProjectName and just use the list results
-    const promises = []
-    for (const [projectName, staleShards] of Object.entries(staleShardsByProjectName)) {
-      for (const staleShard of staleShards) {
-        const lambdaArn = naming.getLambdaFunctionArn("processHistoryShard", context.invokedFunctionArn)
-        console.log(`invoking processHistoryShard for project ${projectName} shard ${staleShard}`)
-    
-        const params = {
-          FunctionName: lambdaArn,
-          InvocationType: "Event",
-          Payload: JSON.stringify({project_name: projectName, shard_id: staleShard})
-        };
+        promises.push(s3.putObject(params).promise())
+    }
+  }
+
+  return Promise.all(promises)
+}
+
+function writeHistoryRecords(eventsByShardIdByProjectName) {
+  // TODO just make this events by s3Key
+  
+  const promises = []
+  // write out histories
+  for (let [projectName, eventsByShardId] of Object.entries(eventsByShardIdByProjectName)) {
+    for (let [shardId, events] of Object.entries(eventsByShardId)) {
+
+      // sort by timestamp
+      events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      
+      // process events by splitting it into chunks based on the history file window
+      while (events.length) {
+        const earliestTimestamp = new Date(events[0].timestamp)
+        let lastIndex = events.length-1
+        while (new Date(events[lastIndex].timestamp) > new Date(earliestTimestamp.getTime() + naming.getHistoryFileWindowMillis())) {
+          lastIndex--
+        }
         
-        promises.push(lambda.invoke(params).promise())
+        const eventsSlice = events.slice(0, lastIndex+1)
+        events = events.slice(lastIndex+1, events.length)
+        if (events.length) {
+          console.log(`WARN: event timestamps don't all fall within one history file window, splitting`) // this should be rare unless SDKs are queueing events
+        }
+        
+        // the file is named based on the earlest timestamp in the set
+        const s3Key = naming.getHistoryS3Key(projectName, shardId, earliestTimestamp)
+        
+        console.log(`writing ${eventsSlice.length} records to ${s3Key}`)
+        
+        // write the data
+        let params = {
+          Body: zlib.gzipSync(Buffer.concat(eventsSlice.map(event => Buffer.from(JSON.stringify(event) + "\n")))),
+          Bucket: process.env.RECORDS_BUCKET,
+          Key: s3Key
+        }
+  
+        promises.push(s3.putObject(params).promise())
+        
+        // write the incoming meta file indicating this key should be processed
+        params = {
+          Body: JSON.stringify({ "key": s3Key }),
+          Bucket: process.env.RECORDS_BUCKET,
+          Key: naming.getIncomingHistoryS3Key(s3Key)
+        }
+  
+        promises.push(s3.putObject(params).promise())
       }
     }
-    return Promise.all(promises)
-  })
-}
+  }
 
-function listSortedShardsByProjectName() {
-  const projectNames = Object.keys(customize.getProjectNamesToModelNamesMapping())
-  return Promise.all(projectNames.map(projectName => {
-    console.log(`listing shards for project ${projectName}`)
-    const params = {
-      Bucket: process.env.RECORDS_BUCKET,
-      Delimiter: '/',
-      Prefix: naming.getHistoryS3KeyPrefix(projectName)
-    }
-    
-    return listAllCommonPrefixes(params).then(shardIds => {
-      console.log(`shardIds ${JSON.stringify(shardIds)}`)
-      return [projectName, shardIds]
-    })
-  })).then(projectNamesAndShardIds => {
-    const shardsByProjectNames = {}
-    for (const [projectName, shardIds] of projectNamesAndShardIds) {
-      shardIds.sort() // sort the shards
-      shardsByProjectNames[projectName] = shardIds
-    }
-    return shardsByProjectNames
-  })
+  return Promise.all(promises)
 }
-
-// modified from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
-const listAllCommonPrefixes = (params, out = []) => new Promise((resolve, reject) => {
-  s3.listObjectsV2(params).promise()
-    .then(({CommonPrefixes, IsTruncated, NextContinuationToken}) => {
-      out.push(...CommonPrefixes.map(o => o.Prefix.split('/').slice(-2)[0])); // split and grab the second to last item from the Prefix
-      !IsTruncated ? resolve(out) : resolve(listAllCommonPrefixes(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
-    })
-    .catch(reject);
-});
 
 
 function consoleTime(name, shouldLog) {

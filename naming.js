@@ -45,8 +45,15 @@ module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {
   // variants/data/projectName/modelName/yyyy/MM/dd/improve-variants-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
   return `variants/data/${projectName}/${modelName}/${year}/${month}/${day}/improve-variants-${year}-${month}-${day}-${hour}-${minute}-${second}-${firehoseUuid}.gz`
 }
+
+module.exports.isHistoryS3Key = (s3Key) => {
+  return s3Key.startsWith("histories/data")
+}
     
-module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt, firehoseS3Key) => {
+module.exports.getHistoryS3Key = (projectName, shardId, earliestEventAt) => {
+  
+  // FIX double check for UTC time on earliest Event
+  
   if (isNaN(earliestEventAt)) {
     throw `invalid earliestEventAt ${JSON.stringify(earliestEventAt)}`
   }
@@ -62,21 +69,12 @@ module.exports.getHistoryS3KeyPrefix = (projectName) => {
   return `histories/data/${projectName}/`
 }
 
-
 module.exports.getHistoryShardS3KeyPrefix = (projectName, shardId) => {
   return `histories/data/${projectName}/${shardId}/`
 }
 
-module.exports.getStaleHistoryS3Key = (s3Key) => {
-  return `${me.getStaleHistoryS3KeyPrefix()}${s3Key.substring("histories/data/".length)}`
-}
-
-module.exports.getStaleHistoryS3KeyPrefix = () => {
-  return "histories/meta/stale/"
-}
-
-module.exports.getStaleHistoryShardS3KeyPrefix = (projectName, shardId) => {
-  return `${me.getStaleHistoryS3KeyPrefix()}${projectName}/${shardId}/`
+module.exports.isIncomingHistoryS3Key = (s3Key) => {
+  return s3Key.startsWith("histories/meta/incoming/")
 }
 
 module.exports.getIncomingHistoryS3Key = (s3Key) => {
@@ -96,7 +94,11 @@ module.exports.getProjectNameFromHistoryS3Key = (historyS3Key) => {
   return historyS3Key.split('/')[2]
 }
 
-module.exports.getJoinedS3Key = (historyS3Key, modelName) => {
+module.exports.isRewardedActionS3Key = (s3Key) => {
+  return s3Key.startsWith("rewarded_actions/data")
+}
+
+module.exports.getRewardedActionS3Key = (historyS3Key, modelName) => {
   const [histories, data, projectName, shardId, year, month, day, hour, historyFileName] = historyS3Key.split('/')
   const joinedFileName = `improve-joined${historyFileName.substring('improve-events'.length)}`
   
@@ -104,15 +106,15 @@ module.exports.getJoinedS3Key = (historyS3Key, modelName) => {
   return `rewarded_actions/data/${projectName}/${modelName}/${getTrainValidationPathPart(joinedFileName)}/${shardId}/${year}/${month}/${day}/${joinedFileName}`
 }
 
-module.exports.getJoinedS3Uri = (projectName, modelName) => {
+module.exports.getRewardedActionS3Uri = (projectName, modelName) => {
   return `s3://${process.env.RECORDS_BUCKET}/rewarded_actions/${projectName}/${modelName}`
 }
 
-module.exports.getJoinedTrainS3Uri = (projectName, modelName) => {
+module.exports.getRewardedActionTrainS3Uri = (projectName, modelName) => {
   return `${me.getJoinedS3Uri(projectName, modelName)}/${me.getTrainPathPart()}`
 }
 
-module.exports.getJoinedValidationS3Uri = (projectName, modelName) => {
+module.exports.getRewardedActionValidationS3Uri = (projectName, modelName) => {
   return `${me.getJoinedS3Uri(projectName, modelName)}/${me.getValidationPathPart()}`
 }
 
@@ -141,7 +143,7 @@ module.exports.getValidationPathPart = () => {
 }
 
 module.exports.getTransformedS3Uri = (projectName, model) => {
-  return `s3://${process.env.RECORDS_BUCKET}/transformed/${projectName}/${model}/${SHARD_COUNT}`
+  return `s3://${process.env.RECORDS_BUCKET}/transformed/${projectName}/${model}/`
 }
 
 module.exports.getTransformedTrainS3Uri = (projectName, modelName) => {
