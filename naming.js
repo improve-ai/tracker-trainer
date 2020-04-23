@@ -37,6 +37,9 @@ module.exports.assignToShard = (sortedShards, historyId) => {
 
 // If a shard is in the process of being resharded, the longer child bitstring shard will be returned
 module.exports.assignToHistoryS3Key = (sortedShards, projectName, event, uuid) => {
+  if (!event.timestamp || !event.history_id) {
+    throw new Error(`missing timestamp or history_id in ${JSON.stringify(event)}`)
+  }
   // ensure that we're using UTC
   const [year, month, day] = new Date(event.timestamp).toISOString().slice(0,10).split('-')
   const shardId = me.assignToShard(sortedShards, event.history_id)
@@ -45,6 +48,17 @@ module.exports.assignToHistoryS3Key = (sortedShards, projectName, event, uuid) =
   return `histories/data/${projectName}/${shardId}/${year}/${month}/${day}/improve-events-${shardId}-${year}-${month}-${day}-${uuid}.gz`
 }
 
+module.exports.getSortedChildShardsForHistoryS3Key = (parentS3Key) => {
+  if (!me.isHistoryS3Key(parentS3Key)) {
+    throw new Error(`parentS3Key ${parentS3Key} is not a history key`)
+  }
+  const shardId = parentS3Key.split('/')[3]
+  return [`${shardId}0`, `${shardId}1`]
+}
+
+module.exports.getChildS3Key = (parentS3Key, childShardId) => {
+  
+}
 
 module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {
   const dashSplitS3Key = firehoseS3Key.split('-')
@@ -72,7 +86,7 @@ module.exports.isIncomingHistoryS3Key = (s3Key) => {
 }
 
 module.exports.getIncomingHistoryS3Key = (s3Key) => {
-  return `${me.getIncomingHistoryS3KeyPrefix()}${s3Key.substring("histories/data/".length)}`
+  return `${me.getIncomingHistoryS3KeyPrefix()}${s3Key.substring("histories/data/".length)}.json`
 }
 
 module.exports.getIncomingHistoryS3KeyPrefix = () => {
@@ -83,7 +97,6 @@ module.exports.getIncomingHistoryShardS3KeyPrefix = (projectName, shardId) => {
   return `${me.getIncomingHistoryS3KeyPrefix()}${projectName}/${shardId}/`
 }
 
-
 module.exports.getProjectNameFromHistoryS3Key = (historyS3Key) => {
   return historyS3Key.split('/')[2]
 }
@@ -93,7 +106,7 @@ module.exports.isRewardedActionS3Key = (s3Key) => {
 }
 
 module.exports.getRewardedActionS3Key = (historyS3Key, modelName) => {
-  const [histories, data, projectName, shardId, year, month, day, hour, historyFileName] = historyS3Key.split('/')
+  const [histories, data, projectName, shardId, year, month, day, historyFileName] = historyS3Key.split('/')
   const joinedFileName = `improve-joined${historyFileName.substring('improve-events'.length)}`
   
   // rewarded_actions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-actions-shardId-yyyy-MM-dd.gz

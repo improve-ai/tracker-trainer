@@ -6,6 +6,7 @@ const es = require('event-stream')
 const s3 = new AWS.S3()
 const customize = require("./customize.js")
 const naming = require("./naming.js")
+const me = module.exports
 
 module.exports.dispatchHistoryShardWorkers = async function(event, context) {
   console.log(`processing event ${JSON.stringify(event)}`)
@@ -18,19 +19,58 @@ module.exports.dispatchHistoryShardWorkers = async function(event, context) {
   })
 }
 
+// this works for both history and rewarded_action files
 module.exports.reshardFile = async function(event, context) {
   console.log(`processing event ${JSON.stringify(event)}`)
 
   const s3Key = event.s3Key
   
   if (!s3Key) {
-    throw new Error(`WARN: missing s3Key ${event}`)
+    throw new Error(`WARN: missing s3Key ${JSON.stringify(event)}`)
   }
+  
+  const sortedChildShards = sortedChildShards = naming.getSortedChildShardsForS3Key()
+  
+  const buffersByS3Key = {}
+  // load the data from the key to split
+  return me.processCompressedJsonLines(process.env.RECORDS_BUCKET, s3Key, record => {
+    if (!record.history_id || !record.timestamp) {
+      console.log(`WARN: skipping, missing history_id or timestamp ${JSON.stringify(record)}`)
+    }
+    
+    // pick which child key this record goes to
+    const childS3Key = naming.getChildS3Key(s3Key, naming.assignToShard(sortedChildShards, record.history_id))
+
+    const buffers = buffersByS3Key[childS3Key]
+    if (!buffers) {
+      buffers = []
+      buffersByS3Key[childS3Key] = buffers
+    }
+    buffers.push(Buffer.from(JSON.stringify(record)+"\n"))
+  }).then(() => {
+    // write out the records
+    return Promise.all(Object.entries(buffersByS3Key).map(([s3Key, buffers]) => {
+        console.log(`writing ${buffers.length} records to ${s3Key}`)
+        
+        let params = {
+          Body: zlib.gzipSync(Buffer.concat(buffers)),
+          Bucket: process.env.RECORDS_BUCKET,
+          Key: s3Key
+        }
+  
+        return s3.putObject(params).promise()
+    }))
+  }).then(() => {
+    // delete the parent file
+    return deleteKey(s3Key)
+  })
 }
 
 
 
 module.exports.processHistoryShard = async function(event, context) {
+  
+  // TODO handle presharded incoming meta files
 
   console.log(`processing event ${JSON.stringify(event)}`)
 
@@ -82,7 +122,7 @@ module.exports.processHistoryShard = async function(event, context) {
           return customize.assignRewardedActionsToModelsFromHistoryEvents(projectName, historyEvents)
         }).then(joinedActionsByModel => {
           console.log(`writing joined events ${JSON.stringify(joinedActionsByModel)}`)
-          return writeJoinedActionsByModel(staleS3Key, joinedActionsByModel).then(result => {
+          return writeRewardedActionsByModel(staleS3Key, joinedActionsByModel).then(result => {
             // stale has been processed, delete it
             return deleteKey(staleS3Key)
           })
@@ -110,31 +150,6 @@ function listAllHistoryShardS3Keys(projectName, shardId) {
   return listAllKeys(params)
 }
 
-function markStale(s3Keys) {
-  const promises = []
-  for (const s3Key of s3Keys) {
-    // write the incoming meta file indicating this key should be processed
-    const params = {
-      Body: JSON.stringify({ "key": s3Key }),
-      Bucket: process.env.RECORDS_BUCKET,
-      Key: naming.getStaleHistoryS3Key(s3Key)
-    }
-
-    promises.push(s3.putObject(params).promise())
-  }
-  
-  return Promise.all(promises)
-}
-
-function listAllStaleHistoryShardS3Keys(projectName, shardId) {
-  const params = {
-    Bucket: process.env.RECORDS_BUCKET,
-    Prefix: naming.getStaleHistoryShardS3KeyPrefix(projectName, shardId)
-  }
-
-  return listAllKeys(params)
-}
-
 function loadHistoryEventsForS3Keys(s3Keys) {
   let promises = []
   for (let i = 0; i < s3Keys.length; i++) {
@@ -155,7 +170,7 @@ function loadHistoryEventsForS3Key(s3Key) {
 
     console.log(`loadUserEventsForS3Key ${s3Key}`)
 
-    let stream = s3.getObject({ Bucket: process.env.RECORDS_BUCKET, Key: s3Key,}).createReadStream().pipe(gunzip).pipe(es.split()).pipe(es.mapSync(function(line) {
+    let stream = s3.getObject({ Bucket: process.env.RECORDS_BUCKET, Key: s3Key }).createReadStream().pipe(gunzip).pipe(es.split()).pipe(es.mapSync(function(line) {
 
       // pause the readstream
       stream.pause();
@@ -188,10 +203,10 @@ function loadHistoryEventsForS3Key(s3Key) {
   })
 }
 
-function writeJoinedActionsByModel(historyS3Key, modelsToJoinedActions) {
+function writeRewardedActionsByModel(historyS3Key, modelsToJoinedActions) {
   const promises = []
   for (const [modelName, joinedActions] of Object.entries(modelsToJoinedActions)) {
-    promises.push(writeJoinedActions(historyS3Key, modelName, joinedActions))
+    promises.push(writeRewardedActions(historyS3Key, modelName, joinedActions))
   }
   return Promise.all(promises)
 }
@@ -200,7 +215,7 @@ function writeJoinedActionsByModel(historyS3Key, modelsToJoinedActions) {
  All file name transformations are idempotent to avoid duplicate records.
  projectName and modelName are not included in the fileName to allow files to be copied between models
 */
-function writeJoinedActions(historyS3Key, modelName, joinedActions) {
+function writeRewardedActions(historyS3Key, modelName, joinedActions) {
       
       // allow alphanumeric, underscore, dash, space, period
       if (!naming.isValidModelName(modelName)) {

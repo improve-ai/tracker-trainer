@@ -16,10 +16,10 @@ module.exports.sendToFirehose = (projectName, body, receivedAt, log) => {
   body["project_name"] = projectName;
   body["received_at"] = receivedAt.toISOString();
   // FIX timestamp must never be in the future
-  if (!body["timestamp"]) {
+  if (!body.timestamp) {
     body["timestamp"] = body["received_at"];
   }
-  if (!body["message_id"]) {
+  if (!body.message_id) {
     body["message_id"] = uuidv4()
   }
   let firehoseData = new Buffer(JSON.stringify(body)+'\n')
@@ -169,19 +169,26 @@ function writeRecords(buffersByS3Key) {
       
       // if its a normal history key (not a variants key) write out the incoming meta file indicating this key should be processed
       if (naming.isHistoryS3Key(s3Key)) {
-        params = {
-          Body: JSON.stringify({ "key": s3Key }),
-          Bucket: process.env.RECORDS_BUCKET,
-          Key: naming.getIncomingHistoryS3Key(s3Key)
-        }
-    
-        promises.push(s3.putObject(params).promise())
+        promises.push(markHistoryS3KeyAsIncoming(s3Key))
       }
     }
 
   return Promise.all(promises)
 }
 
+function markHistoryS3KeyAsIncoming(historyS3Key) {
+  if (!naming.isHistoryS3Key(historyS3Key)) {
+    throw new Error(`${historyS3Key} must be a history key`)
+  }
+
+  const params = {
+    Body: JSON.stringify({ "s3_key": historyS3Key }),
+    Bucket: process.env.RECORDS_BUCKET,
+    Key: naming.getIncomingHistoryS3Key(historyS3Key)
+  }
+
+  return s3.putObject(params).promise()
+}
 
 function consoleTime(name, shouldLog) {
   if (shouldLog) {
