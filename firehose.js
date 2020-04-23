@@ -138,7 +138,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
       s3Key = naming.assignToHistoryS3Key(sortedShardsByProjectName[projectName], projectName, eventRecord, uuidPart)
     }
 
-    const buffers = buffersByS3Key[s3Key]
+    let buffers = buffersByS3Key[s3Key]
     if (!buffers) {
       buffers = []
       buffersByS3Key[s3Key] = buffers

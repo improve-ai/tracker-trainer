@@ -10,7 +10,7 @@ const naming = require("./naming.js")
 
 const me = module.exports
 
-// this function is not necessarily designed to be executed concurrently, so we set the reservedConcurrency to 1 in serverless.yml
+// this function is not designed to be executed concurrently, so we set the reservedConcurrency to 1 in serverless.yml
 module.exports.dispatchHistoryShardWorkers = async function(event, context) {
   console.log(`processing event ${JSON.stringify(event)}`)
 
@@ -63,7 +63,7 @@ module.exports.reshardFile = async function(event, context) {
     // pick which child key this record goes to
     const childS3Key = naming.getChildS3Key(s3Key, naming.assignToShard(sortedChildShards, record.history_id))
 
-    const buffers = buffersByS3Key[childS3Key]
+    let buffers = buffersByS3Key[childS3Key]
     if (!buffers) {
       buffers = []
       buffersByS3Key[childS3Key] = buffers
@@ -249,19 +249,23 @@ module.exports.processCompressedJsonLines = (s3Bucket, s3Key, mapFunction) => {
       // pause the readstream
       stream.pause();
 
+      let record
       try {
         if (!line) {
           return;
         }
-        let record = JSON.parse(line)
+
+        try {
+          record = JSON.parse(line)
+        } catch (err) {
+          console.log(`error ${err} skipping record ${line}`)
+        }
 
         if (!record) {
           return;
         }
 
         results.push(mapFunction(record))
-      } catch (err) {
-        console.log(`error ${err} skipping record`)
       } finally {
         stream.resume();
       }
@@ -297,6 +301,8 @@ function deleteAllKeys(s3Keys) {
 }
 
 function deleteKey(s3Key) {
+  console.log(`deleting ${s3Key}`)
+
   let params = {
     Bucket: process.env.RECORDS_BUCKET,
     Key: s3Key
