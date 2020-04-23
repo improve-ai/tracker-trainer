@@ -155,17 +155,7 @@ function writeRecords(buffersByS3Key) {
     
   // write out histories
   for (const [s3Key, buffers] of Object.entries(buffersByS3Key)) {
-
-      console.log(`writing ${buffers.length} records to ${s3Key}`)
-      
-      // write the data
-      let params = {
-        Body: zlib.gzipSync(Buffer.concat(buffers)),
-        Bucket: process.env.RECORDS_BUCKET,
-        Key: s3Key
-      }
-
-      promises.push(s3.putObject(params).promise())
+      promises.push(history.compressAndWriteBuffers(s3Key, buffers))
       
       // if its a normal history key (not a variants key) write out the incoming meta file indicating this key should be processed
       if (naming.isHistoryS3Key(s3Key)) {

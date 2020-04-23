@@ -48,16 +48,32 @@ module.exports.assignToHistoryS3Key = (sortedShards, projectName, event, uuid) =
   return `histories/data/${projectName}/${shardId}/${year}/${month}/${day}/improve-events-${shardId}-${year}-${month}-${day}-${uuid}.gz`
 }
 
-module.exports.getSortedChildShardsForHistoryS3Key = (parentS3Key) => {
-  if (!me.isHistoryS3Key(parentS3Key)) {
-    throw new Error(`parentS3Key ${parentS3Key} is not a history key`)
+module.exports.getSortedChildShardsForS3Key = (parentS3Key) => {
+
+  let shardId;
+  
+  if (me.isHistoryS3Key(parentS3Key)) {
+    shardId = parentS3Key.split('/')[3]
+  } else if (me.isRewardedActionS3Key(parentS3Key)) {
+    shardId = parentS3Key.split('/')[6]
+  } else {
+     throw new Error(`parentS3Key ${parentS3Key} is not a history or rewarded action key`)
   }
-  const shardId = parentS3Key.split('/')[3]
   return [`${shardId}0`, `${shardId}1`]
 }
 
 module.exports.getChildS3Key = (parentS3Key, childShardId) => {
-  
+  if (me.isHistoryS3Key(parentS3Key)) {
+    const split  = parentS3Key.split('/')
+    split[3] = childShardId
+    return split.join('/')
+  } else if (me.isRewardedActionS3Key(parentS3Key)) {
+    const split  = parentS3Key.split('/')
+    split[6] = childShardId
+    return split.join('/')
+  } else {
+     throw new Error(`parentS3Key ${parentS3Key} is not a history or rewarded action key`)
+  }
 }
 
 module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {

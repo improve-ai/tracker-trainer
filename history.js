@@ -29,7 +29,7 @@ module.exports.reshardFile = async function(event, context) {
     throw new Error(`WARN: missing s3Key ${JSON.stringify(event)}`)
   }
   
-  const sortedChildShards = sortedChildShards = naming.getSortedChildShardsForS3Key()
+  const sortedChildShards = naming.getSortedChildShardsForS3Key(s3Key)
   
   const buffersByS3Key = {}
   // load the data from the key to split
@@ -50,15 +50,7 @@ module.exports.reshardFile = async function(event, context) {
   }).then(() => {
     // write out the records
     return Promise.all(Object.entries(buffersByS3Key).map(([s3Key, buffers]) => {
-        console.log(`writing ${buffers.length} records to ${s3Key}`)
-        
-        let params = {
-          Body: zlib.gzipSync(Buffer.concat(buffers)),
-          Bucket: process.env.RECORDS_BUCKET,
-          Key: s3Key
-        }
-  
-        return s3.putObject(params).promise()
+      return me.compressAndWriteBuffers(s3Key, buffers)
     }))
   }).then(() => {
     // delete the parent file
@@ -279,6 +271,18 @@ module.exports.processCompressedJsonLines = (s3Bucket, s3Key, mapFunction) => {
       return resolve(results)
     }));
   })
+}
+
+module.exports.compressAndWriteBuffers = (s3Key, buffers) => {
+  console.log(`writing ${buffers.length} records to ${s3Key}`)
+  
+  let params = {
+    Body: zlib.gzipSync(Buffer.concat(buffers)),
+    Bucket: process.env.RECORDS_BUCKET,
+    Key: s3Key
+  }
+
+  return s3.putObject(params).promise()
 }
 
 function deleteAllKeys(s3Keys) {
