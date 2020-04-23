@@ -1,5 +1,9 @@
+'use strict';
+
+const AWS = require('aws-sdk')
 const mmh3 = require('murmurhash3js')
 const _ = require('lodash')
+const s3 = new AWS.S3()
 
 const me = module.exports
 
@@ -121,6 +125,10 @@ module.exports.isRewardedActionS3Key = (s3Key) => {
   return s3Key.startsWith("rewarded_actions/data")
 }
 
+module.exports.getRewardActionProjectS3KeyPrefix = (projectName) => {
+  return `rewarded_actions/data/${projectName}/`
+}
+
 module.exports.getRewardedActionS3Key = (historyS3Key, modelName) => {
   const [histories, data, projectName, shardId, year, month, day, historyFileName] = historyS3Key.split('/')
   const joinedFileName = `improve-joined${historyFileName.substring('improve-events'.length)}`
@@ -204,3 +212,108 @@ module.exports.getLambdaFunctionArn = (functionName, invokedFunctionArn) => {
   const splitted = invokedFunctionArn.split('-')
   return `${splitted.slice(0,splitted.length-1).join('-')}-${functionName}`
 }
+
+
+function listAllIncomingHistoryShardS3Keys(projectName, shardId) {
+  const params = {
+    Bucket: process.env.RECORDS_BUCKET,
+    Prefix: me.getIncomingHistoryShardS3KeyPrefix(projectName, shardId)
+  }
+
+  return listAllKeys(params)
+}
+
+function listAllHistoryShardS3Keys(projectName, shardId) {
+  const params = {
+    Bucket: process.env.RECORDS_BUCKET,
+    Prefix: me.getHistoryShardS3KeyPrefix(projectName, shardId)
+  }
+  
+  return listAllKeys(params)
+}
+
+function listAllRewardedActionShardS3Keys(projectName, shardId) {
+  return listAllRewardedActionShardS3KeyPrefixes(projectName, shardId).then(prefixes => {
+    return Promise.all(prefixes.map(prefix => {
+      const params = {
+        Bucket: process.env.RECORDS_BUCKET,
+        Prefix: prefix
+      }
+      
+      return listAllKeys(params)
+    })).then(all => {
+      return all.flat()
+    })
+  })
+}
+
+module.exports.listSortedHistoryShardsByProjectName = () => {
+  const projectNames = Object.keys(customize.getProjectNamesToModelNamesMapping())
+  return Promise.all(projectNames.map(projectName => {
+    return listAllHistoryShards(projectName).then(shardIds => {
+      console.log(`shardIds ${JSON.stringify(shardIds)}`)
+      return [projectName, shardIds]
+    })
+  })).then(projectNamesAndShardIds => {
+    const shardsByProjectNames = {}
+    for (const [projectName, shardIds] of projectNamesAndShardIds) {
+      shardIds.sort() // sort the shards
+      shardsByProjectNames[projectName] = shardIds
+    }
+    return shardsByProjectNames
+  })
+}
+
+function listAllHistoryShards(projectName) {
+  console.log(`listing shards for project ${projectName}`)
+  const params = {
+    Bucket: process.env.RECORDS_BUCKET,
+    Delimiter: '/',
+    Prefix: me.getHistoryS3KeyPrefix(projectName)
+  }
+  
+  return listAllSubPrefixes(params)
+}
+
+function listAllRewardedActionShardS3KeyPrefixes(projectName, shardId) {
+  console.log(`listing models for project ${projectName}`)
+  const params = {
+    Bucket: process.env.RECORDS_BUCKET,
+    Delimiter: '/',
+    Prefix: me.getRewardActionProjectS3KeyPrefix(projectName)
+  }
+
+  // rewarded_actions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-actions-shardId-yyyy-MM-dd.gz
+  return listAllPrefixes(params, 3)
+}
+
+function listAllPrefixes(params, depth=1) {
+  console.log(`listing sub prefixes for ${JSON.stringify(params)}`)
+  return listAllSubPrefixes(params).then(subPrefixes => {
+    if (depth <= 1) {
+      return subPrefixes.map(subPrefix => params.Prefix + subPrefix + params.Delimiter) 
+    } else {
+      return Promise.all(subPrefixes.map(subPrefix => listAllPrefixes(Object.assign(params, {Prefix: params.Prefix + subPrefix + params.Delimiter}), depth-1))).then(all => all.flat())
+    }
+  })
+}
+
+// modified from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
+const listAllSubPrefixes = (params, out = []) => new Promise((resolve, reject) => {
+  s3.listObjectsV2(params).promise()
+    .then(({CommonPrefixes, IsTruncated, NextContinuationToken}) => {
+      out.push(...CommonPrefixes.map(o => o.Prefix.split('/').slice(-2)[0])); // split and grab the second to last item from the Prefix
+      !IsTruncated ? resolve(out) : resolve(listAllSubPrefixes(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
+    })
+    .catch(reject);
+});
+
+// modified from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
+const listAllKeys = (params, out = []) => new Promise((resolve, reject) => {
+  s3.listObjectsV2(params).promise()
+    .then(({Contents, IsTruncated, NextContinuationToken}) => {
+      out.push(...Contents.map(o => o.Key));
+      !IsTruncated ? resolve(out) : resolve(listAllKeys(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
+    })
+    .catch(reject);
+});

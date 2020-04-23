@@ -4,26 +4,48 @@ const AWS = require('aws-sdk')
 const zlib = require('zlib')
 const es = require('event-stream')
 const s3 = new AWS.S3()
+const lambda = new AWS.Lambda()
 const customize = require("./customize.js")
 const naming = require("./naming.js")
+
 const me = module.exports
 
+// this function is not necessarily designed to be executed concurrently, so we set the reservedConcurrency to 1 in serverless.yml
 module.exports.dispatchHistoryShardWorkers = async function(event, context) {
   console.log(`processing event ${JSON.stringify(event)}`)
 
-  // list all of the shards so that we can decide which shard to write to
-  return module.exports.listSortedShardsByProjectName().then(sortedShardsByProjectName => {
+  return naming.listSortedShardsByProjectName().then(sortedShardsByProjectName => {
     for (const [projectName, sortedShards] of Object.entries(sortedShardsByProjectName)) {
       
     }
   })
+  
 }
 
-// this works for both history and rewarded_action files
+// invoke reshardFile lambda for every history and rewarded action S3 key associated with this shard. reshardFile has a maximum reserved concurrency
+// so some of the tasks may be queued
+function reshard(projectName, shardId) {
+  return Promise.all(naming.listAllHistoryShardS3Keys(projectName, shardId), naming.listAllRewardedActionShardS3Keys(projectName, shardId)).then(all => all.flat()).then(s3Keys => {
+    return Promise.all(s3Keys.map(s3Key => {
+      const lambdaArn = naming.getLambdaFunctionArn("reshardFile", context.invokedFunctionArn)
+      console.log(`invoking reshardFile for ${s3Key}`)
+    
+      const params = {
+        FunctionName: lambdaArn,
+        InvocationType: "Event",
+        Payload: JSON.stringify({"s3_key": s3Key})
+      };
+      
+      return lambda.invoke(params).promise()
+    }))
+  })
+}
+
+// reshard either history or rewarded_action files
 module.exports.reshardFile = async function(event, context) {
   console.log(`processing event ${JSON.stringify(event)}`)
 
-  const s3Key = event.s3Key
+  const s3Key = event.s3_key
   
   if (!s3Key) {
     throw new Error(`WARN: missing s3Key ${JSON.stringify(event)}`)
@@ -59,7 +81,6 @@ module.exports.reshardFile = async function(event, context) {
 }
 
 
-
 module.exports.processHistoryShard = async function(event, context) {
   
   // TODO handle presharded incoming meta files
@@ -73,12 +94,12 @@ module.exports.processHistoryShard = async function(event, context) {
     throw new Error(`WARN: missing project_name or shard_id ${JSON.stringify(event)}`)
   }
   
-  // list the incoming keys
-  return listAllIncomingHistoryShardS3Keys(projectName, shardId).then(incomingS3Keys => {
+  // naming.list the incoming keys
+  return naming.listAllIncomingHistoryShardS3Keys(projectName, shardId).then(incomingS3Keys => {
     console.log(`processing incoming keys: ${JSON.stringify(incomingS3Keys)}`)
     
     // list the entire history for this shard
-    return listAllHistoryShardS3Keys(projectName, shardId).then(historyS3Keys => {
+    return naming.listAllHistoryShardS3Keys(projectName, shardId).then(historyS3Keys => {
       // filter the history by which ones should be newly stale
       const staleS3Keys = naming.filterStaleS3KeysFromIncomingS3Keys(historyS3Keys, incomingS3Keys)
       // mark them stale
@@ -93,7 +114,7 @@ module.exports.processHistoryShard = async function(event, context) {
     })
   }).then(historyS3Keys => { 
     // list the stale keys for this shard
-    return listAllStaleHistoryShardS3Keys(projectName, shardId).then(staleS3Keys => {
+    return naming.listAllStaleHistoryShardS3Keys(projectName, shardId).then(staleS3Keys => {
       const cache = {}
 
       for (const staleS3Key in staleS3Keys) {      
@@ -122,24 +143,6 @@ module.exports.processHistoryShard = async function(event, context) {
       }
     })
   })
-}
-
-function listAllIncomingHistoryShardS3Keys(projectName, shardId) {
-  const params = {
-    Bucket: process.env.RECORDS_BUCKET,
-    Prefix: naming.getIncomingHistoryShardS3KeyPrefix(projectName, shardId)
-  }
-
-  return listAllKeys(params)
-}
-
-function listAllHistoryShardS3Keys(projectName, shardId) {
-  const params = {
-    Bucket: process.env.RECORDS_BUCKET,
-    Prefix: naming.getHistoryShardS3KeyPrefix(projectName, shardId)
-  }
-  
-  return listAllKeys(params)
 }
 
 function loadHistoryEventsForS3Keys(s3Keys) {
@@ -209,26 +212,26 @@ function writeRewardedActionsByModel(historyS3Key, modelsToJoinedActions) {
 */
 function writeRewardedActions(historyS3Key, modelName, joinedActions) {
       
-      // allow alphanumeric, underscore, dash, space, period
-      if (!naming.isValidModelName(modelName)) {
-        console.log(`WARN: skipping ${joinedActions.length} records - invalid modelName, not alphanumeric, underscore, dash, space, period ${modelName}`)
-        return;
-      }
-      
-      let jsonLines = ""
-      for (const joinedEvent of joinedActions) {
-        jsonLines += (JSON.stringify(joinedEvent) + "\n")
-      }
-      
-      let s3Key = naming.getJoinedS3Key(historyS3Key, modelName)
-      console.log(`writing ${joinedActions.length} records to ${s3Key}`)
-        
-      let params = {
-        Body: zlib.gzipSync(Buffer.from(jsonLines)),
-        Bucket: process.env.RECORDS_BUCKET,
-        Key: s3Key
-      }
-      return s3.putObject(params).promise()
+  // allow alphanumeric, underscore, dash, space, period
+  if (!naming.isValidModelName(modelName)) {
+    console.log(`WARN: skipping ${joinedActions.length} records - invalid modelName, not alphanumeric, underscore, dash, space, period ${modelName}`)
+    return;
+  }
+  
+  let jsonLines = ""
+  for (const joinedEvent of joinedActions) {
+    jsonLines += (JSON.stringify(joinedEvent) + "\n")
+  }
+  
+  let s3Key = naming.getJoinedS3Key(historyS3Key, modelName)
+  console.log(`writing ${joinedActions.length} records to ${s3Key}`)
+    
+  let params = {
+    Body: zlib.gzipSync(Buffer.from(jsonLines)),
+    Bucket: process.env.RECORDS_BUCKET,
+    Key: s3Key
+  }
+  return s3.putObject(params).promise()
 }
 
 // get object stream, unpack json lines and process each json object one by one using mapFunction
@@ -301,46 +304,3 @@ function deleteKey(s3Key) {
   return s3.deleteObject(params).promise()
 }
 
-module.exports.listSortedShardsByProjectName = () => {
-  const projectNames = Object.keys(customize.getProjectNamesToModelNamesMapping())
-  return Promise.all(projectNames.map(projectName => {
-    console.log(`listing shards for project ${projectName}`)
-    const params = {
-      Bucket: process.env.RECORDS_BUCKET,
-      Delimiter: '/',
-      Prefix: naming.getHistoryS3KeyPrefix(projectName)
-    }
-    
-    return listAllCommonPrefixes(params).then(shardIds => {
-      console.log(`shardIds ${JSON.stringify(shardIds)}`)
-      return [projectName, shardIds]
-    })
-  })).then(projectNamesAndShardIds => {
-    const shardsByProjectNames = {}
-    for (const [projectName, shardIds] of projectNamesAndShardIds) {
-      shardIds.sort() // sort the shards
-      shardsByProjectNames[projectName] = shardIds
-    }
-    return shardsByProjectNames
-  })
-}
-
-// modified from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
-const listAllCommonPrefixes = (params, out = []) => new Promise((resolve, reject) => {
-  s3.listObjectsV2(params).promise()
-    .then(({CommonPrefixes, IsTruncated, NextContinuationToken}) => {
-      out.push(...CommonPrefixes.map(o => o.Prefix.split('/').slice(-2)[0])); // split and grab the second to last item from the Prefix
-      !IsTruncated ? resolve(out) : resolve(listAllCommonPrefixes(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
-    })
-    .catch(reject);
-});
-
-// modified from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
-const listAllKeys = (params, out = []) => new Promise((resolve, reject) => {
-  s3.listObjectsV2(params).promise()
-    .then(({Contents, IsTruncated, NextContinuationToken}) => {
-      out.push(...Contents.map(o => o.Key));
-      !IsTruncated ? resolve(out) : resolve(listAllKeys(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
-    })
-    .catch(reject);
-});

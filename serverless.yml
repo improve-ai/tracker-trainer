@@ -32,7 +32,7 @@ provider:
     HISTORY_SHARD_REPROCESS_WAIT_TIME_IN_SECONDS: 7200 # 2 hours. Increasing this will decrease Lambda and S3 costs by re-processing history shards less often.
     RESHARD_REWARD_WINDOW_SIZE_IN_MB: 128 # If the size of the data processed for a reward window exceeds this size, a reshard will be triggered, splitting the shard in half
     RESHARD_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack a single day's data for one shard in memory.
-    RESHARD_WORKER_RESERVED_CONCURRENCY: 50 # limits maximum concurrency, but reduces the shared lambda pool for this account
+    RESHARD_WORKER_RESERVED_CONCURRENCY: 50 # limits maximum concurrency, but reduces the shared lambda pool for this AWS account
     # 
     # End customization
     #
@@ -117,6 +117,7 @@ functions:
           event: s3:ObjectCreated:*
   dispatchHistoryShardWorkers:
     handler: history.dispatchHistoryShardWorkers
+    reservedConcurrency: 1 # enforce serial execution to avoid potential concurrency issues
   processHistoryShard:
     handler: history.processHistoryShard
     memorySize: ${self:provider.environment.HISTORY_SHARD_WORKER_MEMORY_IN_MB}
