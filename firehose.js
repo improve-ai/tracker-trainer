@@ -1,15 +1,14 @@
 'use strict';
 
 const AWS = require('aws-sdk')
-const zlib = require('zlib')
-const es = require('event-stream')
 const s3 = new AWS.S3()
 const uuidv4 = require('uuid/v4')
 const firehose = new AWS.Firehose()
 const lambda = new AWS.Lambda()
 
+const shard = require("./shard.js")
 const naming = require("./naming.js")
-const history = require("./history.js")
+const s3utils = require("./s3utils.js")
 
 // Send the event with the timestamp and project name to firehose
 module.exports.sendToFirehose = (projectName, body, receivedAt, log) => {
@@ -48,7 +47,7 @@ module.exports.unpackFirehose = async function(event, context) {
   }
 
   // list all of the shards so that we can decide which shard to write to
-  return history.listSortedShardsByProjectName().then(sortedShardsByProjectName => {
+  return naming.listSortedShardsByProjectName().then(sortedShardsByProjectName => {
     // s3 only ever includes one record per event, but this spec allows multiple, so multiple we will process.
     return Promise.all(event.Records.map(s3EventRecord => {
       // process the fire hose file and write results to s3
@@ -75,7 +74,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
   // keep the uuid the same so that events in the same date, project, and shard get mapped to the same key
   const uuidPart = uuidv4()
 
-  return history.processCompressedJsonLines(s3Bucket, firehoseS3Key, eventRecord => {
+  return s3utils.processCompressedJsonLines(s3Bucket, firehoseS3Key, eventRecord => {
     if (eventRecord.record_type === "choose") { // DEPRECATED
       console.log(`WARN: skipping choose record`)
       return;
@@ -91,8 +90,9 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
       return;
     }
 
+    const timestamp = new Date(eventRecord.timestamp)
     // client reporting of timestamps in the future are handled in sendToFireHose. This should only happen with some clock skew.
-    if (new Date(eventRecord.timestamp) > Date.now()) {
+    if (timestamp > Date.now()) {
       console.log(`WARN: timestamp in the future ${JSON.stringify(eventRecord)}`)
     }
 
@@ -106,7 +106,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
       return;
     }
     
-    let s3Key
+    let s3Key;
     
     // Handle variants records
     if (eventRecord.type && eventRecord.type === "variants") {
@@ -135,7 +135,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
   
       // look at the list of available shards and assign the event to one
       // events are also segmented by event date
-      s3Key = naming.assignToHistoryS3Key(sortedShardsByProjectName[projectName], projectName, eventRecord, uuidPart)
+      s3Key = shard.assignToHistoryS3Key(sortedShardsByProjectName[projectName], projectName, eventRecord.history_id, timestamp, uuidPart)
     }
 
     let buffers = buffersByS3Key[s3Key]
@@ -155,7 +155,7 @@ function writeRecords(buffersByS3Key) {
     
   // write out histories
   for (const [s3Key, buffers] of Object.entries(buffersByS3Key)) {
-      promises.push(history.compressAndWriteBuffers(s3Key, buffers))
+      promises.push(s3utils.compressAndWriteBuffers(s3Key, buffers))
       
       // if its a normal history key (not a variants key) write out the incoming meta file indicating this key should be processed
       if (naming.isHistoryS3Key(s3Key)) {

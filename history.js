@@ -1,12 +1,10 @@
 'use strict';
 
 const AWS = require('aws-sdk')
-const zlib = require('zlib')
-const es = require('event-stream')
 const s3 = new AWS.S3()
-const lambda = new AWS.Lambda()
 const customize = require("./customize.js")
 const naming = require("./naming.js")
+const shard = require("./shard.js")
 
 const me = module.exports
 
@@ -15,69 +13,12 @@ module.exports.dispatchHistoryShardWorkers = async function(event, context) {
   console.log(`processing event ${JSON.stringify(event)}`)
 
   return naming.listSortedShardsByProjectName().then(sortedShardsByProjectName => {
-    for (const [projectName, sortedShards] of Object.entries(sortedShardsByProjectName)) {
+    return Promise.all(Object.entries(sortedShardsByProjectName).map(([projectName, sortedShards]) => {
+      const [reshardingParents, reshardingChildren, nonResharding] = shard.groupShards(sortedShards)
       
-    }
+    })) 
   })
   
-}
-
-// invoke reshardFile lambda for every history and rewarded action S3 key associated with this shard. reshardFile has a maximum reserved concurrency
-// so some of the tasks may be queued
-function reshard(projectName, shardId) {
-  return Promise.all(naming.listAllHistoryShardS3Keys(projectName, shardId), naming.listAllRewardedActionShardS3Keys(projectName, shardId)).then(all => all.flat()).then(s3Keys => {
-    return Promise.all(s3Keys.map(s3Key => {
-      const lambdaArn = naming.getLambdaFunctionArn("reshardFile", context.invokedFunctionArn)
-      console.log(`invoking reshardFile for ${s3Key}`)
-    
-      const params = {
-        FunctionName: lambdaArn,
-        InvocationType: "Event",
-        Payload: JSON.stringify({"s3_key": s3Key})
-      };
-      
-      return lambda.invoke(params).promise()
-    }))
-  })
-}
-
-// reshard either history or rewarded_action files
-module.exports.reshardFile = async function(event, context) {
-  console.log(`processing event ${JSON.stringify(event)}`)
-
-  const s3Key = event.s3_key
-  
-  if (!s3Key) {
-    throw new Error(`WARN: missing s3Key ${JSON.stringify(event)}`)
-  }
-  
-  const sortedChildShards = naming.getSortedChildShardsForS3Key(s3Key)
-  
-  const buffersByS3Key = {}
-  // load the data from the key to split
-  return me.processCompressedJsonLines(process.env.RECORDS_BUCKET, s3Key, record => {
-    if (!record.history_id || !record.timestamp) {
-      console.log(`WARN: skipping, missing history_id or timestamp ${JSON.stringify(record)}`)
-    }
-    
-    // pick which child key this record goes to
-    const childS3Key = naming.getChildS3Key(s3Key, naming.assignToShard(sortedChildShards, record.history_id))
-
-    let buffers = buffersByS3Key[childS3Key]
-    if (!buffers) {
-      buffers = []
-      buffersByS3Key[childS3Key] = buffers
-    }
-    buffers.push(Buffer.from(JSON.stringify(record)+"\n"))
-  }).then(() => {
-    // write out the records
-    return Promise.all(Object.entries(buffersByS3Key).map(([s3Key, buffers]) => {
-      return me.compressAndWriteBuffers(s3Key, buffers)
-    }))
-  }).then(() => {
-    // delete the parent file
-    return deleteKey(s3Key)
-  })
 }
 
 
@@ -232,81 +173,5 @@ function writeRewardedActions(historyS3Key, modelName, joinedActions) {
     Key: s3Key
   }
   return s3.putObject(params).promise()
-}
-
-// get object stream, unpack json lines and process each json object one by one using mapFunction
-module.exports.processCompressedJsonLines = (s3Bucket, s3Key, mapFunction) => {
-  let results = []
-  
-  return new Promise((resolve, reject) => {
-    
-    let gunzip = zlib.createGunzip()
-
-    console.log(`loading ${s3Key} from ${s3Bucket}`)
-
-    let stream = s3.getObject({ Bucket: s3Bucket, Key: s3Key,}).createReadStream().pipe(gunzip).pipe(es.split()).pipe(es.mapSync(function(line) {
-
-      // pause the readstream
-      stream.pause();
-
-      let record
-      try {
-        if (!line) {
-          return;
-        }
-
-        try {
-          record = JSON.parse(line)
-        } catch (err) {
-          console.log(`error ${err} skipping record ${line}`)
-        }
-
-        if (!record) {
-          return;
-        }
-
-        results.push(mapFunction(record))
-      } finally {
-        stream.resume();
-      }
-    })
-    .on('error', function(err) {
-      console.log('Error while reading file.', err);
-      return reject(err)
-    })
-    .on('end', function() {
-      return resolve(results)
-    }));
-  })
-}
-
-module.exports.compressAndWriteBuffers = (s3Key, buffers) => {
-  console.log(`writing ${buffers.length} records to ${s3Key}`)
-  
-  let params = {
-    Body: zlib.gzipSync(Buffer.concat(buffers)),
-    Bucket: process.env.RECORDS_BUCKET,
-    Key: s3Key
-  }
-
-  return s3.putObject(params).promise()
-}
-
-function deleteAllKeys(s3Keys) {
-  const promises = []
-  for (const s3Key of s3Keys) {
-    promises.push(deleteKey(s3Key))
-  }
-  return Promise.all(promises)
-}
-
-function deleteKey(s3Key) {
-  console.log(`deleting ${s3Key}`)
-
-  let params = {
-    Bucket: process.env.RECORDS_BUCKET,
-    Key: s3Key
-  }
-  return s3.deleteObject(params).promise()
 }
 

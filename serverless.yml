@@ -122,7 +122,7 @@ functions:
     handler: history.processHistoryShard
     memorySize: ${self:provider.environment.HISTORY_SHARD_WORKER_MEMORY_IN_MB}
   reshardFile:
-    handler: history.reshardFile
+    handler: shard.reshardFile
     memorySize: ${self:provider.environment.RESHARD_WORKER_MEMORY_IN_MB}
     reservedConcurrency: ${self:provider.environment.RESHARD_WORKER_RESERVED_CONCURRENCY}
   featureModelCreated:
