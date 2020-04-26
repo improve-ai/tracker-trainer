@@ -67,17 +67,8 @@ provider:
       Resource: "arn:aws:lambda:${self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-*"
 
 functions:
-  choose:
-    handler: api.choose
-    timeout: 6
-    events:
-      - http:
-          path: choose
-          method: post
-          cors: true
-#          private: true
   track:
-    handler: api.track
+    handler: http_api.track
     timeout: 6
     events:
       - http:
@@ -85,24 +76,6 @@ functions:
           method: post
           cors: true
           private: true # uncomment if you wish to require authentication via API Gateway
-  using:
-    handler: api.using
-    timeout: 6
-    events:
-      - http:
-          path: using
-          method: post
-          cors: true
-          private: true
-  rewards:
-    handler: api.rewards
-    timeout: 6
-    events:
-      - http:
-          path: rewards
-          method: post
-          cors: true
-          private: true
   dispatchTrainingJobs:
     handler: train.dispatchTrainingJobs
     events:

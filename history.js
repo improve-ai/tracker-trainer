@@ -16,7 +16,10 @@ module.exports.dispatchHistoryShardWorkers = async function(event, context) {
     return Promise.all(Object.entries(sortedShardsByProjectName).map(([projectName, sortedShards]) => {
       const [reshardingParents, reshardingChildren, nonResharding] = shard.groupShards(sortedShards)
       
-    })) 
+      // reshard workers have limited reservedConcurrency so may queue for up to 6 hours (plus max 15 minutes of execution) until they should be retried
+      // https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html
+      // warn if you frequently see this message you may want to increase reshard worker reservedConconcurrency
+    }))
   })
   
 }
