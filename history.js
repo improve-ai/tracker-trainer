@@ -28,15 +28,28 @@ module.exports.dispatchHistoryShardWorkers = async (event, context) => {
   })
 }
 
-function dispatchHistoryProcessingIfNecessary(lambdaArn, projectName, shards, lastProcessedDates) {
+function dispatchHistoryProcessingIfNecessary(lambdaArn, projectName, nonReshardingShards, lastProcessedDates) {
+  const nonReshardingShardsSet = new Set(nonReshardingShards)
   const now = new Date()
   const unix_epoch = new Date(0)
-  return Promise.all(shards.map(shardId => {
-    const lastProcessed = lastProcessedDates[shardId] || unix_epoch
+  
+  // list all incoming history shards
+  return naming.listAllIncomingHistoryShards().then(incomingShards => {
+    return Promise.all(incomingShards.map(shardId => {
+      const lastProcessed = lastProcessedDates[shardId] || unix_epoch
+  
+      // check if the incoming shard isn't currently being resharded and if it hasn't been processed too recently
+      if (!nonReshardingShardsSet.has(shardId)) {
+        console.log(`skipping shard ${shardId} for history processing, currently resharding`)
+        return 
+      }
+      
+      if ((now - lastProcessed) < process.env.HISTORY_SHARD_REPROCESS_WAIT_TIME_IN_SECONDS * 1000) {
+        console.log(`skipping shard ${shardId} for history processing, last processing ${lastProcessed.toISOString()} was too recent`)
+        return
+      }
 
-    if (now - lastProcessed > 6 * 60 * 60 * 1000 + 15 * 60 * 1000) {
-      console.log(`WARN: shard ${shardId} initialized resharding over 6 hours 15 minutes ago at ${lastProcessed.toISOString()}. Shard worker reservedConcurrency may be too low.`)   
-      // all of the files have been written and meta incoming files have been touched, dispatch the workers to process
+      // TODO should updated last processed here or in the next function??
       console.log(`invoking dispatchHistoryShardWorkers`)
   
       const params = {
@@ -46,14 +59,12 @@ function dispatchHistoryProcessingIfNecessary(lambdaArn, projectName, shards, la
       };
       
       return lambda.invoke(params).promise()
-    }
-  }))
+    }))
+  })
 }
 
 module.exports.processHistoryShard = async function(event, context) {
   
-  // TODO handle presharded incoming meta files
-
   console.log(`processing event ${JSON.stringify(event)}`)
 
   const projectName = event.project_name

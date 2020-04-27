@@ -18,11 +18,13 @@ module.exports.getHistoryS3Key = (projectName, shardId, timestamp, uuid) => {
 module.exports.getShardIdForS3Key = (s3Key) => {
   if (me.isHistoryS3Key(s3Key)) {
     return s3Key.split('/')[3]
+  } else if (me.isIncomingHistoryS3Key(s3Key)) {
+    return s3Key.split('/')[4]
   } else if (me.isRewardedActionS3Key(s3Key)) {
     return s3Key.split('/')[6]
-  } 
+  }
   
-  throw new Error(`s3Key ${s3Key} is not a history or rewarded action key`)
+  throw new Error(`s3Key ${s3Key} is not a history, incoming history marker, or rewarded action key`)
 }
 
 module.exports.replaceShardIdForS3Key = (s3Key, newShardId, timestamp) => {
@@ -54,7 +56,7 @@ module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {
 }
 
 module.exports.isHistoryS3Key = (s3Key) => {
-  return s3Key.startsWith("histories/data")
+  return s3Key.startsWith("histories/data/")
 }
     
 module.exports.getHistoryS3KeyPrefix = (projectName) => {
@@ -70,15 +72,15 @@ module.exports.isIncomingHistoryS3Key = (s3Key) => {
 }
 
 module.exports.getIncomingHistoryS3Key = (s3Key) => {
-  return `${me.getIncomingHistoryS3KeyPrefix()}${s3Key.substring("histories/data/".length)}.json`
+  return `histories/meta/incoming/${s3Key.substring("histories/data/".length)}.json`
 }
 
-module.exports.getIncomingHistoryS3KeyPrefix = () => {
-  return "histories/meta/incoming/"
+module.exports.getIncomingHistoryS3KeyPrefix = (projectName) => {
+  return `histories/meta/incoming/${projectName}/`
 }
 
 module.exports.getIncomingHistoryShardS3KeyPrefix = (projectName, shardId) => {
-  return `${me.getIncomingHistoryS3KeyPrefix()}${projectName}/${shardId}/`
+  return `histories/meta/incoming/${projectName}/${shardId}/`
 }
 
 module.exports.getProjectNameFromHistoryS3Key = (historyS3Key) => {
@@ -118,7 +120,7 @@ module.exports.replaceShardIdForRewardedActionS3Key = (s3Key, newShardId, timest
   const [rewardActions, data, projectName, modelName, trainOrValidation, split, shardId, year, month, day, fileName] = s3Key.split('/')
   
   // changing the shardId changes the train/validation part so we must re-hash rather than just replace the shardId
-  return me.getRewardedActionS3Key(projectName, modelName, shardId, timestamp)
+  return me.getRewardedActionS3Key(projectName, modelName, newShardId, timestamp)
 }
 
 module.exports.getRewardedActionS3Uri = (projectName, modelName) => {
@@ -204,21 +206,22 @@ module.exports.listAllShardTimestampsS3Keys = (projectName) => {
   return s3utils.listAllKeys(params)
 }
 
-function listAllIncomingHistoryShardS3Keys(projectName, shardId) {
-  const params = {
-    Bucket: process.env.RECORDS_BUCKET,
-    Prefix: me.getIncomingHistoryShardS3KeyPrefix(projectName, shardId)
-  }
 
-  return s3utils.listAllKeys(params)
-}
-
-function listAllHistoryShardS3Keys(projectName, shardId) {
+module.exports.listAllHistoryShardS3Keys = (projectName, shardId) => {
   const params = {
     Bucket: process.env.RECORDS_BUCKET,
     Prefix: me.getHistoryShardS3KeyPrefix(projectName, shardId)
   }
   
+  return s3utils.listAllKeys(params)
+}
+
+module.exports.listAllIncomingHistoryShardS3Keys = (projectName, shardId) => {
+  const params = {
+    Bucket: process.env.RECORDS_BUCKET,
+    Prefix: me.getIncomingHistoryShardS3KeyPrefix(projectName, shardId)
+  }
+
   return s3utils.listAllKeys(params)
 }
 
@@ -247,6 +250,17 @@ module.exports.listAllHistoryShards = (projectName) => {
     Bucket: process.env.RECORDS_BUCKET,
     Delimiter: '/',
     Prefix: me.getHistoryS3KeyPrefix(projectName)
+  }
+  
+  return s3utils.listAllSubPrefixes(params)
+}
+
+module.exports.listAllIncomingHistoryShards = (projectName) => {
+  console.log(`listing shards for project ${projectName}`)
+  const params = {
+    Bucket: process.env.RECORDS_BUCKET,
+    Delimiter: '/',
+    Prefix: me.getIncomingHistoryS3KeyPrefix(projectName)
   }
   
   return s3utils.listAllSubPrefixes(params)
