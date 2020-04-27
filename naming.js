@@ -85,12 +85,12 @@ module.exports.getProjectNameFromHistoryS3Key = (historyS3Key) => {
   return historyS3Key.split('/')[2]
 }
 
-module.exports.getShardStateS3KeyPrefix = () => {
-  return "histories/meta/shard_state/"
+module.exports.getShardTimestampsS3KeyPrefix = () => {
+  return "histories/meta/shard_timestamps/"
 }
 
-module.exports.getShardStateS3Key = () => {
-  return `${me.getHistoryS3KeyPrefix()}shard-state-${uuidv4}.json`
+module.exports.getShardTimestampsS3Key = () => {
+  return `${me.getHistoryS3KeyPrefix()}shard-timestamps-${uuidv4}.json`
 }
 
 module.exports.isRewardedActionS3Key = (s3Key) => {
@@ -194,7 +194,7 @@ module.exports.getLambdaFunctionArn = (functionName, invokedFunctionArn) => {
   return `${splitted.slice(0,splitted.length-1).join('-')}-${functionName}`
 }
 
-module.exports.listAllShardStateS3Keys = () => {
+module.exports.listAllShardTimestampsS3Keys = () => {
   const params = {
     Bucket: process.env.RECORDS_BUCKET,
     Prefix: me.getShardStateS3KeyPrefix()
