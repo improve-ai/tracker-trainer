@@ -86,10 +86,10 @@ module.exports.getProjectNameFromHistoryS3Key = (historyS3Key) => {
 }
 
 module.exports.getShardTimestampsS3KeyPrefix = (projectName) => {
-  return `histories/meta/shard_timestamps/${projectName}`
+  return `histories/meta/shard_timestamps/${projectName}/`
 }
 
-module.exports.getShardTimestampsS3Key = (projectName) => {
+module.exports.getUniqueShardTimestampsS3Key = (projectName) => {
   return `${me.getHistoryS3KeyPrefix(projectName)}shard-timestamps-${uuidv4}.json`
 }
 

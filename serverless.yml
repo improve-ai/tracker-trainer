@@ -2,7 +2,7 @@ service: improve-v5
 provider:
   name: aws
   region: us-west-2
-  runtime: nodejs10.x
+  runtime: nodejs12.x
   timeout: 900
   memorySize: 192
   environment:
