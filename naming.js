@@ -195,6 +195,7 @@ module.exports.getLambdaFunctionArn = (functionName, invokedFunctionArn) => {
 }
 
 module.exports.listAllShardTimestampsS3Keys = () => {
+  console.log(`listing timestamp keys`)
   const params = {
     Bucket: process.env.RECORDS_BUCKET,
     Prefix: me.getShardStateS3KeyPrefix()
@@ -222,6 +223,7 @@ function listAllHistoryShardS3Keys(projectName, shardId) {
 }
 
 module.exports.listSortedShardsByProjectName = () => {
+  console.log(`listing shards`)
   const projectNames = Object.keys(customize.getProjectNamesToModelNamesMapping())
   return Promise.all(projectNames.map(projectName => {
     return Promise.all([me.listAllHistoryShards(projectName), me.listAllRewardedActionShards(projectName)]).then(all => all.flat()).then(shardIds => {
