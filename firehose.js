@@ -9,6 +9,7 @@ const lambda = new AWS.Lambda()
 const shard = require("./shard.js")
 const naming = require("./naming.js")
 const s3utils = require("./s3utils.js")
+const customize = require("./customize.js")
 
 // Send the event with the timestamp and project name to firehose
 module.exports.sendToFirehose = (projectName, body, receivedAt, log) => {
@@ -110,17 +111,19 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
     
     // Handle variants records
     if (eventRecord.type && eventRecord.type === "variants") {
-      if (!eventRecord.model) {
-        console.log(`WARN: skipping record - missing model for variants type ${JSON.stringify(eventRecord)}`)
+      if (!eventRecord.action) {
+        console.log(`WARN: skipping record - missing action for variants type ${JSON.stringify(eventRecord)}`)
         return
       }
+      
+      const model = customize.getModelNameForAction(eventRecord.action)
 
-      if (!naming.isValidModelName(eventRecord.model)) {
+      if (!naming.isValidModelName(model)) {
         console.log(`WARN: skipping record - invalid model name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(eventRecord)}`)
         return;
       }
       
-      s3Key = naming.getVariantsS3Key(projectName, eventRecord.model, firehoseS3Key)
+      s3Key = naming.getVariantsS3Key(projectName, model, firehoseS3Key)
     } else {
       // user_id is deprecated
       // history_id is not required for variants records

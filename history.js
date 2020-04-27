@@ -5,25 +5,100 @@ const s3 = new AWS.S3()
 const customize = require("./customize.js")
 const naming = require("./naming.js")
 const shard = require("./shard.js")
-
-const me = module.exports
+const s3utils = require("./s3utils.js")
 
 // this function is not designed to be executed concurrently, so we set the reservedConcurrency to 1 in serverless.yml
 module.exports.dispatchHistoryShardWorkers = async function(event, context) {
   console.log(`processing event ${JSON.stringify(event)}`)
 
+  // get all of the shard ids
   return naming.listSortedShardsByProjectName().then(sortedShardsByProjectName => {
-    return Promise.all(Object.entries(sortedShardsByProjectName).map(([projectName, sortedShards]) => {
-      const [reshardingParents, reshardingChildren, nonResharding] = shard.groupShards(sortedShards)
-      
-      // reshard workers have limited reservedConcurrency so may queue for up to 6 hours (plus max 15 minutes of execution) until they should be retried
-      // https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html
-      // warn if you frequently see this message you may want to increase reshard worker reservedConconcurrency
-    }))
+    // get all of the shard state keys
+    return naming.listAllShardStateS3Keys.then(shardStateS3Keys => {
+      // load the shard states
+      return loadAllShardStates(shardStateS3Keys).then(shardStates => {
+        // go through each project
+        return Promise.all(Object.entries(sortedShardsByProjectName).map(([projectName, sortedShards]) => {
+          // group the shards
+          const [reshardingParents, reshardingChildren, nonResharding] = shard.groupShards(sortedShards)
+          // check to see if any of the resharding parents didn't finish and sharding needs to be restarted
+          // & check to see if any non-resharding shards have incoming history meta files and haven't been processed recently
+          return continueReshardingIfNecessary(projectName, reshardingParents, shardStates).then(reshardingUpdatedShardStates => {
+            return processHistoryIfNeccessary(nonResharding, reshardingUpdatedShardStates)
+          })
+        })).then(updatedShardStates => {
+          // write a new shard state file and delete the old ones
+          return saveShardStates(shardStateS3Keys, updatedShardStates)
+        })
+      })
+    })
   })
-  
 }
 
+function continueReshardingIfNecessary(projectName, reshardingParents, shardStates) {
+  // reshard workers have limited reservedConcurrency so may queue for up to 6 hours (plus max 15 minutes of execution) until they should be retried
+  // https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html
+  // warn if you frequently see this message you may want to increase reshard worker reservedConconcurrency
+  
+  return updatedShardStates
+}
+
+function processHistoryIfNeccessary(nonResharding) {
+  
+  return updatedShardStates
+}
+
+function loadAllShardStates(s3Keys) {
+  return Promise.all(s3Keys.map(s3Key => {
+    const params = {
+      Bucket: process.env.RECORDS_BUCKET,
+      Key: s3Key
+    }
+    return s3.getObject(params).promise().then(data => {
+      return JSON.parse(data.Body.toString('utf-8'))
+    })
+  })).then(shardStateFiles => {
+    const consolidatedShardStates = {}
+    for (const shardStates of shardStateFiles) {
+      for (const [shardId, state] of Object.entries(shardStates)) {
+        if (!consolidatedShardStates.hasOwnProperty(shardId)) {
+          consolidatedShardStates[shardId] = state
+        } else {
+          // update the state with whichever is newer
+          const consolidatedState = consolidatedShardStates[shardId]
+          if (state.last_processed) {
+            if (!consolidatedState.last_processed || new Date(state.last_processed) > new Date(consolidatedState.last_processed)) {
+              consolidatedState.last_processed = state.last_processed
+            }
+          }
+          if (state.last_resharded) {
+            if (!consolidatedState.last_resharded || new Date(state.last_resharded) > new Date(consolidatedState.last_resharded)) {
+              consolidatedState.last_resharded = state.last_resharded
+            }
+          }
+        }
+      }
+    }
+    
+    return consolidatedShardStates
+  })
+}
+
+// by saving the consolidated state as a new file with a uuid and then deleting any previous files we can be fairly confident
+// that we've rolled up all previously updated state.  In the event that two updates were to happen simultaneously, they would
+// be rolled up in the future.
+function saveShardStates(s3Keys, shardStates) {
+  // create a new unique file that consolidates all current shardState
+  let params = {
+    Body: JSON.stringify(shardStates),
+    Bucket: process.env.RECORDS_BUCKET,
+    Key: naming.getShardStateS3Key()
+  }
+  return s3.putObject(params).promise().then(() => {
+    // clean up all s3 keys that were consolidated into this new file
+    return s3utils.deleteAllKeys(s3Keys)
+  })
+}
 
 module.exports.processHistoryShard = async function(event, context) {
   

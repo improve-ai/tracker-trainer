@@ -14,7 +14,7 @@ const naming = require("./naming.js")
 
 const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
 
-module.exports.dispatchTrainingJobs = function(event, context, cb) {
+module.exports.dispatchTrainingJobs = async () => {
 
   console.log(`dispatching training jobs`)
 
@@ -94,30 +94,21 @@ function createFeatureTrainingJob(projectName, model) {
   return sagemaker.createTrainingJob(params).promise()
 }
 
-module.exports.featureModelCreated = function(event, context, cb) {
+module.exports.featureModelCreated = async (event, context) => {
 
   console.log(`processing s3 event ${JSON.stringify(event)}`)
 
-  let promises = []
-
-  if (!event.Records || !event.Records.length > 0) {
-    return cb(new Error(`WARN: Invalid S3 event ${JSON.stringify(event)}`))
+  if (!event.Records || !event.Records.length > 0 || event.Records.some(record => !record.s3 || !record.s3.bucket || !record.s3.bucket.name || !record.s3.object || !record.s3.object.key)) {
+    throw new Error(`WARN: Invalid S3 event ${JSON.stringify(event)}`)
   }
-
-  for (let i = 0; i < event.Records.length; i++) {
-    if (!event.Records[i].s3) {
-      console.log(`WARN: Invalid S3 event ${JSON.stringify(event)}`)
-      continue;
-    }
-
-    const s3Record = event.Records[i].s3
-    const s3Key = s3Record.object.key
+  
+  // s3 only ever includes one record per event, but this spec allows multiple, so multiple we will process.
+  return Promise.all(event.Records.map(s3EventRecord => {
+    const s3Key = s3EventRecord.s3.object.key
 
     // feature_models/projectName/modelName/<feature training job>/model.tar.gz
-    let [projectName, model, trainingJobName] = s3Record.object.key.split('/').slice(1,4)
+    let [projectName, model, trainingJobName] = s3Key.split('/').slice(1,4)
     trainingJobName = "t"+trainingJobName.substring(1)
-
-    const s3Bucket = s3Record.bucket.name
 
     // Use the trainingJobName as the ModelName
     let params = {
@@ -125,29 +116,20 @@ module.exports.featureModelCreated = function(event, context, cb) {
       ModelName: trainingJobName,
       PrimaryContainer: { 
         Image: process.env.FEATURE_TRAINING_IMAGE,
-        ModelDataUrl: `s3://${s3Bucket}/${s3Key}`,
+        ModelDataUrl: `s3://${s3EventRecord.s3.bucket.name}/${s3Key}`,
       }
     }
 
     console.log(`Attempting to create model ${trainingJobName}`);
-    promises.push(sagemaker.createModel(params).promise().then((response) => {
+    return sagemaker.createModel(params).promise().then((response) => {
       if (response.ModelArn) {
-        return [projectName, model, trainingJobName]; // trainingJobName is the ModelName
+        // model created, kick off the transform job
+        return createTransformJob(projectName, model, trainingJobName) // trainingJobName is the ModelName
       } else {
         throw new Error("No ModelArn in response, assuming failure");
       }
-    }).then(([projectName, model, trainingJobName]) => {
-      return createTransformJob(projectName, model, trainingJobName)
-    }))
-  }
-  
-  // Really there should just be just one promise in promises because S3 events are
-  // one key at a time, but the format does allow multiple event Records
-  return Promise.all(promises).then(results => {
-    return cb(null, 'success')
-  }, err => {
-    return cb(err)
-  })
+    })
+  }))
 }
 
 function createTransformJob(projectName, model, trainingJobName) {
@@ -255,28 +237,20 @@ function createXGBoostTrainingJob(projectName, model, trainingJobName) {
   return sagemaker.createTrainingJob(params).promise()
 }
 
-module.exports.xgboostModelCreated = function(event, context, cb) {
+module.exports.xgboostModelCreated = async (event, context) => {
 
   console.log(`processing s3 event ${JSON.stringify(event)}`)
 
-  let promises = []
-
-  if (!event.Records || !event.Records.length > 0) {
-    return cb(new Error(`WARN: Invalid S3 event ${JSON.stringify(event)}`))
+  if (!event.Records || !event.Records.length > 0 || event.Records.some(record => !record.s3 || !record.s3.bucket || !record.s3.bucket.name || !record.s3.object || !record.s3.object.key)) {
+    throw new Error(`WARN: Invalid S3 event ${JSON.stringify(event)}`)
   }
-
-  for (let i = 0; i < event.Records.length; i++) {
-    if (!event.Records[i].s3) {
-      console.log(`WARN: Invalid S3 event ${JSON.stringify(event)}`)
-      continue;
-    }
-
-    const s3Record = event.Records[i].s3
-    const s3Key = s3Record.object.key
+  
+  // s3 only ever includes one record per event, but this spec allows multiple, so multiple we will process.
+  return Promise.all(event.Records.map(s3EventRecord => {
+    const s3Key = s3EventRecord.s3.object.key
 
     // feature_models/projectName/modelName/<feature training job>/model.tar.gz
-    const [projectName, model, trainingJobName] = s3Record.object.key.split('/').slice(1,4)
-    const s3Bucket = s3Record.bucket.name
+    let [projectName, model, trainingJobName] = s3Key.split('/').slice(1,4)
 
     // Use the trainingJobName as the ModelName
     let params = {
@@ -284,12 +258,15 @@ module.exports.xgboostModelCreated = function(event, context, cb) {
       ModelName: trainingJobName,
       PrimaryContainer: { 
         Image: process.env.FEATURE_TRAINING_IMAGE,
-        ModelDataUrl: `s3://${s3Bucket}/${s3Key}`,
+        ModelDataUrl: `s3://${s3EventRecord.s3.bucket.name}/${s3Key}`,
       }
     }
 
+    // TODO 
+    
+    
     console.log(`Attempting to create model ${trainingJobName}`);
-    promises.push(sagemaker.createModel(params).promise().then((response) => {
+    return sagemaker.createModel(params).promise().then((response) => {
       if (response.ModelArn) {
         return [projectName, model, trainingJobName]; // trainingJobName is the ModelName
       } else {
@@ -298,16 +275,8 @@ module.exports.xgboostModelCreated = function(event, context, cb) {
     }).then(([projectName, model, trainingJobName]) => {
       trainingJobName = "t"+trainingJobName.substring(1)
       return ""//createTransformJob(projectName, model, trainingJobName)
-    }))
-  }
-  
-  // Really there should just be just one promise in promises because S3 events are
-  // one key at a time, but the format does allow multiple event Records
-  return Promise.all(promises).then(results => {
-    return cb(null, 'success')
-  }, err => {
-    return cb(err)
-  })
+    })
+  }))
 }
 
 function getFeatureTrainingJobName(projectName, model) {

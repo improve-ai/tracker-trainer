@@ -1,7 +1,7 @@
 'use strict';
 
-const AWS = require('aws-sdk')
 const mmh3 = require('murmurhash3js')
+const uuidv4 = require('uuid/v4')
 const s3utils = require("./s3utils.js")
 const customize = require("./customize.js")
 
@@ -83,6 +83,14 @@ module.exports.getIncomingHistoryShardS3KeyPrefix = (projectName, shardId) => {
 
 module.exports.getProjectNameFromHistoryS3Key = (historyS3Key) => {
   return historyS3Key.split('/')[2]
+}
+
+module.exports.getShardStateS3KeyPrefix = () => {
+  return "histories/meta/shard_state/"
+}
+
+module.exports.getShardStateS3Key = () => {
+  return `${me.getHistoryS3KeyPrefix()}shard-state-${uuidv4}.json`
 }
 
 module.exports.isRewardedActionS3Key = (s3Key) => {
@@ -186,6 +194,14 @@ module.exports.getLambdaFunctionArn = (functionName, invokedFunctionArn) => {
   return `${splitted.slice(0,splitted.length-1).join('-')}-${functionName}`
 }
 
+module.exports.listAllShardStateS3Keys = () => {
+  const params = {
+    Bucket: process.env.RECORDS_BUCKET,
+    Prefix: me.getShardStateS3KeyPrefix()
+  }
+
+  return s3utils.listAllKeys(params)
+}
 
 function listAllIncomingHistoryShardS3Keys(projectName, shardId) {
   const params = {

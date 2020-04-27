@@ -1,23 +1,20 @@
 'use strict';
 
-const AWS = require('aws-sdk');
-const _ = require('lodash');
-
 const unpackFirehose = require("./unpack_firehose.js")
 const customize = require("./customize.js")
 
 const LOG_PROBABILITY = .1;
 
 module.exports.track = async function(event, context) {
-  let logging = checkShouldLog();
-  consoleTime('track', logging);
-  let receivedAt = new Date();
+  let logging = checkShouldLog()
+  consoleTime('track', logging)
+  let receivedAt = new Date()
   
   if (logging) {
-    console.log(JSON.stringify(event));
+    console.log(JSON.stringify(event))
   }
 
-  let body = JSON.parse(event.body);
+  let body = JSON.parse(event.body)
   
   let projectName = customize.getProjectName(event, context)
 
@@ -29,7 +26,7 @@ module.exports.track = async function(event, context) {
     return errorResponse("the 'history_id' field is required")
   }
 
-  return unpackFirehose.sendToFirehose(projectName, body, receivedAt, logging).then((result) => {
+  return unpackFirehose.sendToFirehose(projectName, body, receivedAt, logging).then(() => {
     consoleTimeEnd('track', logging)
     return successResponse()
   }).catch(err =>{
@@ -63,12 +60,12 @@ function checkShouldLog() {
 
 function consoleTime(name, shouldLog) {
   if (shouldLog) {
-    console.time(name);
+    console.time(name)
   }
 }
 
 function consoleTimeEnd(name, shouldLog) {
   if (shouldLog) {
-    console.timeEnd(name);
+    console.timeEnd(name)
   }
 }

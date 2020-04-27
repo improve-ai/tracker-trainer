@@ -65,25 +65,6 @@ module.exports.compressAndWriteBuffers = (s3Key, buffers) => {
   return s3.putObject(params).promise()
 }
 
-function deleteAllKeys(s3Keys) {
-  const promises = []
-  for (const s3Key of s3Keys) {
-    promises.push(deleteKey(s3Key))
-  }
-  return Promise.all(promises)
-}
-
-function deleteKey(s3Key) {
-  console.log(`deleting ${s3Key}`)
-
-  let params = {
-    Bucket: process.env.RECORDS_BUCKET,
-    Key: s3Key
-  }
-  return s3.deleteObject(params).promise()
-}
-
-
 module.exports.deleteAllKeys = (s3Keys) => {
   const promises = []
   for (const s3Key of s3Keys) {

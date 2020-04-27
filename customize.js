@@ -29,6 +29,10 @@ module.exports.getProjectNamesToModelNamesMapping = () => {
     }
 }
 
+module.exports.getModelNameForAction = (action) => {
+    return "default"
+}
+
 // Allows user data to be split into different projects
 // Authentication information such as Cognito IDs or API Keys could be used to determine which project the data belongs to 
 module.exports.getProjectName = (event, context) => {
