@@ -9,9 +9,10 @@ const shard = require("./shard.js")
 const s3utils = require("./s3utils.js")
 
 // dispatch any necessary continued resharding or history processing
+// this is called by firehose.js every time a new firehose file is created
 // this function is not designed to be executed concurrently, so we set the reservedConcurrency to 1 in serverless.yml
 module.exports.dispatchHistoryShardWorkers = async (event, context) => {
-  console.log(`processing event ${JSON.stringify(event)}`)
+  console.log(`processing lambda event ${JSON.stringify(event)}`)
   const reshardLambdaArn = naming.getLambdaFunctionArn("reshard", context.invokedFunctionArn)
   const processHistoryShardLambdaArn = naming.getLambdaFunctionArn("processHistoryShard", context.invokedFunctionArn)
 
@@ -22,6 +23,7 @@ module.exports.dispatchHistoryShardWorkers = async (event, context) => {
       const sortedShards = shards.sort() // sort() modifies shards
       // group the shards
       const [reshardingParents, reshardingChildren, nonResharding] = shard.groupShards(sortedShards)
+
       // check to see if any of the resharding parents didn't finish and sharding needs to be restarted
       // & check to see if any non-resharding shards have incoming history meta files and haven't been processed recently according to the timestamps
       return Promise.all([shard.dispatchReshardingIfNecessary(reshardLambdaArn, projectName, reshardingParents, shardLastProcessedDates), 
@@ -42,16 +44,16 @@ function dispatchHistoryProcessingIfNecessary(lambdaArn, projectName, nonReshard
   
       // check if the incoming shard isn't currently being resharded and if it hasn't been processed too recently
       if (!nonReshardingShardsSet.has(shardId)) {
-        console.log(`shard ${shardId} project ${projectName} skipping for history processing, currently resharding`)
+        console.log(`skipping project ${projectName} shard ${shardId} for history processing, currently resharding`)
         return 
       }
       
       if ((now - lastProcessed) < process.env.HISTORY_SHARD_REPROCESS_WAIT_TIME_IN_SECONDS * 1000) {
-        console.log(`shard ${shardId} project ${projectName} skipping for history processing, last processing ${lastProcessed.toISOString()} was too recent`)
+        console.log(`skipping project ${projectName} shard ${shardId} for history processing, last processing ${lastProcessed.toISOString()} was too recent`)
         return
       }
 
-      console.log(`shard ${shardId} project ${projectName} invoking processHistoryShard`)
+      console.log(`invoking processHistoryShard for project ${projectName} shard ${shardId}`)
   
       const params = {
         FunctionName: lambdaArn,
