@@ -15,8 +15,10 @@ module.exports.dispatchHistoryShardWorkers = async (event, context) => {
   const reshardLambdaArn = naming.getLambdaFunctionArn("reshard", context.invokedFunctionArn)
   const processHistoryShardLambdaArn = naming.getLambdaFunctionArn("processHistoryShard", context.invokedFunctionArn)
 
+  // TODO we have a project name mismatch here
+  
   // get all of the shard ids & load the shard timestamps
-  return Promise.all([naming.listSortedShardsByProjectName(), shard.loadAndConsolidateShardLastProcessedDates()]).then(([sortedShardsByProjectName, shardLastProcessedDates]) => {
+  return Promise.all([naming.listSortedShardsByProjectName(), shard.loadAndConsolidateShardLastProcessedDates(projectName)]).then(([sortedShardsByProjectName, shardLastProcessedDates]) => {
     // go through each project
     return Promise.all(Object.entries(sortedShardsByProjectName).map(([projectName, sortedShards]) => {
       // group the shards
@@ -34,23 +36,23 @@ function dispatchHistoryProcessingIfNecessary(lambdaArn, projectName, nonReshard
   const unix_epoch = new Date(0)
   
   // list all incoming history shards
-  return naming.listAllIncomingHistoryShards().then(incomingShards => {
+  return naming.listAllIncomingHistoryShards(projectName).then(incomingShards => {
     return Promise.all(incomingShards.map(shardId => {
       const lastProcessed = lastProcessedDates[shardId] || unix_epoch
   
       // check if the incoming shard isn't currently being resharded and if it hasn't been processed too recently
       if (!nonReshardingShardsSet.has(shardId)) {
-        console.log(`skipping shard ${shardId} for history processing, currently resharding`)
+        console.log(`shard ${shardId} project ${projectName} skipping for history processing, currently resharding`)
         return 
       }
       
       if ((now - lastProcessed) < process.env.HISTORY_SHARD_REPROCESS_WAIT_TIME_IN_SECONDS * 1000) {
-        console.log(`skipping shard ${shardId} for history processing, last processing ${lastProcessed.toISOString()} was too recent`)
+        console.log(`shard ${shardId} project ${projectName} skipping for history processing, last processing ${lastProcessed.toISOString()} was too recent`)
         return
       }
 
       // TODO should updated last processed here or in the next function??
-      console.log(`invoking dispatchHistoryShardWorkers`)
+      console.log(`shard ${shardId} project ${projectName} invoking dispatchHistoryShardWorkers`)
   
       const params = {
         FunctionName: lambdaArn,

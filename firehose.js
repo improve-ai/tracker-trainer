@@ -77,7 +77,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
 
   return s3utils.processCompressedJsonLines(s3Bucket, firehoseS3Key, eventRecord => {
     if (eventRecord.record_type === "choose") { // DEPRECATED
-      console.log(`WARN: skipping choose record`)
+      //console.log(`WARN: skipping choose record`)
       return;
     }
 
@@ -174,10 +174,12 @@ function markHistoryS3KeyAsIncoming(historyS3Key) {
     throw new Error(`${historyS3Key} must be a history key`)
   }
 
+  const incomingHistoryS3Key = naming.getIncomingHistoryS3Key(historyS3Key)
+  console.log(`marking ${incomingHistoryS3Key}`)
   const params = {
     Body: JSON.stringify({ "s3_key": historyS3Key }),
     Bucket: process.env.RECORDS_BUCKET,
-    Key: naming.getIncomingHistoryS3Key(historyS3Key)
+    Key: incomingHistoryS3Key
   }
 
   return s3.putObject(params).promise()

@@ -92,7 +92,7 @@ module.exports.getShardTimestampsS3KeyPrefix = (projectName) => {
 }
 
 module.exports.getUniqueShardTimestampsS3Key = (projectName) => {
-  return `${me.getHistoryS3KeyPrefix(projectName)}shard-timestamps-${uuidv4}.json`
+  return `${me.getShardTimestampsS3KeyPrefix(projectName)}shard-timestamps-${uuidv4()}.json`
 }
 
 module.exports.isRewardedActionS3Key = (s3Key) => {
@@ -226,13 +226,13 @@ module.exports.listAllIncomingHistoryShardS3Keys = (projectName, shardId) => {
 }
 
 module.exports.listSortedShardsByProjectName = () => {
-  console.log(`listing shards`)
   const projectNames = Object.keys(customize.getProjectNamesToModelNamesMapping())
   return Promise.all(projectNames.map(projectName => {
+    console.log(`listing all shards for project ${projectName}`)
     return Promise.all([me.listAllHistoryShards(projectName), me.listAllRewardedActionShards(projectName)]).then(all => all.flat()).then(shardIds => {
       shardIds = [...new Set(shardIds)] // de-duplicate since we'll see the same shards in history and the rewarded actions
       shardIds.sort() // sort the shards
-      console.log(`shardIds ${JSON.stringify(shardIds)}`)
+      console.log(`project ${projectName} shards ${JSON.stringify(shardIds)}`)
       return [projectName, shardIds]
     })
   })).then(projectNamesAndShardIds => {
@@ -245,7 +245,7 @@ module.exports.listSortedShardsByProjectName = () => {
 }
 
 module.exports.listAllHistoryShards = (projectName) => {
-  console.log(`listing shards for project ${projectName}`)
+  console.log(`listing history shards for project ${projectName}`)
   const params = {
     Bucket: process.env.RECORDS_BUCKET,
     Delimiter: '/',
@@ -256,7 +256,10 @@ module.exports.listAllHistoryShards = (projectName) => {
 }
 
 module.exports.listAllIncomingHistoryShards = (projectName) => {
-  console.log(`listing shards for project ${projectName}`)
+  if (!projectName) {
+    throw new Error("projectName required")
+  }
+  console.log(`listing incoming history shards for project ${projectName}`)
   const params = {
     Bucket: process.env.RECORDS_BUCKET,
     Delimiter: '/',

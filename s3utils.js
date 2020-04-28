@@ -74,6 +74,7 @@ module.exports.deleteAllKeys = (s3Keys) => {
 }
 
 module.exports.deleteKey = (s3Key) => {
+  console.log(`deleting ${s3Key}`)
   let params = {
     Bucket: process.env.RECORDS_BUCKET,
     Key: s3Key
@@ -82,8 +83,7 @@ module.exports.deleteKey = (s3Key) => {
 }
 
 module.exports.listAllPrefixes = (params, depth=1) => {
-  console.log(`listing sub prefixes for ${JSON.stringify(params)}`)
-  return listAllSubPrefixes(params).then(subPrefixes => {
+  return me.listAllSubPrefixes(params).then(subPrefixes => {
     if (depth <= 1) {
       return subPrefixes.map(subPrefix => params.Prefix + subPrefix + params.Delimiter) 
     } else {
@@ -93,21 +93,23 @@ module.exports.listAllPrefixes = (params, depth=1) => {
 }
 
 // modified from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
-const listAllSubPrefixes = (params, out = []) => new Promise((resolve, reject) => {
+module.exports.listAllSubPrefixes = (params, out = []) => new Promise((resolve, reject) => {
+  console.log(`listing subdirectories for ${params.Prefix}`)
   s3.listObjectsV2(params).promise()
     .then(({CommonPrefixes, IsTruncated, NextContinuationToken}) => {
       out.push(...CommonPrefixes.map(o => o.Prefix.split('/').slice(-2)[0])); // split and grab the second to last item from the Prefix
-      !IsTruncated ? resolve(out) : resolve(listAllSubPrefixes(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
+      !IsTruncated ? resolve(out) : resolve(me.listAllSubPrefixes(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
     })
     .catch(reject);
 });
 
 // modified from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
-const listAllKeys = (params, out = []) => new Promise((resolve, reject) => {
+module.exports.listAllKeys = (params, out = []) => new Promise((resolve, reject) => {
+  console.log(`listing all keys for ${params.Prefix}`)
   s3.listObjectsV2(params).promise()
     .then(({Contents, IsTruncated, NextContinuationToken}) => {
       out.push(...Contents.map(o => o.Key));
-      !IsTruncated ? resolve(out) : resolve(listAllKeys(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
+      !IsTruncated ? resolve(out) : resolve(me.listAllKeys(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
     })
     .catch(reject);
 });

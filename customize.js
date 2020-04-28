@@ -21,6 +21,14 @@ module.exports = {
     }
 }
 
+module.exports.modifyRecordPreFirehose = (event) => {
+  return event
+}
+
+module.exports.modifyRecordPostFirehose = (event) => {
+  return event
+}
+
 // the default processing in unpack_firehose.js allows alphanumeric, underscore, dash, space, and period in project names
 module.exports.getProjectNamesToModelNamesMapping = () => {
     return {

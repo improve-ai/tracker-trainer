@@ -94,6 +94,8 @@ functions:
   processHistoryShard:
     handler: history.processHistoryShard
     memorySize: ${self:provider.environment.HISTORY_SHARD_WORKER_MEMORY_IN_MB}
+  reshard:
+    handler: shard.reshard
   reshardFile:
     handler: shard.reshardFile
     memorySize: ${self:provider.environment.RESHARD_WORKER_MEMORY_IN_MB}
