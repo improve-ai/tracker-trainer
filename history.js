@@ -15,19 +15,19 @@ module.exports.dispatchHistoryShardWorkers = async (event, context) => {
   const reshardLambdaArn = naming.getLambdaFunctionArn("reshard", context.invokedFunctionArn)
   const processHistoryShardLambdaArn = naming.getLambdaFunctionArn("processHistoryShard", context.invokedFunctionArn)
 
-  // TODO we have a project name mismatch here
-  
-  // get all of the shard ids & load the shard timestamps
-  return Promise.all([naming.listSortedShardsByProjectName(), shard.loadAndConsolidateShardLastProcessedDates(projectName)]).then(([sortedShardsByProjectName, shardLastProcessedDates]) => {
-    // go through each project
-    return Promise.all(Object.entries(sortedShardsByProjectName).map(([projectName, sortedShards]) => {
+  const projectNames = naming.allProjects()
+  return Promise.all(projectNames.map(projectName => {
+    // get all of the shard ids & load the shard timestamps
+    return Promise.all([naming.listAllShards(projectName), shard.loadAndConsolidateShardLastProcessedDates(projectName)]).then(([shards, shardLastProcessedDates]) => {
+      const sortedShards = shards.sort() // sort() modifies shards
       // group the shards
       const [reshardingParents, reshardingChildren, nonResharding] = shard.groupShards(sortedShards)
       // check to see if any of the resharding parents didn't finish and sharding needs to be restarted
       // & check to see if any non-resharding shards have incoming history meta files and haven't been processed recently according to the timestamps
-      return Promise.all([shard.dispatchReshardingIfNecessary(reshardLambdaArn, projectName, reshardingParents, shardLastProcessedDates), dispatchHistoryProcessingIfNecessary(processHistoryShardLambdaArn, projectName, nonResharding, shardLastProcessedDates)])
-    }))
-  })
+      return Promise.all([shard.dispatchReshardingIfNecessary(reshardLambdaArn, projectName, reshardingParents, shardLastProcessedDates), 
+                          dispatchHistoryProcessingIfNecessary(processHistoryShardLambdaArn, projectName, nonResharding, shardLastProcessedDates)])
+    })
+  }))
 }
 
 function dispatchHistoryProcessingIfNecessary(lambdaArn, projectName, nonReshardingShards, lastProcessedDates) {
@@ -51,16 +51,16 @@ function dispatchHistoryProcessingIfNecessary(lambdaArn, projectName, nonReshard
         return
       }
 
-      // TODO should updated last processed here or in the next function??
-      console.log(`shard ${shardId} project ${projectName} invoking dispatchHistoryShardWorkers`)
+      console.log(`shard ${shardId} project ${projectName} invoking processHistoryShard`)
   
       const params = {
         FunctionName: lambdaArn,
         InvocationType: "Event",
-        Payload: JSON.stringify({"project_name": projectName, "shard_id": shardId})
+        Payload: JSON.stringify({"project_name": projectName, "shard_id": shardId, "last_processed_timestamp_updated": true }) // mark that the last processed time is updated so that processHistoryShard doesn't have to also do it
       };
       
-      return lambda.invoke(params).promise()
+      // mark the last processed time as being updated here to have the smallest possible window where multiple redundant workers could be accidentally dispatched
+      return Promise.all([shard.updateShardLastProcessed(projectName, shardId), lambda.invoke(params).promise()])
     }))
   })
 }
@@ -76,9 +76,15 @@ module.exports.processHistoryShard = async function(event, context) {
     throw new Error(`WARN: missing project_name or shard_id ${JSON.stringify(event)}`)
   }
   
-  // return updateShardLastProcessed(shardId)
-  // naming.list the incoming keys
-  return naming.listAllIncomingHistoryShardS3Keys(projectName, shardId).then(incomingS3Keys => {
+  let updateLastProcessed = Promise.resolve(true)
+  // this lambda should only ever be invoked from dispatchHistoryProcessingIfNecessary, but in case
+  // some design changes in the future we want to make sure to mark the last processed time is guaranteed to be updated
+  if (!event.last_processed_timestamp_updated) {
+    updateLastProcessed = shard.updateShardLastProcessed(projectName, shardId)
+  }
+  
+  // list the incoming keys
+  return updateLastProcessed.then(() => naming.listAllIncomingHistoryShardS3Keys(projectName, shardId).then(incomingS3Keys => {
     console.log(`processing incoming keys: ${JSON.stringify(incomingS3Keys)}`)
     
     // list the entire history for this shard
@@ -125,7 +131,7 @@ module.exports.processHistoryShard = async function(event, context) {
         })
       }
     })
-  })
+  }))
 }
 
 function loadHistoryEventsForS3Keys(s3Keys) {

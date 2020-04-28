@@ -197,7 +197,7 @@ module.exports.getLambdaFunctionArn = (functionName, invokedFunctionArn) => {
 }
 
 module.exports.listAllShardTimestampsS3Keys = (projectName) => {
-  console.log(`listing timestamp keys`)
+  console.log(`listing timestamp keys for project ${projectName}`)
   const params = {
     Bucket: process.env.RECORDS_BUCKET,
     Prefix: me.getShardTimestampsS3KeyPrefix(projectName)
@@ -225,22 +225,29 @@ module.exports.listAllIncomingHistoryShardS3Keys = (projectName, shardId) => {
   return s3utils.listAllKeys(params)
 }
 
+module.exports.allProjects = () => {
+  return Object.keys(customize.getProjectNamesToModelNamesMapping())
+}
+
 module.exports.listSortedShardsByProjectName = () => {
-  const projectNames = Object.keys(customize.getProjectNamesToModelNamesMapping())
+  const projectNames = me.allProjects()
   return Promise.all(projectNames.map(projectName => {
-    console.log(`listing all shards for project ${projectName}`)
-    return Promise.all([me.listAllHistoryShards(projectName), me.listAllRewardedActionShards(projectName)]).then(all => all.flat()).then(shardIds => {
-      shardIds = [...new Set(shardIds)] // de-duplicate since we'll see the same shards in history and the rewarded actions
-      shardIds.sort() // sort the shards
-      console.log(`project ${projectName} shards ${JSON.stringify(shardIds)}`)
-      return [projectName, shardIds]
-    })
+    return me.listAllShards(projectName).then(shards => [projectName, shards])
   })).then(projectNamesAndShardIds => {
     const shardsByProjectNames = {}
-    for (const [projectName, sortedShardIds] of projectNamesAndShardIds) {
-      shardsByProjectNames[projectName] = sortedShardIds
+    for (const [projectName, shardIds] of projectNamesAndShardIds) {
+      shardsByProjectNames[projectName] = shardIds.sort()
     }
     return shardsByProjectNames
+  })
+}
+
+module.exports.listAllShards = (projectName) => {
+  console.log(`listing all shards for project ${projectName}`)
+  return Promise.all([me.listAllHistoryShards(projectName), me.listAllIncomingHistoryShards(projectName), me.listAllRewardedActionShards(projectName)]).then(all => all.flat()).then(shardIds => {
+    shardIds = [...new Set(shardIds)] // de-duplicate since we'll see the same shards in history and the rewarded actions
+    console.log(`project ${projectName} shards ${JSON.stringify(shardIds)}`)
+    return shardIds
   })
 }
 
@@ -270,7 +277,7 @@ module.exports.listAllIncomingHistoryShards = (projectName) => {
 }
 
 module.exports.listAllRewardedActionShards = (projectName) => {
-  console.log(`listing models for project ${projectName}`)
+  console.log(`listing rewarded action shards for project ${projectName}`)
   const params = {
     Bucket: process.env.RECORDS_BUCKET,
     Delimiter: '/',
@@ -300,7 +307,7 @@ module.exports.listAllRewardedActionShardS3Keys = (projectName, shardId) => {
 }
 
 module.exports.listAllRewardedActionShardS3KeyPrefixes = (projectName, shardId) => {
-  console.log(`listing models for project ${projectName}`)
+  console.log(`listing rewarded action shard prefixes for project ${projectName}`)
   const params = {
     Bucket: process.env.RECORDS_BUCKET,
     Delimiter: '/',
