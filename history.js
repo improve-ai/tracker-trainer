@@ -223,3 +223,18 @@ function writeRewardedActions(historyS3Key, modelName, joinedActions) {
   return s3.putObject(params).promise()
 }
 
+module.exports.markHistoryS3KeyAsIncoming = (historyS3Key) => {
+  if (!naming.isHistoryS3Key(historyS3Key)) {
+    throw new Error(`${historyS3Key} must be a history key`)
+  }
+
+  const incomingHistoryS3Key = naming.getIncomingHistoryS3Key(historyS3Key)
+  console.log(`marking ${incomingHistoryS3Key}`)
+  const params = {
+    Body: JSON.stringify({ "s3_key": historyS3Key }),
+    Bucket: process.env.RECORDS_BUCKET,
+    Key: incomingHistoryS3Key
+  }
+
+  return s3.putObject(params).promise()
+}

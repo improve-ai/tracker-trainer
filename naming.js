@@ -46,6 +46,16 @@ module.exports.replaceShardIdForHistoryS3Key = (historyS3Key, newShardId) => {
   return split.join('/')
 }
 
+module.exports.replaceShardIdForRewardedActionS3Key = (s3Key, newShardId, timestamp) => {
+  if (!me.isRewardedActionS3Key(s3Key)) {
+    throw new Error(`s3Key ${s3Key} is not a rewarded action s3 key`)
+  }
+  const [rewardActions, data, projectName, modelName, trainOrValidation, split, shardId, year, month, day, fileName] = s3Key.split('/')
+  
+  // changing the shardId changes the train/validation part so we must re-hash rather than just replace the shardId
+  return me.getRewardedActionS3Key(projectName, modelName, newShardId, timestamp)
+}
+
 module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {
   const dashSplitS3Key = firehoseS3Key.split('-')
   const [year, month, day, hour, minute, second] = dashSplitS3Key.slice(dashSplitS3Key.length-11, dashSplitS3Key.length - 5) // parse from the back to avoid unexpected dashes
@@ -72,7 +82,17 @@ module.exports.isIncomingHistoryS3Key = (s3Key) => {
 }
 
 module.exports.getIncomingHistoryS3Key = (s3Key) => {
+  if (!me.isHistoryS3Key(s3Key)) {
+    throw new Error(`s3Key ${s3Key} must be an history s3 key`)
+  }
   return `histories/meta/incoming/${s3Key.substring("histories/data/".length)}.json`
+}
+
+module.exports.getHistoryS3KeyForIncomingHistoryS3Key = (s3Key) => {
+  if (!me.isIncomingHistoryS3Key(s3Key)) {
+    throw new Error(`s3Key ${s3Key} must be an incoming history s3 key`)
+  }
+  return `histories/data/${s3Key.substring("histories/meta/incoming/".length, s3Key.length-".json".length)}`
 }
 
 module.exports.getIncomingHistoryS3KeyPrefix = (projectName) => {
@@ -111,16 +131,6 @@ module.exports.getRewardedActionS3Key = (projectName, modelName, shardId, timest
   
   // rewarded_actions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-actions-shardId-yyyy-MM-dd.gz
   return `rewarded_actions/data/${projectName}/${modelName}/${getTrainValidationPathPart(fileName)}/${shardId}/${year}/${month}/${day}/${fileName}`
-}
-
-module.exports.replaceShardIdForRewardedActionS3Key = (s3Key, newShardId, timestamp) => {
-  if (!me.isRewardedActionS3Key(s3Key)) {
-    throw new Error(`s3Key ${s3Key} is not a rewarded action s3 key`)
-  }
-  const [rewardActions, data, projectName, modelName, trainOrValidation, split, shardId, year, month, day, fileName] = s3Key.split('/')
-  
-  // changing the shardId changes the train/validation part so we must re-hash rather than just replace the shardId
-  return me.getRewardedActionS3Key(projectName, modelName, newShardId, timestamp)
 }
 
 module.exports.getRewardedActionS3Uri = (projectName, modelName) => {
@@ -225,6 +235,22 @@ module.exports.listAllIncomingHistoryShardS3Keys = (projectName, shardId) => {
   return s3utils.listAllKeys(params)
 }
 
+module.exports.listAllRewardedActionShardS3Keys = (projectName, shardId) => {
+  // this will return a few extra prefixes that won't contain keys because not all shards will be in all prefixes due to model splits and train/validation splits
+  return me.listAllRewardedActionShardS3KeyPrefixes(projectName, shardId).then(prefixes => {
+    return Promise.all(prefixes.map(prefix => {
+      const params = {
+        Bucket: process.env.RECORDS_BUCKET,
+        Prefix: prefix
+      }
+      
+      return s3utils.listAllKeys(params)
+    })).then(all => {
+      return all.flat()
+    })
+  })
+}
+
 module.exports.allProjects = () => {
   return Object.keys(customize.getProjectNamesToModelNamesMapping())
 }
@@ -290,21 +316,6 @@ module.exports.listAllRewardedActionShards = (projectName) => {
   })
 }
 
-module.exports.listAllRewardedActionShardS3Keys = (projectName, shardId) => {
-  // this will return a few extra prefixes because not all shards will be in all prefixes due to model splits and train/validation splits
-  return me.listAllRewardedActionShardS3KeyPrefixes(projectName, shardId).then(prefixes => {
-    return Promise.all(prefixes.map(prefix => {
-      const params = {
-        Bucket: process.env.RECORDS_BUCKET,
-        Prefix: prefix
-      }
-      
-      return s3utils.listAllKeys(params)
-    })).then(all => {
-      return all.flat()
-    })
-  })
-}
 
 module.exports.listAllRewardedActionShardS3KeyPrefixes = (projectName, shardId) => {
   console.log(`listing rewarded action shard prefixes for project ${projectName}`)

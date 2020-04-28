@@ -7,6 +7,7 @@ const firehose = new AWS.Firehose()
 const lambda = new AWS.Lambda()
 
 const shard = require("./shard.js")
+const history = require("./history.js")
 const naming = require("./naming.js")
 const s3utils = require("./s3utils.js")
 const customize = require("./customize.js")
@@ -162,27 +163,11 @@ function writeRecords(buffersByS3Key) {
       
       // if its a normal history key (not a variants key) write out the incoming meta file indicating this key should be processed
       if (naming.isHistoryS3Key(s3Key)) {
-        promises.push(markHistoryS3KeyAsIncoming(s3Key))
+        promises.push(history.markHistoryS3KeyAsIncoming(s3Key))
       }
     }
 
   return Promise.all(promises)
-}
-
-function markHistoryS3KeyAsIncoming(historyS3Key) {
-  if (!naming.isHistoryS3Key(historyS3Key)) {
-    throw new Error(`${historyS3Key} must be a history key`)
-  }
-
-  const incomingHistoryS3Key = naming.getIncomingHistoryS3Key(historyS3Key)
-  console.log(`marking ${incomingHistoryS3Key}`)
-  const params = {
-    Body: JSON.stringify({ "s3_key": historyS3Key }),
-    Bucket: process.env.RECORDS_BUCKET,
-    Key: incomingHistoryS3Key
-  }
-
-  return s3.putObject(params).promise()
 }
 
 function consoleTime(name, shouldLog) {
