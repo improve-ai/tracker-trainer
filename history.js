@@ -83,7 +83,7 @@ module.exports.processHistoryShard = async function(event, context) {
   if (!event.last_processed_timestamp_updated) {
     updateLastProcessed = shard.updateShardLastProcessed(projectName, shardId)
   }
-  /*
+
   // list the incoming keys and history keys for this shard
   // TODO history keys should be history listing results with size information
   return updateLastProcessed.then(() => Promise.all([naming.listAllHistoryShardS3Keys(projectName, shardId), naming.listAllIncomingHistoryShardS3Keys(projectName, shardId)]).then(([historyS3Keys, incomingHistoryS3Keys]) => {
@@ -96,30 +96,26 @@ module.exports.processHistoryShard = async function(event, context) {
     }
     
     return loadAndConsolidateHistoryRecords(staleS3Keys).then(staleHistoryRecords => {
-      // group history records by history id then perform customize modifications on them
-      const historyRecordsByHistoryId = Object.fromEntries(Object.entries(_.groupBy(staleHistoryRecords, 'history_id')).map(([k,v]) => [k,customize.modifyHistoryRecords(k,v)]))
+      // group history records by history id
+      const historyRecordsByHistoryId = Object.fromEntries(Object.entries(_.groupBy(staleHistoryRecords, 'history_id')))
 
       // convert history records into rewarded actions
-      const rewardedActions = Object.entries(historyRecordsByHistoryId).map(([historyId, historyRecords]) => getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords)).flat()
+      let rewardedActions = []
+      
+      for (const [historyId, historyRecords] of Object.entries(historyRecordsByHistoryId)) {
+        try {
+          rewardedActions = rewardedActions.concat(getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords))
+        } catch (err) {
+          console.log(`WARN: skipping history id ${historyId} history records ${historyRecords}`, err)
+        }
+      }
 
-      // customize may return either a mapping of models -> joined events or a promise that will return the same
-      console.log(`assigning rewards to ${JSON.stringify(historyEvents)}`)
-      return customize.assignRewardedActionsToModelsFromHistoryEvents(projectName, historyEvents)
-    }).then(rewardedActions => {
-      console.log(`writing joined events ${JSON.stringify(joinedActionsByModel)}`)
-      return writeRewardedActionsByModel(staleS3Key, joinedActionsByModel).then(result => {
-        // stale has been processed, delete it
-        return deleteKey(staleS3Key)
-      })
+      return writeRewardedActions(rewardedActions)      
+    }).then(() => {
+      // incoming has been processed, delete them.
+      return s3utils.deleteAllKeys(incomingHistoryS3Keys)
     })
-  }
-            // incoming has been processed, delete them.
-        console.log(`deleting incoming keys: ${JSON.stringify(incomingHistoryS3Keys)}`)
-        return deleteAllKeys(incomingHistoryS3Keys).then(result => {
-          return historyS3Keys
-        })
-
-  }))*/
+  }))
 }
 
 
@@ -127,16 +123,30 @@ function filterStaleHistoryS3Keys(historyS3Keys, incomingHistoryS3Keys) {
   return historyS3Keys
 }
 
-
+// throw an Error on any parsing problems or customize bugs, causing the whole historyId to be skipped
 function getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords) {
+  
+  historyRecords = customize.modifyHistoryRecords(projectName, historyId, historyRecords)
+  
   const actionRecords = []
   const rewardsRecords = []
   for (const historyRecord of historyRecords) {
     // make sure the history ids weren't modified in customize
     if (historyId !== historyRecord.history_id) {
-      throw new Error(`historyId ${historyId} does not match ${JSON.stringify(historyRecord)}`)
+      throw new Error(`historyId ${historyId} does not match record ${JSON.stringify(historyRecord)}`)
     }
     
+    // grab all the values that we don't want to change before during further calls to customize
+    const timestamp = historyRecord.timestamp
+    const timestampDate = new Date(timestamp)
+    if (!timestamp || isNaN(timestampDate.getTime())) {
+      throw new Error(`invalid timestamp for history record ${JSON.stringify(historyRecord)}`)
+    }
+    const messageId = historyRecord.message_id
+    if (!messageId || !naming.isString(messageId)) {
+      throw new Error(`invalid message_id for history record ${JSON.stringify(historyRecord)}`)
+    }
+
     let inferredActionRecords; // may remain null or be an array of actionRecords
     
     // the history record may be of type "action", in which case it itself is an action record
@@ -147,50 +157,47 @@ function getRewardedActionsForHistoryRecords(projectName, historyId, historyReco
     // the history record may have attached "actions"
     if (historyRecord.actions) {
       if (!Array.isArray(historyRecord.actions)) {
-        console.log(`WARN: skipping attached actions must be array type ${JSON.stringify(historyRecord)}`)
-      } else if (!inferredActionRecords) {
+        throw new Error(`attached actions must be array type ${JSON.stringify(historyRecord)}`)
+      } 
+      
+      if (!inferredActionRecords) {
         inferredActionRecords = historyRecord.actions
       } else {
         inferredActionRecords.concat(historyRecord.actions)
       }
     }
 
-    // TODO try/catch on customize
-
     // may return an array of action records or null
-    const newActionRecords = customize.actionRecordsFromHistoryRecord(projectName, historyRecord, inferredActionRecords)
-    
+    let newActionRecords = customize.actionRecordsFromHistoryRecord(projectName, historyRecord, inferredActionRecords)
+
     if (newActionRecords) {
-      // assign timestamp and timestampDate from history record
-      for (const newActionRecord of newActionRecords) {
-        actionRecords.push(assignTimestampToRecord(newActionRecord, historyRecord.timestamp))
+      for (let i=0;i<newActionRecords.length;i++) {
+        const newActionRecord = newActionRecords[i]
+        newActionRecord.timestamp = timestamp
+        newActionRecord.timestampDate = timestampDate // for sorting. filtered out later
+        // give each one a unique message id
+        newActionRecord.message_id = i == 0 ? messageId : `${messageId}-${i}`;
+        actionRecords.push(newActionRecord)
       }
     }
     
     // may return a single rewards record or null
-    const newRewardsRecord = customize.rewardsRecordFromHistoryRecord(projectName, historyRecord)
+    let newRewardsRecord = customize.rewardsRecordFromHistoryRecord(projectName, historyRecord)
+
     if (newRewardsRecord) {
-      if (typeof newRewardsRecord.rewards !== 'object' || Array.isArray(newRewardsRecord.rewards)) {
-        console.log(`WARN: skipping rewards must be object type and not array ${JSON.stringify(historyRecord)}`)
-      } else {
-        // assign timestamp and timestampDate from history record
-        rewardsRecords.push(assignTimestampToRecord(newRewardsRecord, historyRecord.timestamp))
-      }
+      if (!naming.isObjectNotArray(newRewardsRecord.reward)) {
+        throw new Error(`rewards must be object type and not array ${JSON.stringify(newRewardsRecord)}`)
+      } 
+      
+      // timestampDate is used for sorting
+      newRewardsRecord.timestampDate = timestampDate
+      rewardsRecords.push(newRewardsRecord)
     }
   }
 
   const sortedRewardsRecords = rewardsRecords.sort((a, b) => b.timestampDate - a.timestampDate)
 
-  const rewardedActions = []
-  for (const actionRecord in actionRecords) {
-    try {
-      rewardedActions.push(getRewardedAction(projectName, historyId, actionRecord, sortedRewardsRecords))
-    } catch (err) {
-      console.log(`WARN: skipping record ${JSON.stringify(actionRecord)}`, err)
-    }
-  }
-  
-  return rewardedActions
+  return actionRecords.map(actionRecord => getRewardedAction(projectName, historyId, actionRecord, sortedRewardsRecords))
 }
 
 // sets timestamp plus adds timestampDate to the record
@@ -201,25 +208,25 @@ function assignTimestampToRecord(timestamp, record) {
 }
 
 function getRewardedAction(projectName, historyId, actionRecord, sortedRewardsRecords) {
-  let rewardedAction = _.pick(actionRecord, "properties", "context", "action", "timestamp")
-  
+  let rewardedAction = _.pick(actionRecord, ["properties", "context", "action", "timestamp", "message_id"])
   rewardedAction.history_id = historyId
   
   rewardedAction.reward = getRewardForActionRecord(actionRecord, sortedRewardsRecords)
 
+  // don't send customize bad data and don't allow bad data from customize
   naming.assertValidRewardedAction(rewardedAction)
-  
   rewardedAction = customize.modifyRewardedAction(projectName, rewardedAction)
-  
   naming.assertValidRewardedAction(rewardedAction)
   
   return rewardedAction
 }
 
 function getRewardForActionRecord(actionRecord, sortedRewardsRecords) {
+  let reward = 0
   // find start position
   _.sortedIndexBy(objects, { 'timestampDate': 4 }, 'timestampDate');
   
+  return reward
 }
 
 // This function may also return a promise for performing asynchronous processing

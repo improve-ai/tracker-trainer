@@ -23,6 +23,7 @@ module.exports.modelNameForAction = (action) => {
     return "default"
 }
 
+// do not modify timestamps or history ids
 module.exports.modifyHistoryRecords = (projectName, historyId, historyRecords) => {
   return historyRecords
 }
@@ -33,13 +34,13 @@ module.exports.modifyRewardedAction = (projectName, rewardedAction) => {
 
 // may return null or an array of action records.
 // inferredActionRecords may be null or an array
-// any timestamp modifications will be ignored
+// modifications to timestamp or history_id will be ignored
 module.exports.actionRecordsFromHistoryRecord = (projectName, historyRecord, inferredActionRecords) => {
   return inferredActionRecords
 }
 
 // may return null or a single rewards record.
-// any timestamp modifications will be ignored
+// modifications to timestamp or history_id will be ignored
 module.exports.rewardsRecordFromHistoryRecord = (projectName, historyRecord) => {
   // if the history record has a "rewards" property, then it is a rewards record
   if (historyRecord.rewards) {

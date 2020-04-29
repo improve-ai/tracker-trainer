@@ -1,5 +1,7 @@
 'use strict';
 
+const assert = require('assert').strict;
+const _ = require('lodash')
 const mmh3 = require('murmurhash3js')
 const uuidv4 = require('uuid/v4')
 const s3utils = require("./s3utils.js")
@@ -198,6 +200,26 @@ module.exports.isValidProjectName = (projectName) => {
 // from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
 module.exports.isValidDate = (date) => {
   return (new Date(date) !== "Invalid Date") && !isNaN(new Date(date));
+}
+
+module.exports.isObjectNotArray = (value) => {
+  return _.isString(value) && !Array.isArray(value)
+}
+
+module.exports.assertValidRewardedAction = (ra) => {
+  assert(_.isString(ra.history_id), "history_id must be string")
+  assert(_.isString(ra.message_id), "message_id must be string")
+  assert(_.isString(ra.timestamp), "timestamp must be string")
+  assert(me.isObjectNotArray(ra.properties), "properties must be a dictionary")
+  if (ra.context) {
+    assert(me.isObjectNotArray(ra.context), "context must be a dictionary")
+  }
+  if (ra.action) {
+    assert(_.isString(ra.action),"action must be string")
+  }
+  if (ra.reward) {
+    assert(_.isFinite(ra.reward))
+  }
 }
 
 module.exports.getLambdaFunctionArn = (functionName, invokedFunctionArn) => {
