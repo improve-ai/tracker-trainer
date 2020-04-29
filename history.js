@@ -3,10 +3,11 @@
 const AWS = require('aws-sdk')
 const lambda = new AWS.Lambda()
 const s3 = new AWS.S3()
-const customize = require("./customize.js")
+const _ = require('lodash')
 const naming = require("./naming.js")
 const shard = require("./shard.js")
 const s3utils = require("./s3utils.js")
+const customize = require("./customize.js")
 
 // dispatch any necessary continued resharding or history processing
 // this is called by firehose.js every time a new firehose file is created
@@ -82,7 +83,7 @@ module.exports.processHistoryShard = async function(event, context) {
   if (!event.last_processed_timestamp_updated) {
     updateLastProcessed = shard.updateShardLastProcessed(projectName, shardId)
   }
-  
+  /*
   // list the incoming keys and history keys for this shard
   // TODO history keys should be history listing results with size information
   return updateLastProcessed.then(() => Promise.all([naming.listAllHistoryShardS3Keys(projectName, shardId), naming.listAllIncomingHistoryShardS3Keys(projectName, shardId)]).then(([historyS3Keys, incomingHistoryS3Keys]) => {
@@ -99,7 +100,7 @@ module.exports.processHistoryShard = async function(event, context) {
       const historyRecordsByHistoryId = Object.fromEntries(Object.entries(_.groupBy(staleHistoryRecords, 'history_id')).map(([k,v]) => [k,customize.modifyHistoryRecords(k,v)]))
 
       // convert history records into rewarded actions
-      const rewardedActions = Object.entries(historyRecordsByHistoryId).map(([historyId, historyRecords]) => assignRewardedActions(historyId, historyRecords)).flat()
+      const rewardedActions = Object.entries(historyRecordsByHistoryId).map(([historyId, historyRecords]) => getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords)).flat()
 
       // customize may return either a mapping of models -> joined events or a promise that will return the same
       console.log(`assigning rewards to ${JSON.stringify(historyEvents)}`)
@@ -118,44 +119,107 @@ module.exports.processHistoryShard = async function(event, context) {
           return historyS3Keys
         })
 
-  }))
-})
+  }))*/
+}
 
-function assignRewardedActions(historyId, historyRecords)
-  let actions = []
-  const rewards = []
-  for (historyRecord of historyRecords) {
+
+function filterStaleHistoryS3Keys(historyS3Keys, incomingHistoryS3Keys) {
+  return historyS3Keys
+}
+
+
+function getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords) {
+  const actionRecords = []
+  const rewardsRecords = []
+  for (const historyRecord of historyRecords) {
     // make sure the history ids weren't modified in customize
     if (historyId !== historyRecord.history_id) {
       throw new Error(`historyId ${historyId} does not match ${JSON.stringify(historyRecord)}`)
     }
     
-    // may return an array of actions
-    const newActions = customize.actionsFromHistoryRecord(projectName, historyRecord)
-    if (newActions) {
-      actions.push(newActions)
+    let inferredActionRecords; // may remain null or be an array of actionRecords
+    
+    // the history record may be of type "action", in which case it itself is an action record
+    if (historyRecord.type === "action") {
+      inferredActionRecords = [historyRecord]
     }
     
-    // returns a dictionary of rewards
-    const newRewards = customize.rewardsFromHistoryRecord(projectName, historyRecord)
-    if (newRewards) {
-      rewards.push(newRewards)
+    // the history record may have attached "actions"
+    if (historyRecord.actions) {
+      if (!Array.isArray(historyRecord.actions)) {
+        console.log(`WARN: skipping attached actions must be array type ${JSON.stringify(historyRecord)}`)
+      } else if (!inferredActionRecords) {
+        inferredActionRecords = historyRecord.actions
+      } else {
+        inferredActionRecords.concat(historyRecord.actions)
+      }
+    }
+
+    // TODO try/catch on customize
+
+    // may return an array of action records or null
+    const newActionRecords = customize.actionRecordsFromHistoryRecord(projectName, historyRecord, inferredActionRecords)
+    
+    if (newActionRecords) {
+      // assign timestamp and timestampDate from history record
+      for (const newActionRecord of newActionRecords) {
+        actionRecords.push(assignTimestampToRecord(newActionRecord, historyRecord.timestamp))
+      }
+    }
+    
+    // may return a single rewards record or null
+    const newRewardsRecord = customize.rewardsRecordFromHistoryRecord(projectName, historyRecord)
+    if (newRewardsRecord) {
+      if (typeof newRewardsRecord.rewards !== 'object' || Array.isArray(newRewardsRecord.rewards)) {
+        console.log(`WARN: skipping rewards must be object type and not array ${JSON.stringify(historyRecord)}`)
+      } else {
+        // assign timestamp and timestampDate from history record
+        rewardsRecords.push(assignTimestampToRecord(newRewardsRecord, historyRecord.timestamp))
+      }
+    }
+  }
+
+  const sortedRewardsRecords = rewardsRecords.sort((a, b) => b.timestampDate - a.timestampDate)
+
+  const rewardedActions = []
+  for (const actionRecord in actionRecords) {
+    try {
+      rewardedActions.push(getRewardedAction(projectName, historyId, actionRecord, sortedRewardsRecords))
+    } catch (err) {
+      console.log(`WARN: skipping record ${JSON.stringify(actionRecord)}`, err)
     }
   }
   
-  actions = actions.flat()
-  const sortedRewards = rewards.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-  
-  const timestampSort = 
-  
-  // find start position
-var objects = [{ 'x': 4 }, { 'x': 5 }];
- 
-_.sortedIndexBy(objects, { 'x': 4 }, function(o) { return o.x; });
+  return rewardedActions
 }
 
-function filterStaleHistoryS3Keys(historyS3Keys, incomingHistoryS3Keys) {
-  return historyS3Keys
+// sets timestamp plus adds timestampDate to the record
+function assignTimestampToRecord(timestamp, record) {
+  record.timestamp = timestamp
+  // used for sorting and reward assignment. should be removed later
+  record.timestampDate = new Date(timestamp)
+}
+
+function getRewardedAction(projectName, historyId, actionRecord, sortedRewardsRecords) {
+  let rewardedAction = _.pick(actionRecord, "properties", "context", "action", "timestamp")
+  
+  rewardedAction.history_id = historyId
+  
+  rewardedAction.reward = getRewardForActionRecord(actionRecord, sortedRewardsRecords)
+
+  naming.assertValidRewardedAction(rewardedAction)
+  
+  rewardedAction = customize.modifyRewardedAction(projectName, rewardedAction)
+  
+  naming.assertValidRewardedAction(rewardedAction)
+  
+  return rewardedAction
+}
+
+function getRewardForActionRecord(actionRecord, sortedRewardsRecords) {
+  // find start position
+  _.sortedIndexBy(objects, { 'timestampDate': 4 }, 'timestampDate');
+  
 }
 
 // This function may also return a promise for performing asynchronous processing
