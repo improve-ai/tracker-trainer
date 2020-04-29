@@ -21,12 +21,20 @@ module.exports = {
     }
 }
 
-module.exports.modifyRecordPreFirehose = (event) => {
-  return event
+module.exports.modelNameForAction = (action) => {
+    return "default"
 }
 
-module.exports.modifyRecordPostFirehose = (event) => {
-  return event
+module.exports.modifyHistoryRecords = (projectName, historyId, historyRecords) => {
+  return historyRecords
+}
+
+module.exports.actionsFromHistoryRecord = (projectName, historyRecord) => {
+  return historyRecord.actions
+}
+
+module.exports.rewardsFromHistoryRecord = (projectName, historyRecord) => {
+  return historyRecord.rewards
 }
 
 // the default processing in unpack_firehose.js allows alphanumeric, underscore, dash, space, and period in project names
@@ -37,41 +45,9 @@ module.exports.getProjectNamesToModelNamesMapping = () => {
     }
 }
 
-module.exports.getModelNameForAction = (action) => {
-    return "default"
-}
-
 // Allows user data to be split into different projects
 // Authentication information such as Cognito IDs or API Keys could be used to determine which project the data belongs to 
 module.exports.getProjectName = (event, context) => {
     // return Object.keys(module.exports.getProjectNamesToModelNamesMapping())[0]
     return event.requestContext.identity.apiKey;
 }
-
-// This function may also return a promise for performing asynchronous processing
-module.exports.assignRewardedActionsToModelsFromHistoryEvents = (projectName, sortedHistoryEvents) => {
-    const modelsToJoinedEvents = {}
-    const rewardKeysToEvents = {}
-    
-    for (const record of sortedHistoryEvents) {
-        if (record.record_type) {
-            if (record.record_type === "using" && record.reward_key) {
-                record.reward = 0
-                if (!modelsToJoinedEvents[record.model]) {
-                    modelsToJoinedEvents[record.model] = []
-                }
-                modelsToJoinedEvents[record.model].push(record)
-                rewardKeysToEvents[record.reward_key] = record
-            } else if (record.record_type === "rewards" && record.rewards) {
-                for (const [rewardKey, reward] of Object.entries(record.rewards)) {
-                    if (rewardKey in rewardKeysToEvents) {
-                        rewardKeysToEvents[rewardKey].reward = rewardKeysToEvents[rewardKey].reward + reward
-                    }
-                }
-            }
-        }
-    }
-    
-    return modelsToJoinedEvents;
-}
-
