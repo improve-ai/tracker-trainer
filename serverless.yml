@@ -22,7 +22,7 @@ provider:
     XGBOOST_TRAINING_INSTANCE_COUNT: 2
     XGBOOST_TRAINING_VOLUME_SIZE_IN_GB: 10
     XGBOOST_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
-    DEFAULT_REWARD_WINDOW: 7200 # 2 hours
+    DEFAULT_REWARD_WINDOW_IN_SECONDS: 7200 # 2 hours
     FIREHOSE_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory. Buffer size is configured in resources/serverless.yml
     HISTORY_SHARD_WORKER_MEMORY_IN_MB: 1024 # must be large enough to hold a reward window's worth of events for a single history shard
     HISTORY_SHARD_REPROCESS_WAIT_TIME_IN_SECONDS: 7200 # 2 hours. Increasing this will decrease Lambda and S3 costs by re-processing history shards less often.
@@ -39,6 +39,7 @@ provider:
     MODELS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.ModelsS3Bucket}
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
+    PRE_DEPLOY_CHECK: ${file(predeploy.js)} # execute the pre deploy checks
   iamRoleStatements: 
     - Effect: Allow
       Action:

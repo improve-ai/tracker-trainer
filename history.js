@@ -173,6 +173,7 @@ function getRewardedActionsForHistoryRecords(projectName, historyId, historyReco
     if (newActionRecords) {
       for (let i=0;i<newActionRecords.length;i++) {
         const newActionRecord = newActionRecords[i]
+        newActionRecord.type = "action" // allows getRewardedActions to assign rewards in one pass
         newActionRecord.timestamp = timestamp
         newActionRecord.timestampDate = timestampDate // for sorting. filtered out later
         // give each one a unique message id
@@ -189,69 +190,70 @@ function getRewardedActionsForHistoryRecords(projectName, historyId, historyReco
         throw new Error(`rewards must be object type and not array ${JSON.stringify(newRewardsRecord)}`)
       } 
       
+      newRewardsRecord.type = "rewards" // allows getRewardedActions to assign rewards in one pass
       // timestampDate is used for sorting
       newRewardsRecord.timestampDate = timestampDate
       rewardsRecords.push(newRewardsRecord)
     }
   }
 
-  const sortedRewardsRecords = rewardsRecords.sort((a, b) => b.timestampDate - a.timestampDate)
-
-  return actionRecords.map(actionRecord => getRewardedAction(projectName, historyId, actionRecord, sortedRewardsRecords))
+  return getRewardedActions(actionRecords, rewardsRecords).map(rewardedAction => finalizeRewardedAction(projectName, historyId, rewardedAction))
 }
 
-// sets timestamp plus adds timestampDate to the record
-function assignTimestampToRecord(timestamp, record) {
-  record.timestamp = timestamp
-  // used for sorting and reward assignment. should be removed later
-  record.timestampDate = new Date(timestamp)
+// in a single pass assign rewards to all action records
+function getRewardedActions(actionRecords, rewardsRecords) {
+  // combine all the records together so we can process in a single pass
+  const sortedRecords = actionRecords.concat(rewardsRecords).sort((a, b) => b.timestampDate - a.timestampDate)
+  const actionRecordsByRewardKey = {}
+
+  for (const record of sortedRecords) {
+    // set up this action to listen for rewards
+    if (record.type === "action") {
+      let rewardKey = "reward" // default reward key
+      if (record.reward_key) {
+        rewardKey = record.reward_key
+      }
+      let listeners = actionRecordsByRewardKey[rewardKey]
+      if (!listeners) {
+        listeners = []
+        actionRecordsByRewardKey[rewardKey] = listeners
+      }
+      record.rewardWindowEndDate = new Date(record.timestampDate.getTime() + customize.config.rewardWindowInSeconds * 1000)
+      listeners.push(record)
+    } else if (record.type === "rewards") {
+      // iterate through each reward key and find listening actions
+      for (const [rewardKey, reward] of Object.entries(record.rewards)) {
+        const listeners = actionRecordsByRewardKey[rewardKey]
+        // loop backwards so that removing an expired listener doesn't break the array loop
+        for (let i = listeners.length - 1; i >= 0; i--) {
+          const listener = listeners[i]
+          if (listener.rewardWindowEndDate < record.timestampDate) {
+            listeners.splice(i,1) // remove the element
+          } else {
+            listener.reward = (listener.reward || 0) + Number(reward) // Number allows booleans to be treated as 1 and 0
+          }
+        }
+      }
+    } else { 
+      throw new Error(`type must be \"action\" or \"rewards\" ${JSON.stringify(record)}`)
+    }
+  }
 }
 
-function getRewardedAction(projectName, historyId, actionRecord, sortedRewardsRecords) {
-  let rewardedAction = _.pick(actionRecord, ["properties", "context", "action", "timestamp", "message_id"])
+function finalizeRewardedAction(projectName, historyId, rewardedActionRecord) {
+  let rewardedAction = _.pick(rewardedActionRecord, ["properties", "context", "action", "timestamp", "message_id", "reward"])
   rewardedAction.history_id = historyId
-  
-  rewardedAction.reward = getRewardForActionRecord(actionRecord, sortedRewardsRecords)
 
-  // don't send customize bad data and don't allow bad data from customize
-  naming.assertValidRewardedAction(rewardedAction)
   rewardedAction = customize.modifyRewardedAction(projectName, rewardedAction)
   naming.assertValidRewardedAction(rewardedAction)
   
   return rewardedAction
 }
 
-function getRewardForActionRecord(actionRecord, sortedRewardsRecords) {
-  let reward = 0
-  // find start position
-  _.sortedIndexBy(objects, { 'timestampDate': 4 }, 'timestampDate');
-  
-  return reward
-}
-
 // This function may also return a promise for performing asynchronous processing
 module.exports.assignRewardedActionsToModelsFromHistoryEvents = (projectName, sortedHistoryEvents) => {
     const modelsToJoinedEvents = {}
     const rewardKeysToEvents = {}
-    
-    for (const record of sortedHistoryEvents) {
-        if (record.record_type) {
-            if (record.record_type === "using" && record.reward_key) {
-                record.reward = 0
-                if (!modelsToJoinedEvents[record.model]) {
-                    modelsToJoinedEvents[record.model] = []
-                }
-                modelsToJoinedEvents[record.model].push(record)
-                rewardKeysToEvents[record.reward_key] = record
-            } else if (record.record_type === "rewards" && record.rewards) {
-                for (const [rewardKey, reward] of Object.entries(record.rewards)) {
-                    if (rewardKey in rewardKeysToEvents) {
-                        rewardKeysToEvents[rewardKey].reward = rewardKeysToEvents[rewardKey].reward + reward
-                    }
-                }
-            }
-        }
-    }
     
     return modelsToJoinedEvents;
 }

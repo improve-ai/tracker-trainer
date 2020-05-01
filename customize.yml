@@ -1,0 +1,25 @@
+---
+preDeployMessage: "Default configuration serves models from a public https endpoint. Set xxx in customize.yml to disable public model serving." # feel free to change or remove this message
+rewardWindowInSeconds: 7200
+featureHyperparameters:
+  maxAge: 7776000
+xgboostHyperparameters:
+  objective: "binary:logistic",
+
+projects:
+  lRgX7U2VPZ6I1DUaSUr6D8jH4iFju3MY7i3p9mbq: 
+    models:
+      default:
+      messages-1.0:
+        actions:
+          - "Message Chosen"
+        featureHyperparameters:
+          maxAge: 3456000
+
+  lF8yFNYXiT5fIlBHQMgbY3EtPUfbjJmS1OskfqiT:
+    models:
+      messages-1.0:
+        actions:
+          - "Message Chosen"
+        featureHyperparameters:
+          maxAge: 15552000
