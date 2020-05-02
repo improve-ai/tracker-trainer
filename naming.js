@@ -188,6 +188,45 @@ module.exports.getXGBoostModelsS3Uri = (projectName, modelName) => {
   return `s3://${process.env.RECORDS_BUCKET}/xgboost_models/${projectName}/${modelName}`
 }
 
+module.exports.allProjects = () => {
+  return Object.keys(customize.config.projects)
+}
+
+module.exports.getModelsByProject = () => {
+  return Object.fromEntries(Object.entries(customize.config.projects).map(([project, modelsDict]) => [project, Object.keys(modelsDict)]))
+}
+
+module.exports.getModelForAction = (projectName, action) => {
+  if (!customize.config.projects || !customize.config.projects[projectName]) {
+    throw new Error("no configured project ${projectName}")
+  }
+
+  let catchallModel;
+  const modelConfigs = customize.config.projects[projectName].models
+  for (const [model, modelConfig] of Object.entries(modelConfigs)) {
+    if (!me.isValidModelName(model)) {
+      throw new Error(`invalid model name ${model}, not alphanumeric, underscore, dash, space, period`)
+    }
+    // there is only one catchall model
+    if (!modelConfig.actions || modelConfig.actions.length == 0) {
+      if (catchallModel) {
+        throw new Error(`only one catchall model (zero \"actions\") can be configured per project ${projectName} - ${JSON.stringify(modelConfigs)}`)
+      }
+      catchallModel = model
+    } else {
+      // check to see if this action is explicitly handled by a model
+      for (const acceptedAction of modelConfig.actions) {
+        if (acceptedAction === action) {
+          return model
+        }
+      }
+    }
+  }
+
+  // this action is not explicitly configured. Use the catchall model
+  return catchallModel
+}
+
 // allow alphanumeric, underscore, dash, space, period
 module.exports.isValidModelName = (modelName) => {
   return modelName.match(/^[\w\- .]+$/i)
@@ -203,7 +242,7 @@ module.exports.isValidDate = (date) => {
 }
 
 module.exports.isObjectNotArray = (value) => {
-  return _.isString(value) && !Array.isArray(value)
+  return _.isObject(value) && !Array.isArray(value)
 }
 
 module.exports.assertValidRewardedAction = (ra) => {
@@ -271,10 +310,6 @@ module.exports.listAllRewardedActionShardS3Keys = (projectName, shardId) => {
       return all.flat()
     })
   })
-}
-
-module.exports.allProjects = () => {
-  return Object.keys(customize.getProjectNamesToModelNamesMapping())
 }
 
 module.exports.listSortedShardsByProjectName = () => {

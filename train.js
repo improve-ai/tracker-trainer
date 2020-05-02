@@ -17,19 +17,9 @@ const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
 module.exports.dispatchTrainingJobs = async () => {
 
   console.log(`dispatching training jobs`)
-
-  let promises = []
-
-  let projectsToModels = customize.getProjectNamesToModelNamesMapping()
-  Object.keys(projectsToModels).forEach((projectName) => {
-    let models = projectsToModels[projectName]    
-    for (let j = 0; j < models.length; j++) {
-      let model = models[j]
-      promises.push(createFeatureTrainingJob(projectName, model))
-    }
-  })
-
-  return Promise.all(promises)
+  return Promise.all(Object.entries(naming.getModelsByProject()).map(([projectName, models]) => 
+    Promise.all(models.map(model => 
+      createFeatureTrainingJob(projectName, model)))))
 }
 
 function createFeatureTrainingJob(projectName, model) {

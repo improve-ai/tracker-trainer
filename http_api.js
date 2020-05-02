@@ -2,6 +2,7 @@
 
 const unpackFirehose = require("./unpack_firehose.js")
 const customize = require("./customize.js")
+const naming = require("./naming.js")
 
 const LOG_PROBABILITY = .1;
 
@@ -15,15 +16,16 @@ module.exports.track = async function(event, context) {
   }
 
   let body = JSON.parse(event.body)
-  
-  let projectName = customize.getProjectName(event, context)
-
-  if (!projectName) {
-    return errorResponse("project misconfigured or missing credentials")
-  }
 
   if (!body || !body.history_id) {
     return errorResponse("the 'history_id' field is required")
+  }
+  
+  let projectName = customize.projectNameForTrack(event, context)
+
+  if (!projectName || !naming.isValidProjectName(projectName)) {
+    console.log(`WARN: invalid project name ${projectName}, not alphanumeric, underscore, dash, space, period ${JSON.stringify(event)}`)
+    return errorResponse("project misconfigured or missing credentials")
   }
 
   return unpackFirehose.sendToFirehose(projectName, body, receivedAt, logging).then(() => {

@@ -3,25 +3,44 @@
 const yaml = require('js-yaml');
 const fs   = require('fs');
 
-
-module.exports.modelNameForAction = (action) => {
-    return "default"
+// Allows incoming tracked data to be routed to different projects
+// Authentication information such as AWS Cognito IDs or AWS API Gateway api keys could be used to determine which project the data belongs to 
+module.exports.projectNameForTrack = (lambdaEvent, lambdaContext) => {
+  // return Object.keys(module.exports.config.projects)[0]
+  if (lambdaEvent.requestContext.identity.apiKey === "lRgX7U2VPZ6I1DUaSUr6D8jH4iFju3MY7i3p9mbq") {
+    return "bible"
+  }
+  if (lambdaEvent.requestContext.identity.apiKey === "lF8yFNYXiT5fIlBHQMgbY3EtPUfbjJmS1OskfqiT") {
+    return "mindful"
+  }
 }
 
-// do not modify timestamps or history ids
-module.exports.modifyHistoryRecords = (projectName, historyId, historyRecords) => {
-  return historyRecords
+// project names are persisted to firehose files as they are ingested. To re-process old firehose files for which the project names have changed,
+// implement this method in order to migrate the names.
+module.exports.migrateProjectName = (projectName) => {
+  if (projectName === "lRgX7U2VPZ6I1DUaSUr6D8jH4iFju3MY7i3p9mbq") {
+    return "bible"
+  } if (projectName === "lF8yFNYXiT5fIlBHQMgbY3EtPUfbjJmS1OskfqiT") {
+    return "mindful"
+  }
+  
+  return projectName
+}
+
+// do not modify timestamps or reward windows might no longer be valid
+module.exports.modifyHistoryRecords = (projectName, historyRecords) => {
+  return historyRecords;
 }
 
 module.exports.modifyRewardedAction = (projectName, rewardedAction) => {
-  return rewardedAction
+  return rewardedAction;
 }
 
 // may return null or an array of action records.
 // inferredActionRecords may be null or an array
 // modifications to timestamp or history_id will be ignored
 module.exports.actionRecordsFromHistoryRecord = (projectName, historyRecord, inferredActionRecords) => {
-  return inferredActionRecords
+  return inferredActionRecords;
 }
 
 // may return null or a single rewards record.
@@ -29,25 +48,10 @@ module.exports.actionRecordsFromHistoryRecord = (projectName, historyRecord, inf
 module.exports.rewardsRecordFromHistoryRecord = (projectName, historyRecord) => {
   // if the history record has a "rewards" property, then it is a rewards record
   if (historyRecord.rewards) {
-    return historyRecord
+    return historyRecord;
   }
 }
 
-// the default processing in unpack_firehose.js allows alphanumeric, underscore, dash, space, and period in project names
-module.exports.getProjectNamesToModelNamesMapping = () => {
-    return {
-        "lRgX7U2VPZ6I1DUaSUr6D8jH4iFju3MY7i3p9mbq": ["messages-1.0"],
-        "lF8yFNYXiT5fIlBHQMgbY3EtPUfbjJmS1OskfqiT": ["messages-1.0"]
-    }
-}
+module.exports.config = yaml.safeLoad(fs.readFileSync('./customize.yml', 'utf8'));
 
-// Allows user data to be split into different projects
-// Authentication information such as Cognito IDs or API Keys could be used to determine which project the data belongs to 
-module.exports.getProjectName = (event, context) => {
-    // return Object.keys(module.exports.getProjectNamesToModelNamesMapping())[0]
-    return event.requestContext.identity.apiKey;
-}
-
-module.exports.config = yaml.safeLoad(fs.readFileSync('./customize.yml', 'utf8'))
-
-console.log(JSON.stringify(module.exports.config))
+console.log(JSON.stringify(module.exports.config));

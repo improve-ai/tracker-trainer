@@ -22,10 +22,10 @@ module.exports.dispatchHistoryShardWorkers = async (event, context) => {
       const sortedShards = shards.sort() // sort() modifies shards
       // group the shards
       const [reshardingParents, reshardingChildren, nonResharding] = shard.groupShards(sortedShards)
-
+      console.log(`project ${projectName} has ${shards.length-nonResharding.length}/${shards.length} shards currently resharding`)
       // check to see if any of the resharding parents didn't finish and sharding needs to be restarted
       // & check to see if any non-resharding shards have incoming history meta files and haven't been processed recently according to the timestamps
-      return Promise.all([shard.dispatchReshardingIfNecessary(content, projectName, reshardingParents, shardLastProcessedDates), 
+      return Promise.all([shard.dispatchReshardingIfNecessary(context, projectName, reshardingParents, shardLastProcessedDates), 
                           dispatchHistoryProcessingIfNecessary(context, projectName, nonResharding, shardLastProcessedDates)])
     })
   }))
@@ -96,6 +96,10 @@ module.exports.processHistoryShard = async function(event, context) {
     }
     
     return loadAndConsolidateHistoryRecords(staleS3Keys).then(staleHistoryRecords => {
+      
+      // perform customize before we access the records
+      staleHistoryRecords = customize.modifyHistoryRecords(projectName, staleHistoryRecords)
+
       // group history records by history id
       const historyRecordsByHistoryId = Object.fromEntries(Object.entries(_.groupBy(staleHistoryRecords, 'history_id')))
 
@@ -103,14 +107,10 @@ module.exports.processHistoryShard = async function(event, context) {
       let rewardedActions = []
       
       for (const [historyId, historyRecords] of Object.entries(historyRecordsByHistoryId)) {
-        try {
-          rewardedActions = rewardedActions.concat(getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords))
-        } catch (err) {
-          console.log(`WARN: skipping history id ${historyId} history records ${historyRecords}`, err)
-        }
+        rewardedActions = rewardedActions.concat(getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords))
       }
 
-      return writeRewardedActions(rewardedActions)      
+      return writeRewardedActions(projectName, shardId, rewardedActions)      
     }).then(() => {
       // incoming has been processed, delete them.
       return s3utils.deleteAllKeys(incomingHistoryS3Keys)
@@ -118,21 +118,25 @@ module.exports.processHistoryShard = async function(event, context) {
   }))
 }
 
-
+// TODO filter
 function filterStaleHistoryS3Keys(historyS3Keys, incomingHistoryS3Keys) {
   return historyS3Keys
 }
 
+// TODO consolidate
+function loadAndConsolidateHistoryRecords(s3Keys) {
+  return Promise.all(s3Keys.map(s3Key => s3utils.processCompressedJsonLines(process.env.RECORDS_BUCKET, s3Key, (record) => record))).then(results => results.flat())
+}
+
 // throw an Error on any parsing problems or customize bugs, causing the whole historyId to be skipped
 function getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords) {
-  
-  historyRecords = customize.modifyHistoryRecords(projectName, historyId, historyRecords)
   
   const actionRecords = []
   const rewardsRecords = []
   for (const historyRecord of historyRecords) {
     // make sure the history ids weren't modified in customize
     if (historyId !== historyRecord.history_id) {
+      // TODO might not be a big deal since we're using shard Id to write
       throw new Error(`historyId ${historyId} does not match record ${JSON.stringify(historyRecord)}`)
     }
     
@@ -143,7 +147,7 @@ function getRewardedActionsForHistoryRecords(projectName, historyId, historyReco
       throw new Error(`invalid timestamp for history record ${JSON.stringify(historyRecord)}`)
     }
     const messageId = historyRecord.message_id
-    if (!messageId || !naming.isString(messageId)) {
+    if (!messageId || !_.isString(messageId)) {
       throw new Error(`invalid message_id for history record ${JSON.stringify(historyRecord)}`)
     }
 
@@ -176,7 +180,7 @@ function getRewardedActionsForHistoryRecords(projectName, historyId, historyReco
         newActionRecord.type = "action" // allows getRewardedActions to assign rewards in one pass
         newActionRecord.timestamp = timestamp
         newActionRecord.timestampDate = timestampDate // for sorting. filtered out later
-        // give each one a unique message id
+        // give each action a unique message id
         newActionRecord.message_id = i == 0 ? messageId : `${messageId}-${i}`;
         actionRecords.push(newActionRecord)
       }
@@ -250,16 +254,6 @@ function finalizeRewardedAction(projectName, historyId, rewardedActionRecord) {
   return rewardedAction
 }
 
-// This function may also return a promise for performing asynchronous processing
-module.exports.assignRewardedActionsToModelsFromHistoryEvents = (projectName, sortedHistoryEvents) => {
-    const modelsToJoinedEvents = {}
-    const rewardKeysToEvents = {}
-    
-    return modelsToJoinedEvents;
-}
-
-
-
 function loadHistoryEventsForS3Keys(s3Keys) {
   let promises = []
   for (let i = 0; i < s3Keys.length; i++) {
@@ -271,82 +265,37 @@ function loadHistoryEventsForS3Keys(s3Keys) {
   })
 }
 
-function loadHistoryEventsForS3Key(s3Key) {
-  let events = []
-  
-  return new Promise((resolve, reject) => {
-    
-    let gunzip = zlib.createGunzip()
+function writeRewardedActions(projectName, shardId, rewardedActions) {
+  const buffersByS3Key = {}
+  for (const rewardedAction of rewardedActions) {
+    const s3Key = naming.getRewardedActionS3Key = (projectName, getModelForAction(projectName, rewardedAction.action), shardId, rewardedAction.timestampDate)
+    let buffers = buffersByS3Key[s3Key]
+    if (!buffers) {
+      buffers = []
+      buffersByS3Key[s3Key] = buffers
+    }
+    buffers.push(Buffer.from(JSON.stringify(rewardedAction)+"\n"))
+  }
 
-    console.log(`loadUserEventsForS3Key ${s3Key}`)
-
-    let stream = s3.getObject({ Bucket: process.env.RECORDS_BUCKET, Key: s3Key }).createReadStream().pipe(gunzip).pipe(es.split()).pipe(es.mapSync(function(line) {
-
-      // pause the readstream
-      stream.pause();
-
-      try {
-        if (!line) {
-          return;
-        }
-        let eventRecord = JSON.parse(line)
-
-        if (!eventRecord || !eventRecord.timestamp || !naming.isValidDate(eventRecord.timestamp)) {
-          console.log(`WARN: skipping record - no timestamp in ${line}`)
-          return;
-        }
-
-        events.push(eventRecord)
-      } catch (err) {
-        console.log(`error ${err} skipping record`)
-      } finally {
-        stream.resume();
-      }
-    })
-    .on('error', function(err) {
-      console.log('Error while reading file.', err);
-      return reject(err)
-    })
-    .on('end', function() {
-      return resolve(events)
-    }));
-  })
+  return Promise.all(Object.entries(buffersByS3Key).map(([s3Key, buffers]) => s3utils.compressAndWriteBuffers(s3Key, buffers)))
 }
 
-function writeRewardedActionsByModel(historyS3Key, modelsToJoinedActions) {
-  const promises = []
-  for (const [modelName, joinedActions] of Object.entries(modelsToJoinedActions)) {
-    promises.push(writeRewardedActions(historyS3Key, modelName, joinedActions))
-  }
-  return Promise.all(promises)
-}
-
-/*
- All file name transformations are idempotent to avoid duplicate records.
- projectName and modelName are not included in the fileName to allow files to be copied between models
-*/
-function writeRewardedActions(historyS3Key, modelName, joinedActions) {
-      
-  // allow alphanumeric, underscore, dash, space, period
-  if (!naming.isValidModelName(modelName)) {
-    console.log(`WARN: skipping ${joinedActions.length} records - invalid modelName, not alphanumeric, underscore, dash, space, period ${modelName}`)
-    return;
+// cached wrapper of naming.getModelForAction
+const projectActionModelCache = {}
+function getModelForAction(projectName, action) {
+  // this is looked up for every rewarded action record during history procesing so needs to be fast
+  let actionModelCache = projectActionModelCache[projectName]
+  if (actionModelCache) {
+    const model = actionModelCache[action]
+    if (model) {
+      return model
+    }
   }
   
-  let jsonLines = ""
-  for (const joinedEvent of joinedActions) {
-    jsonLines += (JSON.stringify(joinedEvent) + "\n")
-  }
-  
-  let s3Key = naming.getJoinedS3Key(historyS3Key, modelName)
-  console.log(`writing ${joinedActions.length} records to ${s3Key}`)
-    
-  let params = {
-    Body: zlib.gzipSync(Buffer.from(jsonLines)),
-    Bucket: process.env.RECORDS_BUCKET,
-    Key: s3Key
-  }
-  return s3.putObject(params).promise()
+  const model = naming.getModelForAction(projectName, action)
+  actionModelCache = {[action]: model}
+  projectActionModelCache[projectName] = actionModelCache
+  return model
 }
 
 module.exports.markHistoryS3KeyAsIncoming = (historyS3Key) => {

@@ -77,6 +77,13 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
   const uuidPart = uuidv4()
 
   return s3utils.processCompressedJsonLines(s3Bucket, firehoseS3Key, eventRecord => {
+    try {
+      eventRecord.project_name = customize.migrateProjectName(eventRecord.project_name)
+    } catch (err) {
+      console.log(`WARN: skipping record ${JSON.stringify(eventRecord)}`, err)
+      return;
+    }
+    
     if (eventRecord.record_type === "choose") { // DEPRECATED
       //console.log(`WARN: skipping choose record`)
       return;
@@ -107,7 +114,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
       console.log(`WARN: skipping record - invalid project_name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(eventRecord)}`)
       return;
     }
-    
+
     let s3Key;
     
     // Handle variants records
@@ -117,7 +124,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
         return
       }
       
-      const model = customize.getModelNameForAction(eventRecord.action)
+      const model = history.getModelForAction(projectName, eventRecord.action)
 
       if (!naming.isValidModelName(model)) {
         console.log(`WARN: skipping record - invalid model name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(eventRecord)}`)
