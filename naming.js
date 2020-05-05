@@ -152,7 +152,6 @@ module.exports.getRewardedActionValidationS3Uri = (projectName, modelName) => {
 function getTrainValidationPathPart(fileName) {
   let validationProportion = parseFloat(process.env.VALIDATION_PROPORTION)
   
-  console.log(`mmh32 ${mmh3.x86.hash32(fileName)}`)
   if (mmh3.x86.hash32(fileName) / (2.0 ** 32) < validationProportion) {
     return module.exports.getValidationPathPart()
   } else {
@@ -208,7 +207,7 @@ module.exports.getModelForAction = (projectName, action) => {
       throw new Error(`invalid model name ${model}, not alphanumeric, underscore, dash, space, period`)
     }
     // there is only one catchall model
-    if (!modelConfig.actions || modelConfig.actions.length == 0) {
+    if (!modelConfig || !modelConfig.actions || modelConfig.actions.length == 0) {
       if (catchallModel) {
         throw new Error(`only one catchall model (zero \"actions\") can be configured per project ${projectName} - ${JSON.stringify(modelConfigs)}`)
       }

@@ -40,7 +40,14 @@ module.exports.modifyRewardedAction = (projectName, rewardedAction) => {
 // inferredActionRecords may be null or an array
 // modifications to timestamp or history_id will be ignored
 module.exports.actionRecordsFromHistoryRecord = (projectName, historyRecord, inferredActionRecords) => {
-  return inferredActionRecords;
+  if (inferredActionRecords) {
+    return inferredActionRecords;
+  }
+  // backwards compatibility with Improve v4
+  if (historyRecord.record_type === "using") {
+    historyRecord.action = "Message Chosen"
+    return historyRecord
+  }
 }
 
 // may return null or a single rewards record.

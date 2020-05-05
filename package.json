@@ -16,6 +16,7 @@
     "sha.js": "^2.4.0",
     "serverless-pseudo-parameters": "^2.2.0",
     "murmurhash3js": "3.0.1",
-    "js-yaml": "3.13.1"
+    "js-yaml": "^3.13.0",
+    "date-format": "^3.0.0"
   }
 }

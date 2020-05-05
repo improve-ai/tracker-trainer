@@ -129,7 +129,10 @@ function loadAndConsolidateHistoryRecords(s3Keys) {
 }
 
 // throw an Error on any parsing problems or customize bugs, causing the whole historyId to be skipped
+// TODO parsing problems should be massaged before this point so that the only possible source of parsing bugs
+// is customize calls.
 function getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords) {
+  // TODO ignore duplicate message ids
   
   const actionRecords = []
   const rewardsRecords = []
@@ -171,10 +174,14 @@ function getRewardedActionsForHistoryRecords(projectName, historyId, historyReco
       }
     }
 
-    // may return an array of action records or null
+    // may return a single action record, an array of action records, or null
     let newActionRecords = customize.actionRecordsFromHistoryRecord(projectName, historyRecord, inferredActionRecords)
 
     if (newActionRecords) {
+      // wrap it as an array if they just returned one action record
+      if (!Array.isArray(newActionRecords)) {
+        newActionRecords = [newActionRecords]
+      }
       for (let i=0;i<newActionRecords.length;i++) {
         const newActionRecord = newActionRecords[i]
         newActionRecord.type = "action" // allows getRewardedActions to assign rewards in one pass
@@ -182,6 +189,8 @@ function getRewardedActionsForHistoryRecords(projectName, historyId, historyReco
         newActionRecord.timestampDate = timestampDate // for sorting. filtered out later
         // give each action a unique message id
         newActionRecord.message_id = i == 0 ? messageId : `${messageId}-${i}`;
+        newActionRecord.history_id = historyId
+
         actionRecords.push(newActionRecord)
       }
     }
@@ -190,7 +199,7 @@ function getRewardedActionsForHistoryRecords(projectName, historyId, historyReco
     let newRewardsRecord = customize.rewardsRecordFromHistoryRecord(projectName, historyRecord)
 
     if (newRewardsRecord) {
-      if (!naming.isObjectNotArray(newRewardsRecord.reward)) {
+      if (!naming.isObjectNotArray(newRewardsRecord.rewards)) {
         throw new Error(`rewards must be object type and not array ${JSON.stringify(newRewardsRecord)}`)
       } 
       
@@ -201,11 +210,16 @@ function getRewardedActionsForHistoryRecords(projectName, historyId, historyReco
     }
   }
 
-  return getRewardedActions(actionRecords, rewardsRecords).map(rewardedAction => finalizeRewardedAction(projectName, historyId, rewardedAction))
+  return assignRewardsToActions(actionRecords, rewardsRecords)
 }
 
 // in a single pass assign rewards to all action records
-function getRewardedActions(actionRecords, rewardsRecords) {
+function assignRewardsToActions(actionRecords, rewardsRecords) {
+  if (!rewardsRecords.length) {
+    // for sparse rewards this should speed up processing considerably
+    return actionRecords
+  }
+  
   // combine all the records together so we can process in a single pass
   const sortedRecords = actionRecords.concat(rewardsRecords).sort((a, b) => b.timestampDate - a.timestampDate)
   const actionRecordsByRewardKey = {}
@@ -222,16 +236,20 @@ function getRewardedActions(actionRecords, rewardsRecords) {
         listeners = []
         actionRecordsByRewardKey[rewardKey] = listeners
       }
+      // TODO robust configuration
       record.rewardWindowEndDate = new Date(record.timestampDate.getTime() + customize.config.rewardWindowInSeconds * 1000)
       listeners.push(record)
     } else if (record.type === "rewards") {
       // iterate through each reward key and find listening actions
       for (const [rewardKey, reward] of Object.entries(record.rewards)) {
         const listeners = actionRecordsByRewardKey[rewardKey]
+        if (!listeners) {
+          continue;
+        }
         // loop backwards so that removing an expired listener doesn't break the array loop
         for (let i = listeners.length - 1; i >= 0; i--) {
           const listener = listeners[i]
-          if (listener.rewardWindowEndDate < record.timestampDate) {
+          if (listener.rewardWindowEndDate < record.timestampDate) { // the listener is expired
             listeners.splice(i,1) // remove the element
           } else {
             listener.reward = (listener.reward || 0) + Number(reward) // Number allows booleans to be treated as 1 and 0
@@ -242,16 +260,8 @@ function getRewardedActions(actionRecords, rewardsRecords) {
       throw new Error(`type must be \"action\" or \"rewards\" ${JSON.stringify(record)}`)
     }
   }
-}
-
-function finalizeRewardedAction(projectName, historyId, rewardedActionRecord) {
-  let rewardedAction = _.pick(rewardedActionRecord, ["properties", "context", "action", "timestamp", "message_id", "reward"])
-  rewardedAction.history_id = historyId
-
-  rewardedAction = customize.modifyRewardedAction(projectName, rewardedAction)
-  naming.assertValidRewardedAction(rewardedAction)
   
-  return rewardedAction
+  return actionRecords
 }
 
 function loadHistoryEventsForS3Keys(s3Keys) {
@@ -266,9 +276,12 @@ function loadHistoryEventsForS3Keys(s3Keys) {
 }
 
 function writeRewardedActions(projectName, shardId, rewardedActions) {
+  console.log(`writing ${rewardedActions.length} rewarded action records for project ${projectName} shard ${shardId}`)
   const buffersByS3Key = {}
-  for (const rewardedAction of rewardedActions) {
-    const s3Key = naming.getRewardedActionS3Key = (projectName, getModelForAction(projectName, rewardedAction.action), shardId, rewardedAction.timestampDate)
+  for (let rewardedAction of rewardedActions) {
+    const timestampDate = rewardedAction.timestampDate
+    rewardedAction = finalizeRewardedAction(projectName, rewardedAction)
+    const s3Key = naming.getRewardedActionS3Key(projectName, getModelForAction(projectName, rewardedAction.action), shardId, timestampDate)
     let buffers = buffersByS3Key[s3Key]
     if (!buffers) {
       buffers = []
@@ -278,6 +291,16 @@ function writeRewardedActions(projectName, shardId, rewardedActions) {
   }
 
   return Promise.all(Object.entries(buffersByS3Key).map(([s3Key, buffers]) => s3utils.compressAndWriteBuffers(s3Key, buffers)))
+}
+
+function finalizeRewardedAction(projectName, rewardedActionRecord) {
+  let rewardedAction = _.pick(rewardedActionRecord, ["properties", "context", "action", "timestamp", "message_id", "history_id", "reward"])
+
+  // an exception here will cause the entire history process task to fail
+  rewardedAction = customize.modifyRewardedAction(projectName, rewardedAction)
+  naming.assertValidRewardedAction(rewardedAction)
+  
+  return rewardedAction
 }
 
 // cached wrapper of naming.getModelForAction
