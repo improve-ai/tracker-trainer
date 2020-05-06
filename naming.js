@@ -354,7 +354,10 @@ module.exports.listAllHistoryShards = (projectName) => {
     Prefix: me.getHistoryS3KeyPrefix(projectName)
   }
   
-  return s3utils.listAllSubPrefixes(params)
+  return s3utils.listAllSubPrefixes(params).then(shards => {
+    console.log(`history shards project ${projectName} shards ${JSON.stringify(shards)}`)
+    return shards
+  })
 }
 
 module.exports.listAllIncomingHistoryShards = (projectName) => {
@@ -368,7 +371,10 @@ module.exports.listAllIncomingHistoryShards = (projectName) => {
     Prefix: me.getIncomingHistoryS3KeyPrefix(projectName)
   }
   
-  return s3utils.listAllSubPrefixes(params)
+  return s3utils.listAllSubPrefixes(params).then(shards => {
+    console.log(`incoming history shards project ${projectName} shards ${JSON.stringify(shards)}`)
+    return shards
+  })
 }
 
 module.exports.listAllRewardedActionShards = (projectName) => {
@@ -378,9 +384,10 @@ module.exports.listAllRewardedActionShards = (projectName) => {
     Delimiter: '/',
     Prefix: me.getRewardActionProjectS3KeyPrefix(projectName)
   }
-
+  
   // rewarded_actions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-actions-shardId-yyyy-MM-dd.gz
-  return s3utils.listAllPrefixes(params, 4).then(prefixes => prefixes.map(prefix => prefix.split('/').pop())).then(shards => {
+  return s3utils.listAllPrefixes(params, 4).then(prefixes => prefixes.map(prefix => prefix.split('/')[6])).then(shards => {
+    console.log(`rewarded action shards project ${projectName} shards ${JSON.stringify(shards)}`)
     return [...new Set(shards)] // de-duplicate since shards can exist across models and train/validation splits
   })
 }
