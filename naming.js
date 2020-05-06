@@ -17,6 +17,13 @@ module.exports.getHistoryS3Key = (projectName, shardId, timestamp, uuid) => {
   return `histories/data/${projectName}/${shardId}/${year}/${month}/${day}/improve-events-${shardId}-${year}-${month}-${day}-${uuid}.gz`
 }
 
+// generate a new history S3 key with unique uuid
+module.exports.getConsolidatedHistoryS3Key = (historyS3Key) => {
+  assert(me.isHistoryS3Key(historyS3Key), "must be a history S3 Key")
+  const [histories, data, projectName, shardId, year, month, day, file] = historyS3Key.split('/')
+  return `histories/data/${projectName}/${shardId}/${year}/${month}/${day}/improve-events-${shardId}-${year}-${month}-${day}-${uuidv4()}.gz`
+}
+
 module.exports.getShardIdForS3Key = (s3Key) => {
   if (me.isHistoryS3Key(s3Key)) {
     return s3Key.split('/')[3]
@@ -29,6 +36,7 @@ module.exports.getShardIdForS3Key = (s3Key) => {
   throw new Error(`s3Key ${s3Key} is not a history, incoming history marker, or rewarded action key`)
 }
 
+// TODO not properly replacing the shard id in the file name
 module.exports.replaceShardIdForS3Key = (s3Key, newShardId, timestamp) => {
   if (me.isHistoryS3Key(s3Key)) {
     return me.replaceShardIdForHistoryS3Key(s3Key, newShardId)
@@ -77,6 +85,10 @@ module.exports.getHistoryS3KeyPrefix = (projectName) => {
 
 module.exports.getHistoryShardS3KeyPrefix = (projectName, shardId) => {
   return `histories/data/${projectName}/${shardId}/`
+}
+
+module.exports.groupHistoryS3KeysByDatePath = (historyS3Keys) => {
+  return _.groupBy(historyS3Keys, (s3Key) => s3Key.split('/').slice(0,7).join('/'))
 }
 
 module.exports.isIncomingHistoryS3Key = (s3Key) => {

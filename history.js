@@ -121,12 +121,27 @@ module.exports.processHistoryShard = async function(event, context) {
 
 // TODO filter
 function filterStaleHistoryS3KeysMetadata(historyS3Keys, incomingHistoryS3Keys) {
+  // TODO log the dates that we're looking at
   return historyS3Keys
 }
 
-// TODO consolidate
-function loadAndConsolidateHistoryRecords(s3Keys) {
-  return Promise.all(s3Keys.map(s3Key => s3utils.processCompressedJsonLines(process.env.RECORDS_BUCKET, s3Key, (record) => record))).then(results => results.flat())
+function loadAndConsolidateHistoryRecords(historyS3Keys) {
+  // group the keys by path
+  return Promise.all(Object.entries(naming.groupHistoryS3KeysByDatePath(historyS3Keys)).map(([path, pathS3Keys]) => {
+      // load all records from the s3 keys for this specific path
+      return Promise.all(pathS3Keys.map(s3Key => s3utils.processCompressedJsonLines(process.env.RECORDS_BUCKET, s3Key, (r) => r))).then(results => results.flat()).then(records => {
+        if (pathS3Keys.length == 1) {
+          console.log(`skipping history consolidation for ${path}, only one file`)
+          return records
+        }
+
+        console.log(`consolidating ${pathS3Keys.length} files at ${path} into 1 file`)
+        const buffers = records.map(record => Buffer.from(JSON.stringify(record)+"\n"))
+        return s3utils.compressAndWriteBuffers(naming.getConsolidatedHistoryS3Key(pathS3Keys[0]), buffers).then(() => {
+          s3utils.deleteAllKeys(pathS3Keys)
+        }).then(() => records)
+      })
+  })).then(results => results.flat())
 }
 
 // throw an Error on any parsing problems or customize bugs, causing the whole historyId to be skipped
@@ -263,17 +278,6 @@ function assignRewardsToActions(actionRecords, rewardsRecords) {
   }
   
   return actionRecords
-}
-
-function loadHistoryEventsForS3Keys(s3Keys) {
-  let promises = []
-  for (let i = 0; i < s3Keys.length; i++) {
-    promises.push(loadHistoryEventsForS3Key(s3Keys[i]))
-  }
-  return Promise.all(promises).then(arraysOfEvents => {
-    // Promise.all accumulates an array of results
-    return [].concat(...arraysOfEvents) // flatten array
-  })
 }
 
 function writeRewardedActions(projectName, shardId, rewardedActions) {
