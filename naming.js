@@ -342,6 +342,7 @@ module.exports.listAllShards = (projectName) => {
   return Promise.all([me.listAllHistoryShards(projectName), me.listAllIncomingHistoryShards(projectName), me.listAllRewardedActionShards(projectName)]).then(all => all.flat()).then(shardIds => {
     shardIds = [...new Set(shardIds)] // de-duplicate since we'll see the same shards in history and the rewarded actions
     console.log(`project ${projectName} shards ${JSON.stringify(shardIds)}`)
+    // TODO check valid shard id, no "" or non binary
     return shardIds
   })
 }
@@ -402,5 +403,5 @@ module.exports.listAllRewardedActionShardS3KeyPrefixes = (projectName, shardId) 
   }
 
   // rewarded_actions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-actions-shardId-yyyy-MM-dd.gz
-  return s3utils.listAllPrefixes(params, 3).then(prefixes => prefixes.filter(prefix => prefix.split('/')[6] === shardId))
+  return s3utils.listAllPrefixes(params, 4).then(prefixes => prefixes.filter(prefix => prefix.split('/')[6] === shardId))
 }
