@@ -136,7 +136,7 @@ module.exports.getRewardedActionS3Key = (projectName, modelName, shardId, timest
 }
 
 module.exports.getRewardedActionS3Uri = (projectName, modelName) => {
-  return `s3://${process.env.RECORDS_BUCKET}/data/rewarded_actions/${projectName}/${modelName}`
+  return `s3://${process.env.RECORDS_BUCKET}/rewarded_actions/data/${projectName}/${modelName}`
 }
 
 module.exports.getRewardedActionTrainS3Uri = (projectName, modelName) => {
@@ -280,7 +280,6 @@ module.exports.listAllShardTimestampsS3Keys = (projectName) => {
   return s3utils.listAllKeys(params)
 }
 
-
 module.exports.listAllHistoryShardS3Keys = (projectName, shardId) => {
   const params = {
     Bucket: process.env.RECORDS_BUCKET,
@@ -289,6 +288,16 @@ module.exports.listAllHistoryShardS3Keys = (projectName, shardId) => {
   
   return s3utils.listAllKeys(params)
 }
+
+module.exports.listAllHistoryShardS3KeysMetadata = (projectName, shardId) => {
+  const params = {
+    Bucket: process.env.RECORDS_BUCKET,
+    Prefix: me.getHistoryShardS3KeyPrefix(projectName, shardId)
+  }
+  
+  return s3utils.listAllKeysMetadata(params)
+}
+
 
 module.exports.listAllIncomingHistoryShardS3Keys = (projectName, shardId) => {
   const params = {
@@ -386,5 +395,5 @@ module.exports.listAllRewardedActionShardS3KeyPrefixes = (projectName, shardId) 
   }
 
   // rewarded_actions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-actions-shardId-yyyy-MM-dd.gz
-  return s3utils.listAllPrefixes(params, 3)
+  return s3utils.listAllPrefixes(params, 3).then(prefixes => prefixes.filter(prefix => prefix.split('/')[6] === shardId))
 }

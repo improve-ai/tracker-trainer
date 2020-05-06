@@ -9,10 +9,7 @@ const _ = require('lodash');
 const s3 = new AWS.S3();
 const sagemaker = new AWS.SageMaker({ maxRetries: 100, retryDelayOptions: { customBackoff: sagemakerBackoff }});
 
-const customize = require("./customize.js")
 const naming = require("./naming.js")
-
-const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
 
 module.exports.dispatchTrainingJobs = async () => {
 
@@ -81,7 +78,11 @@ function createFeatureTrainingJob(projectName, model) {
     },
   };
 
-  return sagemaker.createTrainingJob(params).promise()
+  return sagemaker.createTrainingJob(params).promise().catch(error => {
+    // handle the error locally because the training job should not be re-attempted.
+    // the most likely cause of failure is a configured model that is not yet receiving events
+    console.log(`error creating feature training job ${trainingJobName} project ${projectName} model ${model}`, error)
+  })
 }
 
 module.exports.featureModelCreated = async (event, context) => {
@@ -162,7 +163,8 @@ module.exports.transformJobCompleted = async function(event, context) {
   const transformJobName = event.detail.TransformJobName
   const [projectName, model] = getProjectNameAndModelFromS3OutputPath(event.detail.TransformOutput.S3OutputPath)
   
-  const trainingJobName = "x"+transformJobName.substring(1)
+  // change the name from -f to -x
+  const trainingJobName = transformJobName.substring(0, transformJobName.length-1)+'x'
   
   return createXGBoostTrainingJob(projectName, model, trainingJobName)
 }
@@ -264,7 +266,7 @@ module.exports.xgboostModelCreated = async (event, context) => {
 function getFeatureTrainingJobName(projectName, model) {
   
   // every single training job must have a unique name per AWS account
-  return `f-${getAlphaNumeric(process.env.STAGE).substring(0,5)}-${getAlphaNumeric(projectName).substring(0,12)}-${getAlphaNumeric(model).substring(0,16)}-${dateFormat.asString("yyyyMMddhhmm",new Date())}-${uuidv4().slice(-12)}`
+  return `${getAlphaNumeric(process.env.STAGE).substring(0,5)}-${getAlphaNumeric(projectName).substring(0,12)}-${getAlphaNumeric(model).substring(0,16)}-${dateFormat.asString("yyyyMMddhhmm",new Date())}-${uuidv4().slice(-12)}-f`
 }
 
 /**

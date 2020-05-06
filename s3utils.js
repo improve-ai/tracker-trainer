@@ -83,11 +83,12 @@ module.exports.deleteKey = (s3Key) => {
 }
 
 module.exports.listAllPrefixes = (params, depth=1) => {
-  return me.listAllSubPrefixes(params).then(subPrefixes => {
+  return me.listAllSubPrefixes(params).then(subDirectories => {
     if (depth <= 1) {
-      return subPrefixes.map(subPrefix => params.Prefix + subPrefix + params.Delimiter) 
+      return subDirectories.map(subDirectory => params.Prefix + subDirectory + params.Delimiter) 
     } else {
-      return Promise.all(subPrefixes.map(subPrefix => me.listAllPrefixes(Object.assign(params, {Prefix: params.Prefix + subPrefix + params.Delimiter}), depth-1))).then(all => all.flat())
+      // it is important to clone the params with Object.create() since the same params object is used multiple times in parallel
+      return Promise.all(subDirectories.map(subDirectory => me.listAllPrefixes(Object.assign(Object.create(params), {Prefix: params.Prefix + subDirectory + params.Delimiter}), depth-1))).then(all => all.flat())
     }
   })
 }
@@ -98,7 +99,7 @@ module.exports.listAllSubPrefixes = (params, out = []) => new Promise((resolve, 
   s3.listObjectsV2(params).promise()
     .then(({CommonPrefixes, IsTruncated, NextContinuationToken}) => {
       out.push(...CommonPrefixes.map(o => o.Prefix.split('/').slice(-2)[0])); // split and grab the second to last item from the Prefix
-      !IsTruncated ? resolve(out) : resolve(me.listAllSubPrefixes(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
+      !IsTruncated ? resolve(out) : resolve(me.listAllSubPrefixes(Object.assign(Object.create(params), {ContinuationToken: NextContinuationToken}), out)); // Object.create() to clone incase used in parallel
     })
     .catch(reject);
 });
@@ -109,7 +110,18 @@ module.exports.listAllKeys = (params, out = []) => new Promise((resolve, reject)
   s3.listObjectsV2(params).promise()
     .then(({Contents, IsTruncated, NextContinuationToken}) => {
       out.push(...Contents.map(o => o.Key));
-      !IsTruncated ? resolve(out) : resolve(me.listAllKeys(Object.assign(params, {ContinuationToken: NextContinuationToken}), out));
+      !IsTruncated ? resolve(out) : resolve(me.listAllKeys(Object.assign(Object.create(params), {ContinuationToken: NextContinuationToken}), out)); // Object.create() to clone incase used in parallel
+    })
+    .catch(reject);
+});
+
+// modified from https://stackoverflow.com/questions/42394429/aws-sdk-s3-best-way-to-list-all-keys-with-listobjectsv2
+module.exports.listAllKeysMetadata = (params, out = []) => new Promise((resolve, reject) => {
+  console.log(`listing metadata for all keys for ${params.Prefix}`)
+  s3.listObjectsV2(params).promise()
+    .then(({Contents, IsTruncated, NextContinuationToken}) => {
+      out.push(...Contents);
+      !IsTruncated ? resolve(out) : resolve(me.listAllKeysMetadata(Object.assign(Object.create(params), {ContinuationToken: NextContinuationToken}), out)); // Object.create() to clone incase used in parallel
     })
     .catch(reject);
 });

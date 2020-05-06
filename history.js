@@ -85,17 +85,18 @@ module.exports.processHistoryShard = async function(event, context) {
   }
 
   // list the incoming keys and history keys for this shard
-  // TODO history keys should be history listing results with size information
-  return updateLastProcessed.then(() => Promise.all([naming.listAllHistoryShardS3Keys(projectName, shardId), naming.listAllIncomingHistoryShardS3Keys(projectName, shardId)]).then(([historyS3Keys, incomingHistoryS3Keys]) => {
-    const staleS3Keys = filterStaleHistoryS3Keys(historyS3Keys, incomingHistoryS3Keys)
-    
+  return updateLastProcessed.then(() => Promise.all([naming.listAllHistoryShardS3KeysMetadata(projectName, shardId), naming.listAllIncomingHistoryShardS3Keys(projectName, shardId)]).then(([historyS3KeysMetadata, incomingHistoryS3Keys]) => {
+    const staleS3KeysMetadata = filterStaleHistoryS3KeysMetadata(historyS3KeysMetadata, incomingHistoryS3Keys)
+
     // check size of the keys to be re-processed and reshard if necessary
-    if (false) {
-      console.log(`resharding project ${projectName} shard ${shardId} - stale history data is too large ${bytes}`)
+    const totalSize = staleS3KeysMetadata.reduce((acc, cur) => acc+cur.Size,0)
+    console.log(`${totalSize} bytes of stale history data for project ${projectName} shard ${shardId}`)
+    if (totalSize > (process.env.HISTORY_SHARD_WORKER_MAX_PAYLOAD_IN_MB * 1024 * 1024)) {
+      console.log(`resharding project ${projectName} shard ${shardId} - stale history data is too large`)
       return shard.invokeReshardLambda(context, projectName, shardId)
     }
     
-    return loadAndConsolidateHistoryRecords(staleS3Keys).then(staleHistoryRecords => {
+    return loadAndConsolidateHistoryRecords(staleS3KeysMetadata.map(o => o.Key)).then(staleHistoryRecords => {
       
       // perform customize before we access the records
       staleHistoryRecords = customize.modifyHistoryRecords(projectName, staleHistoryRecords)
@@ -119,7 +120,7 @@ module.exports.processHistoryShard = async function(event, context) {
 }
 
 // TODO filter
-function filterStaleHistoryS3Keys(historyS3Keys, incomingHistoryS3Keys) {
+function filterStaleHistoryS3KeysMetadata(historyS3Keys, incomingHistoryS3Keys) {
   return historyS3Keys
 }
 
