@@ -136,15 +136,15 @@ module.exports.getRewardedActionS3Key = (projectName, modelName, shardId, timest
 }
 
 module.exports.getRewardedActionS3Uri = (projectName, modelName) => {
-  return `s3://${process.env.RECORDS_BUCKET}/rewarded_actions/${projectName}/${modelName}`
+  return `s3://${process.env.RECORDS_BUCKET}/data/rewarded_actions/${projectName}/${modelName}`
 }
 
 module.exports.getRewardedActionTrainS3Uri = (projectName, modelName) => {
-  return `${me.getJoinedS3Uri(projectName, modelName)}/${me.getTrainPathPart()}`
+  return `${me.getRewardedActionS3Uri(projectName, modelName)}/${me.getTrainPathPart()}`
 }
 
 module.exports.getRewardedActionValidationS3Uri = (projectName, modelName) => {
-  return `${me.getJoinedS3Uri(projectName, modelName)}/${me.getValidationPathPart()}`
+  return `${me.getRewardedActionS3Uri(projectName, modelName)}/${me.getValidationPathPart()}`
 }
 
 
@@ -192,7 +192,7 @@ module.exports.allProjects = () => {
 }
 
 module.exports.getModelsByProject = () => {
-  return Object.fromEntries(Object.entries(customize.config.projects).map(([project, modelsDict]) => [project, Object.keys(modelsDict)]))
+  return Object.fromEntries(Object.entries(customize.config.projects).map(([project, projectDict]) => [project, Object.keys(projectDict.models)]))
 }
 
 module.exports.getModelForAction = (projectName, action) => {
@@ -224,6 +224,10 @@ module.exports.getModelForAction = (projectName, action) => {
 
   // this action is not explicitly configured. Use the catchall model
   return catchallModel
+}
+
+module.exports.getXGBoostHyperparameters = (projectName, model) => {
+  return customize.config.xgboostHyperparameters
 }
 
 // allow alphanumeric, underscore, dash, space, period

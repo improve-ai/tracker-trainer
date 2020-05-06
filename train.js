@@ -24,7 +24,7 @@ module.exports.dispatchTrainingJobs = async () => {
 
 function createFeatureTrainingJob(projectName, model) {
   
-  let hyperparameters = customize.hyperparameters.default;
+  let hyperparameters = {} // customize.hyperparameters.default;
   
   /* Disabling due to a type mismatch.  hyperparameters expects only strings
   
@@ -50,7 +50,7 @@ function createFeatureTrainingJob(projectName, model) {
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
-            S3Uri: naming.getJoinedTrainS3Uri(projectName, model),
+            S3Uri: naming.getRewardedActionTrainS3Uri(projectName, model),
             S3DataDistributionType: "FullyReplicated",
           }
         },
@@ -61,7 +61,7 @@ function createFeatureTrainingJob(projectName, model) {
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
-            S3Uri: naming.getJoinedValidationS3Uri(projectName, model), 
+            S3Uri: naming.getRewardedActionValidationS3Uri(projectName, model), 
             S3DataDistributionType: "FullyReplicated",
           }
         },
@@ -132,7 +132,7 @@ function createTransformJob(projectName, model, trainingJobName) {
       DataSource: { 
         S3DataSource: { 
           S3DataType: "S3Prefix",
-          S3Uri: naming.getJoinedS3Uri(projectName, model),
+          S3Uri: naming.getRewardActionS3Uri(projectName, model),
         }
       },
       SplitType: "Line",
@@ -169,19 +169,11 @@ module.exports.transformJobCompleted = async function(event, context) {
 
 function createXGBoostTrainingJob(projectName, model, trainingJobName) {
   
-  let hyperparameters = customize.hyperparameters.default;
-  
-  /* Disabling due to a type mismatch.  hyperparameters expects only strings
-  
-  if (projectName in config.hyperparameters && model in config.hyperparameters[projectName]) {
-    hyperparameters = Object.assign(hyperparameters, config.hyperparameters[projectName][model])
-  }*/
-
   console.log(`creating xgboost training job ${trainingJobName} project ${projectName} model ${model}`)
   
   var params = {
     TrainingJobName: trainingJobName,
-    HyperParameters: hyperparameters,
+    HyperParameters: naming.getXGBoostHyperparameters(projectName, model),
     AlgorithmSpecification: { /* required */
       TrainingImage: process.env.XGBOOST_TRAINING_IMAGE,
       TrainingInputMode: "File",

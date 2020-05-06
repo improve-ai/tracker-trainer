@@ -139,7 +139,7 @@ function getRewardedActionsForHistoryRecords(projectName, historyId, historyReco
   for (const historyRecord of historyRecords) {
     // make sure the history ids weren't modified in customize
     if (historyId !== historyRecord.history_id) {
-      // TODO might not be a big deal since we're using shard Id to write
+      // (this might not be a big deal since we're using shard Id to write)
       throw new Error(`historyId ${historyId} does not match record ${JSON.stringify(historyRecord)}`)
     }
     
