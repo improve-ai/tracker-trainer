@@ -133,7 +133,7 @@ function createTransformJob(projectName, model, trainingJobName) {
       DataSource: { 
         S3DataSource: { 
           S3DataType: "S3Prefix",
-          S3Uri: naming.getRewardActionS3Uri(projectName, model),
+          S3Uri: naming.getRewardedActionS3Uri(projectName, model), // transform all train/validation splits. XGBoost will seperate them again.
         }
       },
       SplitType: "Line",

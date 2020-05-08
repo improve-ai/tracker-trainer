@@ -1,7 +1,7 @@
 'use strict';
 
 const AWS = require('aws-sdk')
-const s3 = new AWS.S3()
+const s3 = new AWS.S3({maxRetries: 10})
 const zlib = require('zlib')
 const es = require('event-stream')
 
@@ -37,8 +37,11 @@ module.exports.processCompressedJsonLines = (s3Bucket, s3Key, mapFunction) => {
         if (!record) {
           return;
         }
+        const result = mapFunction(record)
 
-        results.push(mapFunction(record))
+        if (result) {
+          results.push(result)
+        }
       } finally {
         stream.resume();
       }

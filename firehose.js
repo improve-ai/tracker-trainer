@@ -75,7 +75,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
   
   // keep the uuid the same so that events in the same date, project, and shard get mapped to the same key
   const uuidPart = uuidv4()
-
+  
   return s3utils.processCompressedJsonLines(s3Bucket, firehoseS3Key, eventRecord => {
     try {
       eventRecord.project_name = customize.migrateProjectName(eventRecord.project_name)

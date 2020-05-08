@@ -122,6 +122,8 @@ module.exports.processHistoryShard = async function(event, context) {
 // TODO filter
 function filterStaleHistoryS3KeysMetadata(historyS3Keys, incomingHistoryS3Keys) {
   // TODO log the dates that we're looking at
+  // Oh crap, we can't process actions after date X if we're processing in the middle of a window. So if we receive some old events
+  // we need to grab the entire window for those old events and ONLY process those old events.
   return historyS3Keys
 }
 
@@ -129,9 +131,25 @@ function loadAndConsolidateHistoryRecords(historyS3Keys) {
   // group the keys by path
   return Promise.all(Object.entries(naming.groupHistoryS3KeysByDatePath(historyS3Keys)).map(([path, pathS3Keys]) => {
       // load all records from the s3 keys for this specific path
-      return Promise.all(pathS3Keys.map(s3Key => s3utils.processCompressedJsonLines(process.env.RECORDS_BUCKET, s3Key, (r) => r))).then(results => results.flat()).then(records => {
+      const messageIds = new Set()
+      let duplicates = 0
+      return Promise.all(pathS3Keys.map(s3Key => s3utils.processCompressedJsonLines(process.env.RECORDS_BUCKET, s3Key, (record) => {
+        // check for duplicate message ids.  This is most likely do to re-processing firehose files multiple times.
+        const messageId = record.message_id
+        if (!messageId || messageIds.has(messageId)) {
+          duplicates++
+          return null
+        } else {
+          messageIds.add(messageId)
+          return record
+        }
+      }))).then(results => results.flat()).then(records => {
+        if (duplicates) {
+          console.log(`ignoring ${duplicates} records with missing or duplicate message_id fields`)
+        }
+        // TODO remove
+        console.log(`rough records size: ${JSON.stringify(records).length} bytes`)
         if (pathS3Keys.length == 1) {
-          console.log(`skipping history consolidation for ${path}, only one file`)
           return records
         }
 
