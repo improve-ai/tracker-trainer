@@ -184,11 +184,11 @@ module.exports.getTransformedS3Uri = (projectName, model) => {
 }
 
 module.exports.getTransformedTrainS3Uri = (projectName, modelName) => {
-  return `${me.getTransformedS3Uri(projectName, modelName)}/${me.getTrainPathPart()}`
+  return `${me.getTransformedS3Uri(projectName, modelName)}${me.getTrainPathPart()}`
 }
 
 module.exports.getTransformedValidationS3Uri = (projectName, modelName) => {
-  return `${me.getTransformedS3Uri(projectName, modelName)}/${me.getValidationPathPart()}`
+  return `${me.getTransformedS3Uri(projectName, modelName)}${me.getValidationPathPart()}`
 }
 
 module.exports.getFeatureModelsS3Uri = (projectName, modelName) => {
@@ -238,8 +238,14 @@ module.exports.getModelForAction = (projectName, action) => {
   return catchallModel
 }
 
+// TODO
 module.exports.getXGBoostHyperparameters = (projectName, model) => {
-  return customize.config.xgboostHyperparameters
+  const hyperparameters = {} 
+  if (customize.config.binaryRewards) {
+    Object.assign(hyperparameters,  { objective: "binary:logistic" })
+  }
+  
+  return Object.assign(hyperparameters, customize.config.xgboostHyperparameters)
 }
 
 // allow alphanumeric, underscore, dash, space, period
@@ -350,6 +356,7 @@ module.exports.listSortedShardsByProjectName = () => {
 }
 
 module.exports.listAllShards = (projectName) => {
+  // TODO fetch transformed shards
   console.log(`listing all shards for project ${projectName}`)
   return Promise.all([me.listAllHistoryShards(projectName), me.listAllIncomingHistoryShards(projectName), me.listAllRewardedActionShards(projectName)]).then(all => all.flat()).then(shardIds => {
     shardIds = [...new Set(shardIds)] // de-duplicate since we'll see the same shards in history and the rewarded actions

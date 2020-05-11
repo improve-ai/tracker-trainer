@@ -97,9 +97,14 @@ module.exports.processHistoryShard = async function(event, context) {
     }
     
     return loadAndConsolidateHistoryRecords(staleS3KeysMetadata.map(o => o.Key)).then(staleHistoryRecords => {
+      console.log("before customize")
+      module.exports.logRecordsSummary(staleHistoryRecords)
       
       // perform customize before we access the records
       staleHistoryRecords = customize.modifyHistoryRecords(projectName, staleHistoryRecords)
+
+      console.log("after customize")
+      module.exports.logRecordsSummary(staleHistoryRecords)
 
       // group history records by history id
       const historyRecordsByHistoryId = Object.fromEntries(Object.entries(_.groupBy(staleHistoryRecords, 'history_id')))
@@ -110,6 +115,8 @@ module.exports.processHistoryShard = async function(event, context) {
       for (const [historyId, historyRecords] of Object.entries(historyRecordsByHistoryId)) {
         rewardedActions = rewardedActions.concat(getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords))
       }
+      console.log("rewarded actions")
+      module.exports.logRecordsSummary(rewardedActions)
 
       return writeRewardedActions(projectName, shardId, rewardedActions)      
     }).then(() => {
@@ -128,11 +135,13 @@ function filterStaleHistoryS3KeysMetadata(historyS3Keys, incomingHistoryS3Keys) 
 }
 
 function loadAndConsolidateHistoryRecords(historyS3Keys) {
+  const messageIds = new Set()
+  let duplicates = 0
+  let rewardsRecordCount = 0
+
   // group the keys by path
   return Promise.all(Object.entries(naming.groupHistoryS3KeysByDatePath(historyS3Keys)).map(([path, pathS3Keys]) => {
       // load all records from the s3 keys for this specific path
-      const messageIds = new Set()
-      let duplicates = 0
       return Promise.all(pathS3Keys.map(s3Key => s3utils.processCompressedJsonLines(process.env.RECORDS_BUCKET, s3Key, (record) => {
         // check for duplicate message ids.  This is most likely do to re-processing firehose files multiple times.
         const messageId = record.message_id
@@ -141,14 +150,12 @@ function loadAndConsolidateHistoryRecords(historyS3Keys) {
           return null
         } else {
           messageIds.add(messageId)
+          if (record.rewards) {
+            rewardsRecordCount++
+          }
           return record
         }
-      }))).then(results => results.flat()).then(records => {
-        if (duplicates) {
-          console.log(`ignoring ${duplicates} records with missing or duplicate message_id fields`)
-        }
-        // TODO remove
-        console.log(`rough records size: ${JSON.stringify(records).length} bytes`)
+      }))).then(all => all.flat()).then(records => {
         if (pathS3Keys.length == 1) {
           return records
         }
@@ -159,15 +166,23 @@ function loadAndConsolidateHistoryRecords(historyS3Keys) {
           s3utils.deleteAllKeys(pathS3Keys)
         }).then(() => records)
       })
-  })).then(results => results.flat())
+  })).then(all => {
+    const records = all.flat()
+    if (duplicates) {
+      console.log(`ignoring ${duplicates} records with missing or duplicate message_id fields`)
+    }
+    console.log(`loaded ${records.length} records, ${rewardsRecordCount} with rewards`)
+
+    return records
+  })
 }
 
 // throw an Error on any parsing problems or customize bugs, causing the whole historyId to be skipped
 // TODO parsing problems should be massaged before this point so that the only possible source of parsing bugs
 // is customize calls.
 function getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords) {
-  // TODO ignore duplicate message ids
-  
+  // TODO write traverse/dump function for summarizing keys 
+
   const actionRecords = []
   const rewardsRecords = []
   for (const historyRecord of historyRecords) {
@@ -255,9 +270,9 @@ function assignRewardsToActions(actionRecords, rewardsRecords) {
   }
   
   // combine all the records together so we can process in a single pass
-  const sortedRecords = actionRecords.concat(rewardsRecords).sort((a, b) => b.timestampDate - a.timestampDate)
+  const sortedRecords = actionRecords.concat(rewardsRecords).sort((a, b) => a.timestampDate - b.timestampDate)
   const actionRecordsByRewardKey = {}
-
+  
   for (const record of sortedRecords) {
     // set up this action to listen for rewards
     if (record.type === "action") {
@@ -299,11 +314,19 @@ function assignRewardsToActions(actionRecords, rewardsRecords) {
 }
 
 function writeRewardedActions(projectName, shardId, rewardedActions) {
-  console.log(`writing ${rewardedActions.length} rewarded action records for project ${projectName} shard ${shardId}`)
   const buffersByS3Key = {}
+  let rewardedRecordCount = 0
+  let totalRewards = 0
+
   for (let rewardedAction of rewardedActions) {
     const timestampDate = rewardedAction.timestampDate
     rewardedAction = finalizeRewardedAction(projectName, rewardedAction)
+
+    if (rewardedAction.reward) {
+      rewardedRecordCount++
+      totalRewards += rewardedAction.reward
+    }
+
     const s3Key = naming.getRewardedActionS3Key(projectName, getModelForAction(projectName, rewardedAction.action), shardId, timestampDate)
     let buffers = buffersByS3Key[s3Key]
     if (!buffers) {
@@ -311,6 +334,11 @@ function writeRewardedActions(projectName, shardId, rewardedActions) {
       buffersByS3Key[s3Key] = buffers
     }
     buffers.push(Buffer.from(JSON.stringify(rewardedAction)+"\n"))
+  }
+
+  console.log(`writing ${rewardedActions.length} rewarded action records for project ${projectName} shard ${shardId}`)
+  if (rewardedActions.length) {
+    console.log(`(${rewardedRecordCount} records with rewards, ${totalRewards/rewardedActions.length} mean reward)`)
   }
 
   return Promise.all(Object.entries(buffersByS3Key).map(([s3Key, buffers]) => s3utils.compressAndWriteBuffers(s3Key, buffers)))
@@ -358,4 +386,17 @@ module.exports.markHistoryS3KeyAsIncoming = (historyS3Key) => {
   }
 
   return s3.putObject(params).promise()
+}
+
+module.exports.logRecordsSummary = (records) => {
+  const keyCounts = {}
+
+  records.map(r => Object.entries(r)).flat().map(([k, v]) => {
+    keyCounts[k] = (keyCounts[k]+1) || 1
+  })
+  
+  console.log(`Summary of ${records.length} records:`)
+  Object.entries(keyCounts).sort((a, b) => b[1] - a[1]).map(([k, count]) => {
+    console.log(`${count} x ${k}`)
+  })
 }

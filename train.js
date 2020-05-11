@@ -10,6 +10,7 @@ const s3 = new AWS.S3();
 const sagemaker = new AWS.SageMaker({ maxRetries: 100, retryDelayOptions: { customBackoff: sagemakerBackoff }});
 
 const naming = require("./naming.js")
+const customize = require("./customize.js")
 
 module.exports.dispatchTrainingJobs = async () => {
 
@@ -21,13 +22,10 @@ module.exports.dispatchTrainingJobs = async () => {
 
 function createFeatureTrainingJob(projectName, model) {
   
-  let hyperparameters = {} // customize.hyperparameters.default;
-  
-  /* Disabling due to a type mismatch.  hyperparameters expects only strings
-  
-  if (projectName in config.hyperparameters && model in config.hyperparameters[projectName]) {
-    hyperparameters = Object.assign(hyperparameters, config.hyperparameters[projectName][model])
-  }*/
+  let hyperparameters = {} 
+  if (customize.config.binaryRewards) {
+    Object.assign(hyperparameters,  { binary_rewards: "true" })
+  }
   
   const trainingJobName = getFeatureTrainingJobName(projectName, model)
   
@@ -99,7 +97,7 @@ module.exports.featureModelCreated = async (event, context) => {
 
     // feature_models/projectName/modelName/<feature training job>/model.tar.gz
     let [projectName, model, trainingJobName] = s3Key.split('/').slice(1,4)
-    trainingJobName = "t"+trainingJobName.substring(1)
+    trainingJobName = "t"+trainingJobName.substring(1) // TODO not right???
 
     // Use the trainingJobName as the ModelName
     let params = {
@@ -160,8 +158,10 @@ module.exports.transformJobCompleted = async function(event, context) {
     throw new Error(`WARN: Invalid cloudwatch event ${JSON.stringify(event)}`)
   }
   
+  // TODO is this a record transform job or model transform job?
+  
   const transformJobName = event.detail.TransformJobName
-  const [projectName, model] = getProjectNameAndModelFromS3OutputPath(event.detail.TransformOutput.S3OutputPath)
+  const [projectName, model] = getProjectNameAndModelFromTransformS3OutputPath(event.detail.TransformOutput.S3OutputPath)
   
   // change the name from -f to -x
   const trainingJobName = transformJobName.substring(0, transformJobName.length-1)+'x'
@@ -246,7 +246,10 @@ module.exports.xgboostModelCreated = async (event, context) => {
       }
     }
 
-    // TODO 
+    // TODO should I load the XGBoost model as a model into the transform job or should
+    // I just use the original feature model?  I think I need to use the feature model and input
+    // the XGBoost model because the XGBoost model will only have xgboost info in it.
+    // the model I think will be called xgboost-model
     
     
     console.log(`Attempting to create model ${trainingJobName}`);
@@ -261,6 +264,36 @@ module.exports.xgboostModelCreated = async (event, context) => {
       return ""//createTransformJob(projectName, model, trainingJobName)
     })
   }))
+}
+
+
+function createModelTransformJob(projectName, model, trainingJobName) {
+  
+  var params = {
+    TransformJobName: trainingJobName,
+    ModelName: trainingJobName,
+    TransformInput: {
+      CompressionType: 'Gzip',
+      DataSource: { 
+        S3DataSource: { 
+          S3DataType: "S3Prefix",
+          S3Uri: naming.getRewardedActionS3Uri(projectName, model), // transform all train/validation splits. XGBoost will seperate them again.
+        }
+      },
+      SplitType: "Line",
+    },
+    TransformOutput: { 
+      AssembleWith: "None",
+      S3OutputPath: naming.getTransformedS3Uri(projectName, model),
+    },
+    TransformResources: { 
+      InstanceType: process.env.TRANSFORM_INSTANCE_TYPE,
+      InstanceCount: process.env.TRANSFORM_INSTANCE_COUNT, 
+    },
+  };
+  
+  console.log(`Attempting to create transform job ${trainingJobName}`);
+  return sagemaker.createTransformJob(params).promise()
 }
 
 function getFeatureTrainingJobName(projectName, model) {
@@ -302,9 +335,12 @@ function getAlphaNumeric(s) {
 }
 
 
-function getProjectNameAndModelFromS3OutputPath(S3OutputPath) {
-  let parts = S3OutputPath.split('/');
-  return [parts[parts.length-2], parts[parts.length-1]]
+function getProjectNameAndModelFromTransformS3OutputPath(s3OutputPath) {
+  if (!s3OutputPath.endsWith('/')) {
+    throw new Error(`transform output path ${s3OutputPath} doesn't end with / character`)
+  }
+  let parts = s3OutputPath.split('/');
+  return [parts[parts.length-3], parts[parts.length-2]]
 }
 
 

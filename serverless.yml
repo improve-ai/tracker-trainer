@@ -19,7 +19,7 @@ provider:
     TRANSFORM_INSTANCE_COUNT: 4
     XGBOOST_TRAINING_IMAGE: 433757028032.dkr.ecr.us-west-2.amazonaws.com/xgboost:latest # 246618743249.dkr.ecr.us-west-2.amazonaws.com/xgboost:latest # FIX don't use latest in production
     XGBOOST_TRAINING_INSTANCE_TYPE: ml.m5.large
-    XGBOOST_TRAINING_INSTANCE_COUNT: 2
+    XGBOOST_TRAINING_INSTANCE_COUNT: 1
     XGBOOST_TRAINING_VOLUME_SIZE_IN_GB: 10
     XGBOOST_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
     DEFAULT_REWARD_WINDOW_IN_SECONDS: 7200 # 2 hours
