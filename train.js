@@ -171,6 +171,8 @@ module.exports.transformJobCompleted = async function(event, context) {
 
 function createXGBoostTrainingJob(projectName, model, trainingJobName) {
   
+  // TODO clean up transformed parent shards and out of range dates
+  
   console.log(`creating xgboost training job ${trainingJobName} project ${projectName} model ${model}`)
   
   var params = {

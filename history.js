@@ -12,6 +12,11 @@ const customize = require("./customize.js")
 // dispatch any necessary continued resharding or history processing
 // this is called by firehose.js every time a new firehose file is created
 // this function is not designed to be executed concurrently, so we set the reservedConcurrency to 1 in serverless.yml
+//
+// Options to ignore processing timers
+// 
+// force_processing: true
+// force_continue_reshard: true
 module.exports.dispatchHistoryShardWorkers = async (event, context) => {
   console.log(`processing lambda event ${JSON.stringify(event)}`)
 
@@ -25,13 +30,13 @@ module.exports.dispatchHistoryShardWorkers = async (event, context) => {
       console.log(`project ${projectName} has ${shards.length-nonResharding.length}/${shards.length} shards currently resharding`)
       // check to see if any of the resharding parents didn't finish and sharding needs to be restarted
       // & check to see if any non-resharding shards have incoming history meta files and haven't been processed recently according to the timestamps
-      return Promise.all([shard.dispatchReshardingIfNecessary(context, projectName, reshardingParents, shardLastProcessedDates), 
-                          dispatchHistoryProcessingIfNecessary(context, projectName, nonResharding, shardLastProcessedDates)])
+      return Promise.all([shard.dispatchReshardingIfNecessary(context, projectName, reshardingParents, shardLastProcessedDates, event.force_continue_reshard), 
+                          dispatchHistoryProcessingIfNecessary(context, projectName, nonResharding, shardLastProcessedDates, event.force_processing)])
     })
   }))
 }
 
-function dispatchHistoryProcessingIfNecessary(lambdaContext, projectName, nonReshardingShards, lastProcessedDates) {
+function dispatchHistoryProcessingIfNecessary(lambdaContext, projectName, nonReshardingShards, lastProcessedDates, forceProcessing = false) {
   const nonReshardingShardsSet = new Set(nonReshardingShards)
   const now = new Date()
   const unix_epoch = new Date(0)
@@ -42,12 +47,12 @@ function dispatchHistoryProcessingIfNecessary(lambdaContext, projectName, nonRes
       const lastProcessed = lastProcessedDates[shardId] || unix_epoch
   
       // check if the incoming shard isn't currently being resharded and if it hasn't been processed too recently
-      if (!nonReshardingShardsSet.has(shardId)) {
+      if (!forceProcessing && !nonReshardingShardsSet.has(shardId)) {
         console.log(`skipping project ${projectName} shard ${shardId} for history processing, currently resharding`)
         return 
       }
       
-      if ((now - lastProcessed) < process.env.HISTORY_SHARD_REPROCESS_WAIT_TIME_IN_SECONDS * 1000) {
+      if (!forceProcessing && (now - lastProcessed) < process.env.HISTORY_SHARD_REPROCESS_WAIT_TIME_IN_SECONDS * 1000) {
         console.log(`skipping project ${projectName} shard ${shardId} for history processing, last processing ${lastProcessed.toISOString()} was too recent`)
         return
       }
@@ -97,14 +102,9 @@ module.exports.processHistoryShard = async function(event, context) {
     }
     
     return loadAndConsolidateHistoryRecords(staleS3KeysMetadata.map(o => o.Key)).then(staleHistoryRecords => {
-      console.log("before customize")
-      module.exports.logRecordsSummary(staleHistoryRecords)
-      
+
       // perform customize before we access the records
       staleHistoryRecords = customize.modifyHistoryRecords(projectName, staleHistoryRecords)
-
-      console.log("after customize")
-      module.exports.logRecordsSummary(staleHistoryRecords)
 
       // group history records by history id
       const historyRecordsByHistoryId = Object.fromEntries(Object.entries(_.groupBy(staleHistoryRecords, 'history_id')))
@@ -115,8 +115,6 @@ module.exports.processHistoryShard = async function(event, context) {
       for (const [historyId, historyRecords] of Object.entries(historyRecordsByHistoryId)) {
         rewardedActions = rewardedActions.concat(getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords))
       }
-      console.log("rewarded actions")
-      module.exports.logRecordsSummary(rewardedActions)
 
       return writeRewardedActions(projectName, shardId, rewardedActions)      
     }).then(() => {
@@ -317,14 +315,17 @@ function writeRewardedActions(projectName, shardId, rewardedActions) {
   const buffersByS3Key = {}
   let rewardedRecordCount = 0
   let totalRewards = 0
+  let maxReward = 0
 
   for (let rewardedAction of rewardedActions) {
     const timestampDate = rewardedAction.timestampDate
     rewardedAction = finalizeRewardedAction(projectName, rewardedAction)
 
-    if (rewardedAction.reward) {
+    const reward = rewardedAction.reward
+    if (reward) {
       rewardedRecordCount++
-      totalRewards += rewardedAction.reward
+      totalRewards += reward
+      maxReward = Math.max(reward, maxReward)
     }
 
     const s3Key = naming.getRewardedActionS3Key(projectName, getModelForAction(projectName, rewardedAction.action), shardId, timestampDate)
@@ -338,7 +339,7 @@ function writeRewardedActions(projectName, shardId, rewardedActions) {
 
   console.log(`writing ${rewardedActions.length} rewarded action records for project ${projectName} shard ${shardId}`)
   if (rewardedActions.length) {
-    console.log(`(${rewardedRecordCount} records with rewards, ${totalRewards/rewardedActions.length} mean reward)`)
+    console.log(`(max reward ${maxReward}, mean reward ${totalRewards/rewardedActions.length}, non-zero rewards ${rewardedRecordCount})`)
   }
 
   return Promise.all(Object.entries(buffersByS3Key).map(([s3Key, buffers]) => s3utils.compressAndWriteBuffers(s3Key, buffers)))
@@ -386,17 +387,4 @@ module.exports.markHistoryS3KeyAsIncoming = (historyS3Key) => {
   }
 
   return s3.putObject(params).promise()
-}
-
-module.exports.logRecordsSummary = (records) => {
-  const keyCounts = {}
-
-  records.map(r => Object.entries(r)).flat().map(([k, v]) => {
-    keyCounts[k] = (keyCounts[k]+1) || 1
-  })
-  
-  console.log(`Summary of ${records.length} records:`)
-  Object.entries(keyCounts).sort((a, b) => b[1] - a[1]).map(([k, count]) => {
-    console.log(`${count} x ${k}`)
-  })
 }
