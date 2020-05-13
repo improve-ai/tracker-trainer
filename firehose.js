@@ -119,12 +119,8 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
     
     // Handle variants records
     if (eventRecord.type && eventRecord.type === "variants") {
-      if (!eventRecord.action) {
-        console.log(`WARN: skipping record - missing action for variants type ${JSON.stringify(eventRecord)}`)
-        return
-      }
-      
-      const model = history.getModelForAction(projectName, eventRecord.action)
+
+      const model = history.getModelForDomain(projectName, eventRecord.domain)
 
       if (!naming.isValidModelName(model)) {
         console.log(`WARN: skipping record - invalid model name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(eventRecord)}`)

@@ -77,7 +77,7 @@ functions:
     handler: train.dispatchTrainingJobs
     events:
       - schedule: ${self:provider.environment.TRAINING_JOB_SCHEDULE}
-  firehoseFileCreated:
+  firehoseFileCreated: # TODO maybe switch back to unpackFirehose for clearer logs
     handler: firehose.unpackFirehose
     memorySize: ${self:provider.environment.FIREHOSE_WORKER_MEMORY_IN_MB} 
     events:

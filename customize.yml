@@ -4,7 +4,7 @@ rewardWindowInSeconds: 7200
 binaryRewards: true
 featureHyperparameters:
 #  maxAge: 7776000
-xgboostHyperparameters: # must be strings
+xgboostHyperparameters: # must be strings # TODO handle string conversion elsewhere
   num_round: "400"
   early_stopping_rounds: "50"
   objective: "binary:logistic"
@@ -19,15 +19,15 @@ projects:
     models:
       default:
       messages-1.0:
-        actions: # TODO probably change actions to property keys so we can have configuration per action such as allowed properties/context (maybe???)
-          - "Message Chosen"
+        domains: # TODO probably change actions to property keys so we can have configuration per action such as allowed properties/context (maybe???)
+          - "messages"
         featureHyperparameters:
 #          maxAge: 3456000
 
   mindful:
     models:
       messages-1.0:
-        actions:
-          - "Message Chosen"
+        domains:
+          - "messages"
         featureHyperparameters:
 #          maxAge: 15552000

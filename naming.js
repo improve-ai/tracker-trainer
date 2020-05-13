@@ -29,41 +29,41 @@ module.exports.getShardIdForS3Key = (s3Key) => {
     return s3Key.split('/')[3]
   } else if (me.isIncomingHistoryS3Key(s3Key)) {
     return s3Key.split('/')[4]
-  } else if (me.isRewardedActionS3Key(s3Key)) {
+  } else if (me.isRewardedDecisionS3Key(s3Key)) {
     return s3Key.split('/')[6]
   }
   
-  throw new Error(`s3Key ${s3Key} is not a history, incoming history marker, or rewarded action key`)
+  throw new Error(`s3Key ${s3Key} is not a history, incoming history marker, or rewarded decision key`)
 }
 
 // TODO not properly replacing the shard id in the file name
 module.exports.replaceShardIdForS3Key = (s3Key, newShardId, timestamp) => {
   if (me.isHistoryS3Key(s3Key)) {
     return me.replaceShardIdForHistoryS3Key(s3Key, newShardId)
-  } else if (me.isRewardedActionS3Key(s3Key)) {
-    return me.replaceShardIdForRewardedActionS3Key(s3Key, newShardId, timestamp)
+  } else if (me.isRewardedDecisionS3Key(s3Key)) {
+    return me.replaceShardIdForRewardedDecisionS3Key(s3Key, newShardId, timestamp)
   }
 
-  throw new Error(`s3Key ${s3Key} is not a history or rewarded action key`)
+  throw new Error(`s3Key ${s3Key} is not a history or rewarded decision key`)
 }
 
 module.exports.replaceShardIdForHistoryS3Key = (historyS3Key, newShardId) => {
   if (!me.isHistoryS3Key(historyS3Key)) {
-    throw new Error(`parentS3Key ${historyS3Key} is not a history or rewarded action key`)
+    throw new Error(`parentS3Key ${historyS3Key} is not a history or rewarded decision key`)
   }
   const split  = historyS3Key.split('/')
   split[3] = newShardId
   return split.join('/')
 }
 
-module.exports.replaceShardIdForRewardedActionS3Key = (s3Key, newShardId, timestamp) => {
-  if (!me.isRewardedActionS3Key(s3Key)) {
-    throw new Error(`s3Key ${s3Key} is not a rewarded action s3 key`)
+module.exports.replaceShardIdForRewardedDecisionS3Key = (s3Key, newShardId, timestamp) => {
+  if (!me.isRewardedDecisionS3Key(s3Key)) {
+    throw new Error(`s3Key ${s3Key} is not a rewarded decision s3 key`)
   }
-  const [rewardActions, data, projectName, modelName, trainOrValidation, split, shardId, year, month, day, fileName] = s3Key.split('/')
+  const [rewardDecisions, data, projectName, modelName, trainOrValidation, split, shardId, year, month, day, fileName] = s3Key.split('/')
   
   // changing the shardId changes the train/validation part so we must re-hash rather than just replace the shardId
-  return me.getRewardedActionS3Key(projectName, modelName, newShardId, timestamp)
+  return me.getRewardedDecisionS3Key(projectName, modelName, newShardId, timestamp)
 }
 
 module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {
@@ -129,34 +129,34 @@ module.exports.getUniqueShardTimestampsS3Key = (projectName) => {
   return `${me.getShardTimestampsS3KeyPrefix(projectName)}shard-timestamps-${uuidv4()}.json`
 }
 
-module.exports.isRewardedActionS3Key = (s3Key) => {
-  return s3Key.startsWith("rewarded_actions/data")
+module.exports.isRewardedDecisionS3Key = (s3Key) => {
+  return s3Key.startsWith("rewarded_decisions/data")
 }
 
-module.exports.getRewardActionProjectS3KeyPrefix = (projectName) => {
-  return `rewarded_actions/data/${projectName}/`
+module.exports.getRewardDecisionProjectS3KeyPrefix = (projectName) => {
+  return `rewarded_decisions/data/${projectName}/`
 }
 
-module.exports.getRewardedActionS3Key = (projectName, modelName, shardId, timestamp) => {
+module.exports.getRewardedDecisionS3Key = (projectName, modelName, shardId, timestamp) => {
     // ensure that we're using UTC
   const [year, month, day] = timestamp.toISOString().slice(0,10).split('-')
 
-  const fileName = `improve-actions-${shardId}-${year}-${month}-${day}.gz`
+  const fileName = `improve-decisions-${shardId}-${year}-${month}-${day}.gz`
   
-  // rewarded_actions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-actions-shardId-yyyy-MM-dd.gz
-  return `rewarded_actions/data/${projectName}/${modelName}/${getTrainValidationPathPart(fileName)}/${shardId}/${year}/${month}/${day}/${fileName}`
+  // rewarded_decisions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-decisions-shardId-yyyy-MM-dd.gz
+  return `rewarded_decisions/data/${projectName}/${modelName}/${getTrainValidationPathPart(fileName)}/${shardId}/${year}/${month}/${day}/${fileName}`
 }
 
-module.exports.getRewardedActionS3Uri = (projectName, modelName) => {
-  return `s3://${process.env.RECORDS_BUCKET}/rewarded_actions/data/${projectName}/${modelName}`
+module.exports.getRewardedDecisionS3Uri = (projectName, modelName) => {
+  return `s3://${process.env.RECORDS_BUCKET}/rewarded_decisions/data/${projectName}/${modelName}`
 }
 
-module.exports.getRewardedActionTrainS3Uri = (projectName, modelName) => {
-  return `${me.getRewardedActionS3Uri(projectName, modelName)}/${me.getTrainPathPart()}`
+module.exports.getRewardedDecisionTrainS3Uri = (projectName, modelName) => {
+  return `${me.getRewardedDecisionS3Uri(projectName, modelName)}/${me.getTrainPathPart()}`
 }
 
-module.exports.getRewardedActionValidationS3Uri = (projectName, modelName) => {
-  return `${me.getRewardedActionS3Uri(projectName, modelName)}/${me.getValidationPathPart()}`
+module.exports.getRewardedDecisionValidationS3Uri = (projectName, modelName) => {
+  return `${me.getRewardedDecisionS3Uri(projectName, modelName)}/${me.getValidationPathPart()}`
 }
 
 
@@ -207,7 +207,7 @@ module.exports.getModelsByProject = () => {
   return Object.fromEntries(Object.entries(customize.config.projects).map(([project, projectDict]) => [project, Object.keys(projectDict.models)]))
 }
 
-module.exports.getModelForAction = (projectName, action) => {
+module.exports.getModelForDomain = (projectName, domain) => {
   if (!customize.config.projects || !customize.config.projects[projectName]) {
     throw new Error("no configured project ${projectName}")
   }
@@ -219,22 +219,22 @@ module.exports.getModelForAction = (projectName, action) => {
       throw new Error(`invalid model name ${model}, not alphanumeric, underscore, dash, space, period`)
     }
     // there is only one catchall model
-    if (!modelConfig || !modelConfig.actions || modelConfig.actions.length == 0) {
+    if (!modelConfig || !modelConfig.domains || modelConfig.domains.length == 0) {
       if (catchallModel) {
-        throw new Error(`only one catchall model (zero \"actions\") can be configured per project ${projectName} - ${JSON.stringify(modelConfigs)}`)
+        throw new Error(`only one catchall model (zero \"domains\") can be configured per project ${projectName} - ${JSON.stringify(modelConfigs)}`)
       }
       catchallModel = model
     } else {
-      // check to see if this action is explicitly handled by a model
-      for (const acceptedAction of modelConfig.actions) {
-        if (acceptedAction === action) {
+      // check to see if this domain is explicitly handled by a model
+      for (const acceptedDomain of modelConfig.domains) {
+        if (acceptedDomain === domain) {
           return model
         }
       }
     }
   }
 
-  // this action is not explicitly configured. Use the catchall model
+  // this domain is not explicitly configured. Use the catchall model
   return catchallModel
 }
 
@@ -266,19 +266,19 @@ module.exports.isObjectNotArray = (value) => {
   return _.isObject(value) && !Array.isArray(value)
 }
 
-module.exports.assertValidRewardedAction = (ra) => {
-  assert(_.isString(ra.history_id), "history_id must be string")
-  assert(_.isString(ra.message_id), "message_id must be string")
-  assert(_.isString(ra.timestamp), "timestamp must be string")
-  assert(me.isObjectNotArray(ra.properties), "properties must be a dictionary")
+module.exports.assertValidRewardedDecision = (ra) => {
+  assert(_.isString(ra.history_id), `'history_id' must be string for ${JSON.stringify(ra)}`)
+  assert(_.isString(ra.message_id), `'message_id' must be string for ${JSON.stringify(ra)}`)
+  assert(_.isString(ra.timestamp), `'timestamp' must be string for ${JSON.stringify(ra)}`)
+  assert(ra.chosen, `'chosen' field is required for ${JSON.stringify(ra)}`)
   if (ra.context) {
-    assert(me.isObjectNotArray(ra.context), "context must be a dictionary")
+    assert(me.isObjectNotArray(ra.context), `'context' must be a dictionary for ${JSON.stringify(ra)}`)
   }
-  if (ra.action) {
-    assert(_.isString(ra.action),"action must be string")
+  if (ra.domain) {
+    assert(_.isString(ra.domain),`'domain' must be string for ${JSON.stringify(ra)}`)
   }
   if (ra.reward) {
-    assert(_.isFinite(ra.reward))
+    assert(_.isFinite(ra.reward), `'reward' must be a finite number for ${JSON.stringify(ra)}`)
   }
 }
 
@@ -326,9 +326,9 @@ module.exports.listAllIncomingHistoryShardS3Keys = (projectName, shardId) => {
   return s3utils.listAllKeys(params)
 }
 
-module.exports.listAllRewardedActionShardS3Keys = (projectName, shardId) => {
+module.exports.listAllRewardedDecisionShardS3Keys = (projectName, shardId) => {
   // this will return a few extra prefixes that won't contain keys because not all shards will be in all prefixes due to model splits and train/validation splits
-  return me.listAllRewardedActionShardS3KeyPrefixes(projectName, shardId).then(prefixes => {
+  return me.listAllRewardedDecisionShardS3KeyPrefixes(projectName, shardId).then(prefixes => {
     return Promise.all(prefixes.map(prefix => {
       const params = {
         Bucket: process.env.RECORDS_BUCKET,
@@ -356,10 +356,9 @@ module.exports.listSortedShardsByProjectName = () => {
 }
 
 module.exports.listAllShards = (projectName) => {
-  // TODO fetch transformed shards
   console.log(`listing all shards for project ${projectName}`)
-  return Promise.all([me.listAllHistoryShards(projectName), me.listAllIncomingHistoryShards(projectName), me.listAllRewardedActionShards(projectName)]).then(all => all.flat()).then(shardIds => {
-    shardIds = [...new Set(shardIds)] // de-duplicate since we'll see the same shards in history and the rewarded actions
+  return Promise.all([me.listAllHistoryShards(projectName), me.listAllIncomingHistoryShards(projectName), me.listAllRewardedDecisionShards(projectName)]).then(all => all.flat()).then(shardIds => {
+    shardIds = [...new Set(shardIds)] // de-duplicate since we'll see the same shards in history and the rewarded decisions
     console.log(`project ${projectName} shards ${JSON.stringify(shardIds)}`)
     // TODO check valid shard id, no "" or non binary
     return shardIds
@@ -397,30 +396,30 @@ module.exports.listAllIncomingHistoryShards = (projectName) => {
   })
 }
 
-module.exports.listAllRewardedActionShards = (projectName) => {
-  console.log(`listing rewarded action shards for project ${projectName}`)
+module.exports.listAllRewardedDecisionShards = (projectName) => {
+  console.log(`listing rewarded decision shards for project ${projectName}`)
   const params = {
     Bucket: process.env.RECORDS_BUCKET,
     Delimiter: '/',
-    Prefix: me.getRewardActionProjectS3KeyPrefix(projectName)
+    Prefix: me.getRewardDecisionProjectS3KeyPrefix(projectName)
   }
   
-  // rewarded_actions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-actions-shardId-yyyy-MM-dd.gz
+  // rewarded_decisions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-decisions-shardId-yyyy-MM-dd.gz
   return s3utils.listAllPrefixes(params, 4).then(prefixes => prefixes.map(prefix => prefix.split('/')[6])).then(shards => {
-    console.log(`rewarded action shards project ${projectName} shards ${JSON.stringify(shards)}`)
+    console.log(`rewarded decision shards project ${projectName} shards ${JSON.stringify(shards)}`)
     return [...new Set(shards)] // de-duplicate since shards can exist across models and train/validation splits
   })
 }
 
 
-module.exports.listAllRewardedActionShardS3KeyPrefixes = (projectName, shardId) => {
-  console.log(`listing rewarded action shard prefixes for project ${projectName}`)
+module.exports.listAllRewardedDecisionShardS3KeyPrefixes = (projectName, shardId) => {
+  console.log(`listing rewarded decision shard prefixes for project ${projectName}`)
   const params = {
     Bucket: process.env.RECORDS_BUCKET,
     Delimiter: '/',
-    Prefix: me.getRewardActionProjectS3KeyPrefix(projectName)
+    Prefix: me.getRewardDecisionProjectS3KeyPrefix(projectName)
   }
 
-  // rewarded_actions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-actions-shardId-yyyy-MM-dd.gz
+  // rewarded_decisions/data/projectName/modelName/(train|validation)/(trainSplit|validationSplit)/shardId/yyyy/MM/dd/improve-decisions-shardId-yyyy-MM-dd.gz
   return s3utils.listAllPrefixes(params, 4).then(prefixes => prefixes.filter(prefix => prefix.split('/')[6] === shardId))
 }

@@ -16,7 +16,7 @@ module.exports.projectNameForTrack = (lambdaEvent, lambdaContext) => {
 }
 
 // project names are persisted to firehose files as they are ingested. To re-process old firehose files for which the project names have changed,
-// implement this method in order to migrate the names.
+// implement this method in order to migrate the names.  Project names are not migrated for data already processed into the records bucket
 module.exports.migrateProjectName = (projectName) => {
   if (projectName === "lRgX7U2VPZ6I1DUaSUr6D8jH4iFju3MY7i3p9mbq") {
     return "bible"
@@ -32,20 +32,21 @@ module.exports.modifyHistoryRecords = (projectName, historyRecords) => {
   return historyRecords;
 }
 
-module.exports.modifyRewardedAction = (projectName, rewardedAction) => {
-  return rewardedAction;
+module.exports.modifyRewardedDecision = (projectName, rewardedDecision) => {
+  return rewardedDecision;
 }
 
-// may return null or an array of action records.
-// inferredActionRecords may be null or an array
+// may return null or an array of decision records.
+// inferredDecisionRecords may be null or an array
 // modifications to timestamp or history_id will be ignored
-module.exports.actionRecordsFromHistoryRecord = (projectName, historyRecord, inferredActionRecords) => {
-  if (inferredActionRecords) {
-    return inferredActionRecords;
+module.exports.decisionRecordsFromHistoryRecord = (projectName, historyRecord, inferredDecisionRecords) => {
+  if (inferredDecisionRecords) {
+    return inferredDecisionRecords;
   }
   // backwards compatibility with Improve v4
   if (historyRecord.record_type === "using") {
-    historyRecord.action = "Message Chosen"
+    historyRecord.chosen = historyRecord.properties
+    historyRecord.domain = "messages"
     return historyRecord
   }
 }

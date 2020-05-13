@@ -109,14 +109,14 @@ module.exports.processHistoryShard = async function(event, context) {
       // group history records by history id
       const historyRecordsByHistoryId = Object.fromEntries(Object.entries(_.groupBy(staleHistoryRecords, 'history_id')))
 
-      // convert history records into rewarded actions
-      let rewardedActions = []
+      // convert history records into rewarded decisions
+      let rewardedDecisions = []
       
       for (const [historyId, historyRecords] of Object.entries(historyRecordsByHistoryId)) {
-        rewardedActions = rewardedActions.concat(getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords))
+        rewardedDecisions = rewardedDecisions.concat(getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRecords))
       }
 
-      return writeRewardedActions(projectName, shardId, rewardedActions)      
+      return writeRewardedDecisions(projectName, shardId, rewardedDecisions)      
     }).then(() => {
       // incoming has been processed, delete them.
       return s3utils.deleteAllKeys(incomingHistoryS3Keys)
@@ -127,7 +127,7 @@ module.exports.processHistoryShard = async function(event, context) {
 // TODO filter
 function filterStaleHistoryS3KeysMetadata(historyS3Keys, incomingHistoryS3Keys) {
   // TODO log the dates that we're looking at
-  // Oh crap, we can't process actions after date X if we're processing in the middle of a window. So if we receive some old events
+  // Oh crap, we can't process decisions after date X if we're processing in the middle of a window. So if we receive some old events
   // we need to grab the entire window for those old events and ONLY process those old events.
   return historyS3Keys
 }
@@ -178,10 +178,10 @@ function loadAndConsolidateHistoryRecords(historyS3Keys) {
 // throw an Error on any parsing problems or customize bugs, causing the whole historyId to be skipped
 // TODO parsing problems should be massaged before this point so that the only possible source of parsing bugs
 // is customize calls.
-function getRewardedActionsForHistoryRecords(projectName, historyId, historyRecords) {
+function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRecords) {
   // TODO write traverse/dump function for summarizing keys 
 
-  const actionRecords = []
+  const decisionRecords = []
   const rewardsRecords = []
   for (const historyRecord of historyRecords) {
     // make sure the history ids weren't modified in customize
@@ -201,44 +201,44 @@ function getRewardedActionsForHistoryRecords(projectName, historyId, historyReco
       throw new Error(`invalid message_id for history record ${JSON.stringify(historyRecord)}`)
     }
 
-    let inferredActionRecords; // may remain null or be an array of actionRecords
+    let inferredDecisionRecords; // may remain null or be an array of decisionRecords
     
-    // the history record may be of type "action", in which case it itself is an action record
-    if (historyRecord.type === "action") {
-      inferredActionRecords = [historyRecord]
+    // the history record may be of type "decision", in which case it itself is an decision record
+    if (historyRecord.type === "decision") {
+      inferredDecisionRecords = [historyRecord]
     }
     
-    // the history record may have attached "actions"
-    if (historyRecord.actions) {
-      if (!Array.isArray(historyRecord.actions)) {
-        throw new Error(`attached actions must be array type ${JSON.stringify(historyRecord)}`)
+    // the history record may have attached "decisions"
+    if (historyRecord.decisions) {
+      if (!Array.isArray(historyRecord.decisions)) {
+        throw new Error(`attached decisions must be array type ${JSON.stringify(historyRecord)}`)
       } 
       
-      if (!inferredActionRecords) {
-        inferredActionRecords = historyRecord.actions
+      if (!inferredDecisionRecords) {
+        inferredDecisionRecords = historyRecord.decisions
       } else {
-        inferredActionRecords.concat(historyRecord.actions)
+        inferredDecisionRecords.concat(historyRecord.decisions)
       }
     }
 
-    // may return a single action record, an array of action records, or null
-    let newActionRecords = customize.actionRecordsFromHistoryRecord(projectName, historyRecord, inferredActionRecords)
+    // may return a single decision record, an array of decision records, or null
+    let newDecisionRecords = customize.decisionRecordsFromHistoryRecord(projectName, historyRecord, inferredDecisionRecords)
 
-    if (newActionRecords) {
-      // wrap it as an array if they just returned one action record
-      if (!Array.isArray(newActionRecords)) {
-        newActionRecords = [newActionRecords]
+    if (newDecisionRecords) {
+      // wrap it as an array if they just returned one decision record
+      if (!Array.isArray(newDecisionRecords)) {
+        newDecisionRecords = [newDecisionRecords]
       }
-      for (let i=0;i<newActionRecords.length;i++) {
-        const newActionRecord = newActionRecords[i]
-        newActionRecord.type = "action" // allows getRewardedActions to assign rewards in one pass
-        newActionRecord.timestamp = timestamp
-        newActionRecord.timestampDate = timestampDate // for sorting. filtered out later
-        // give each action a unique message id
-        newActionRecord.message_id = i == 0 ? messageId : `${messageId}-${i}`;
-        newActionRecord.history_id = historyId
+      for (let i=0;i<newDecisionRecords.length;i++) {
+        const newDecisionRecord = newDecisionRecords[i]
+        newDecisionRecord.type = "decision" // allows getRewardedDecisions to assign rewards in one pass
+        newDecisionRecord.timestamp = timestamp
+        newDecisionRecord.timestampDate = timestampDate // for sorting. filtered out later
+        // give each decision a unique message id
+        newDecisionRecord.message_id = i == 0 ? messageId : `${messageId}-${i}`;
+        newDecisionRecord.history_id = historyId
 
-        actionRecords.push(newActionRecord)
+        decisionRecords.push(newDecisionRecord)
       }
     }
     
@@ -250,46 +250,46 @@ function getRewardedActionsForHistoryRecords(projectName, historyId, historyReco
         throw new Error(`rewards must be object type and not array ${JSON.stringify(newRewardsRecord)}`)
       } 
       
-      newRewardsRecord.type = "rewards" // allows getRewardedActions to assign rewards in one pass
+      newRewardsRecord.type = "rewards" // allows getRewardedDecisions to assign rewards in one pass
       // timestampDate is used for sorting
       newRewardsRecord.timestampDate = timestampDate
       rewardsRecords.push(newRewardsRecord)
     }
   }
 
-  return assignRewardsToActions(actionRecords, rewardsRecords)
+  return assignRewardsToDecisions(decisionRecords, rewardsRecords)
 }
 
-// in a single pass assign rewards to all action records
-function assignRewardsToActions(actionRecords, rewardsRecords) {
+// in a single pass assign rewards to all decision records
+function assignRewardsToDecisions(decisionRecords, rewardsRecords) {
   if (!rewardsRecords.length) {
     // for sparse rewards this should speed up processing considerably
-    return actionRecords
+    return decisionRecords
   }
   
   // combine all the records together so we can process in a single pass
-  const sortedRecords = actionRecords.concat(rewardsRecords).sort((a, b) => a.timestampDate - b.timestampDate)
-  const actionRecordsByRewardKey = {}
+  const sortedRecords = decisionRecords.concat(rewardsRecords).sort((a, b) => a.timestampDate - b.timestampDate)
+  const decisionRecordsByRewardKey = {}
   
   for (const record of sortedRecords) {
-    // set up this action to listen for rewards
-    if (record.type === "action") {
+    // set up this decision to listen for rewards
+    if (record.type === "decision") {
       let rewardKey = "reward" // default reward key
       if (record.reward_key) {
         rewardKey = record.reward_key
       }
-      let listeners = actionRecordsByRewardKey[rewardKey]
+      let listeners = decisionRecordsByRewardKey[rewardKey]
       if (!listeners) {
         listeners = []
-        actionRecordsByRewardKey[rewardKey] = listeners
+        decisionRecordsByRewardKey[rewardKey] = listeners
       }
       // TODO robust configuration
       record.rewardWindowEndDate = new Date(record.timestampDate.getTime() + customize.config.rewardWindowInSeconds * 1000)
       listeners.push(record)
     } else if (record.type === "rewards") {
-      // iterate through each reward key and find listening actions
+      // iterate through each reward key and find listening decisions
       for (const [rewardKey, reward] of Object.entries(record.rewards)) {
-        const listeners = actionRecordsByRewardKey[rewardKey]
+        const listeners = decisionRecordsByRewardKey[rewardKey]
         if (!listeners) {
           continue;
         }
@@ -304,72 +304,72 @@ function assignRewardsToActions(actionRecords, rewardsRecords) {
         }
       }
     } else { 
-      throw new Error(`type must be \"action\" or \"rewards\" ${JSON.stringify(record)}`)
+      throw new Error(`type must be \"decision\" or \"rewards\" ${JSON.stringify(record)}`)
     }
   }
   
-  return actionRecords
+  return decisionRecords
 }
 
-function writeRewardedActions(projectName, shardId, rewardedActions) {
+function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
   const buffersByS3Key = {}
   let rewardedRecordCount = 0
   let totalRewards = 0
   let maxReward = 0
 
-  for (let rewardedAction of rewardedActions) {
-    const timestampDate = rewardedAction.timestampDate
-    rewardedAction = finalizeRewardedAction(projectName, rewardedAction)
+  for (let rewardedDecision of rewardedDecisions) {
+    const timestampDate = rewardedDecision.timestampDate
+    rewardedDecision = finalizeRewardedDecision(projectName, rewardedDecision)
 
-    const reward = rewardedAction.reward
+    const reward = rewardedDecision.reward
     if (reward) {
       rewardedRecordCount++
       totalRewards += reward
       maxReward = Math.max(reward, maxReward)
     }
 
-    const s3Key = naming.getRewardedActionS3Key(projectName, getModelForAction(projectName, rewardedAction.action), shardId, timestampDate)
+    const s3Key = naming.getRewardedDecisionS3Key(projectName, getModelForDomain(projectName, rewardedDecision.domain), shardId, timestampDate)
     let buffers = buffersByS3Key[s3Key]
     if (!buffers) {
       buffers = []
       buffersByS3Key[s3Key] = buffers
     }
-    buffers.push(Buffer.from(JSON.stringify(rewardedAction)+"\n"))
+    buffers.push(Buffer.from(JSON.stringify(rewardedDecision)+"\n"))
   }
 
-  console.log(`writing ${rewardedActions.length} rewarded action records for project ${projectName} shard ${shardId}`)
-  if (rewardedActions.length) {
-    console.log(`(max reward ${maxReward}, mean reward ${totalRewards/rewardedActions.length}, non-zero rewards ${rewardedRecordCount})`)
+  console.log(`writing ${rewardedDecisions.length} rewarded decision records for project ${projectName} shard ${shardId}`)
+  if (rewardedDecisions.length) {
+    console.log(`(max reward ${maxReward}, mean reward ${totalRewards/rewardedDecisions.length}, non-zero rewards ${rewardedRecordCount})`)
   }
 
   return Promise.all(Object.entries(buffersByS3Key).map(([s3Key, buffers]) => s3utils.compressAndWriteBuffers(s3Key, buffers)))
 }
 
-function finalizeRewardedAction(projectName, rewardedActionRecord) {
-  let rewardedAction = _.pick(rewardedActionRecord, ["properties", "context", "action", "timestamp", "message_id", "history_id", "reward"])
+function finalizeRewardedDecision(projectName, rewardedDecisionRecord) {
+  let rewardedDecision = _.pick(rewardedDecisionRecord, ["chosen", "context", "domain", "timestamp", "message_id", "history_id", "reward", "propensity"])
 
   // an exception here will cause the entire history process task to fail
-  rewardedAction = customize.modifyRewardedAction(projectName, rewardedAction)
-  naming.assertValidRewardedAction(rewardedAction)
+  rewardedDecision = customize.modifyRewardedDecision(projectName, rewardedDecision)
+  naming.assertValidRewardedDecision(rewardedDecision)
   
-  return rewardedAction
+  return rewardedDecision
 }
 
-// cached wrapper of naming.getModelForAction
-const projectActionModelCache = {}
-function getModelForAction(projectName, action) {
-  // this is looked up for every rewarded action record during history procesing so needs to be fast
-  let actionModelCache = projectActionModelCache[projectName]
-  if (actionModelCache) {
-    const model = actionModelCache[action]
+// cached wrapper of naming.getModelForDecision
+const projectDomainModelCache = {}
+function getModelForDomain(projectName, domain) {
+  // this is looked up for every rewarded domain record during history procesing so needs to be fast
+  let domainModelCache = projectDomainModelCache[projectName]
+  if (domainModelCache) {
+    const model = domainModelCache[domain]
     if (model) {
       return model
     }
   }
   
-  const model = naming.getModelForAction(projectName, action)
-  actionModelCache = {[action]: model}
-  projectActionModelCache[projectName] = actionModelCache
+  const model = naming.getModelForDomain(projectName, domain)
+  domainModelCache = {[domain]: model}
+  projectDomainModelCache[projectName] = domainModelCache
   return model
 }
 

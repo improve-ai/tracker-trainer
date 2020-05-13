@@ -45,7 +45,7 @@ function createFeatureTrainingJob(projectName, model) {
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
-            S3Uri: naming.getRewardedActionTrainS3Uri(projectName, model),
+            S3Uri: naming.getRewardedDecisionTrainS3Uri(projectName, model),
             S3DataDistributionType: "FullyReplicated",
           }
         },
@@ -56,7 +56,7 @@ function createFeatureTrainingJob(projectName, model) {
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
-            S3Uri: naming.getRewardedActionValidationS3Uri(projectName, model), 
+            S3Uri: naming.getRewardedDecisionValidationS3Uri(projectName, model), 
             S3DataDistributionType: "FullyReplicated",
           }
         },
@@ -131,7 +131,7 @@ function createTransformJob(projectName, model, trainingJobName) {
       DataSource: { 
         S3DataSource: { 
           S3DataType: "S3Prefix",
-          S3Uri: naming.getRewardedActionS3Uri(projectName, model), // transform all train/validation splits. XGBoost will seperate them again.
+          S3Uri: naming.getRewardedDecisionS3Uri(projectName, model), // transform all train/validation splits. XGBoost will seperate them again.
         }
       },
       SplitType: "Line",
@@ -275,11 +275,11 @@ function createModelTransformJob(projectName, model, trainingJobName) {
     TransformJobName: trainingJobName,
     ModelName: trainingJobName,
     TransformInput: {
-      CompressionType: 'Gzip',
+      CompressionType: 'Gzip', // TODO probably not.  I think we'll leave it compressed
       DataSource: { 
         S3DataSource: { 
           S3DataType: "S3Prefix",
-          S3Uri: naming.getRewardedActionS3Uri(projectName, model), // transform all train/validation splits. XGBoost will seperate them again.
+          S3Uri: naming.getRewardedDecisionS3Uri(projectName, model), // transform all train/validation splits. XGBoost will seperate them again.
         }
       },
       SplitType: "Line",
@@ -290,7 +290,7 @@ function createModelTransformJob(projectName, model, trainingJobName) {
     },
     TransformResources: { 
       InstanceType: process.env.TRANSFORM_INSTANCE_TYPE,
-      InstanceCount: process.env.TRANSFORM_INSTANCE_COUNT, 
+      InstanceCount: 1, 
     },
   };
   
