@@ -270,10 +270,13 @@ module.exports.assertValidRewardedDecision = (ra) => {
   assert(_.isString(ra.history_id), `'history_id' must be string for ${JSON.stringify(ra)}`)
   assert(_.isString(ra.message_id), `'message_id' must be string for ${JSON.stringify(ra)}`)
   assert(_.isString(ra.timestamp), `'timestamp' must be string for ${JSON.stringify(ra)}`)
+  // TODO disallow empty chosen, but allow null
   assert(ra.chosen, `'chosen' field is required for ${JSON.stringify(ra)}`)
+  // TODO disallow null context
   if (ra.context) {
     assert(me.isObjectNotArray(ra.context), `'context' must be a dictionary for ${JSON.stringify(ra)}`)
   }
+  // TODO disallow null domain
   if (ra.domain) {
     assert(_.isString(ra.domain),`'domain' must be string for ${JSON.stringify(ra)}`)
   }

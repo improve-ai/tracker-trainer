@@ -15,10 +15,15 @@ xgboostHyperparameters: # must be strings # TODO handle string conversion elsewh
   colsample_bytree: "0.7"
 
 projects:
+  default_project:
+    default_model:
+      isDefaultModel: true
+      boostedModel: true # .boost ?
   bible: 
     models:
-      default:
-      messages-1.0:
+      default_model:
+        isDefaultModel: true
+      messages:
         domains: # TODO probably change actions to property keys so we can have configuration per action such as allowed properties/context (maybe???)
           - "messages"
         featureHyperparameters:
@@ -26,7 +31,9 @@ projects:
 
   mindful:
     models:
-      messages-1.0:
+      default_model:
+        isDefaultModel: true
+      messages:
         domains:
           - "messages"
         featureHyperparameters:

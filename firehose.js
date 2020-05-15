@@ -57,8 +57,8 @@ module.exports.unpackFirehose = async function(event, context) {
     }))
   }).then(() => {
     // all of the files have been written and meta incoming files have been touched, dispatch the workers to process
-    const lambdaArn = naming.getLambdaFunctionArn("dispatchHistoryShardWorkers", context.invokedFunctionArn)
-    console.log(`invoking dispatchHistoryShardWorkers`)
+    const lambdaArn = naming.getLambdaFunctionArn("dispatchRewardAssignmentWorkers", context.invokedFunctionArn)
+    console.log(`invoking dispatchRewardAssignmentWorkers`)
 
     const params = {
       FunctionName: lambdaArn,

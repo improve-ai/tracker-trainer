@@ -17,13 +17,17 @@ const customize = require("./customize.js")
 // 
 // force_processing: true
 // force_continue_reshard: true
-module.exports.dispatchHistoryShardWorkers = async (event, context) => {
+module.exports.dispatchRewardAssignmentWorkers = async (event, context) => {
   console.log(`processing lambda event ${JSON.stringify(event)}`)
 
   const projectNames = naming.allProjects()
   return Promise.all(projectNames.map(projectName => {
     // get all of the shard ids & load the shard timestamps
     return Promise.all([naming.listAllShards(projectName), shard.loadAndConsolidateShardLastProcessedDates(projectName)]).then(([shards, shardLastProcessedDates]) => {
+      if (!shards.length) {
+        console.log(`skipping project ${projectName} - no shards found`)
+        return
+      }
       const sortedShards = shards.sort() // sort() modifies shards
       // group the shards
       const [reshardingParents, reshardingChildren, nonResharding] = shard.groupShards(sortedShards)
@@ -31,38 +35,52 @@ module.exports.dispatchHistoryShardWorkers = async (event, context) => {
       // check to see if any of the resharding parents didn't finish and sharding needs to be restarted
       // & check to see if any non-resharding shards have incoming history meta files and haven't been processed recently according to the timestamps
       return Promise.all([shard.dispatchReshardingIfNecessary(context, projectName, reshardingParents, shardLastProcessedDates, event.force_continue_reshard), 
-                          dispatchHistoryProcessingIfNecessary(context, projectName, nonResharding, shardLastProcessedDates, event.force_processing)])
+                          dispatchAssignRewardsIfNecessary(context, projectName, nonResharding, shardLastProcessedDates, event.force_processing)])
     })
   }))
 }
 
-function dispatchHistoryProcessingIfNecessary(lambdaContext, projectName, nonReshardingShards, lastProcessedDates, forceProcessing = false) {
+function dispatchAssignRewardsIfNecessary(lambdaContext, projectName, nonReshardingShards, lastProcessedDates, forceProcessing = false) {
   const nonReshardingShardsSet = new Set(nonReshardingShards)
   const now = new Date()
-  const unix_epoch = new Date(0)
+  const epoch = new Date(0)
   
   // list all incoming history shards
   return naming.listAllIncomingHistoryShards(projectName).then(incomingShards => {
-    return Promise.all(incomingShards.map(shardId => {
-      const lastProcessed = lastProcessedDates[shardId] || unix_epoch
-  
+    
+    const incomingShardsWithDates = incomingShards.map(v => [v, (lastProcessedDates[v] || epoch)])
+    
+    // process the oldest ones first
+    incomingShardsWithDates.sort((a, b) => a[1] - b[1])
+    
+    let remainingWorkers = Math.max(process.env.REWARD_ASSIGNMENT_WORKER_COUNT, 1)
+    console.log(`processing up to ${remainingWorkers} shard(s) for project ${projectName}`)
+    
+    return Promise.all(incomingShardsWithDates.map(([shardId, lastProcessed]) => {
+
+      if (!forceProcessing && remainingWorkers <= 0) {
+        return
+      }
+
       // check if the incoming shard isn't currently being resharded and if it hasn't been processed too recently
       if (!forceProcessing && !nonReshardingShardsSet.has(shardId)) {
         console.log(`skipping project ${projectName} shard ${shardId} for history processing, currently resharding`)
         return 
       }
       
-      if (!forceProcessing && (now - lastProcessed) < process.env.HISTORY_SHARD_REPROCESS_WAIT_TIME_IN_SECONDS * 1000) {
+      if (!forceProcessing && (now - lastProcessed) < process.env.REWARD_ASSIGNMENT_REPROCESS_SHARD_WAIT_TIME_IN_SECONDS * 1000) {
         console.log(`skipping project ${projectName} shard ${shardId} for history processing, last processing ${lastProcessed.toISOString()} was too recent`)
         return
       }
+      
+      remainingWorkers--
 
-      console.log(`invoking processHistoryShard for project ${projectName} shard ${shardId}`)
+      console.log(`invoking assignRewards for project ${projectName} shard ${shardId} last processed at ${lastProcessed.toISOString()}`)
   
       const params = {
-        FunctionName: naming.getLambdaFunctionArn("processHistoryShard", lambdaContext.invokedFunctionArn),
+        FunctionName: naming.getLambdaFunctionArn("assignRewards", lambdaContext.invokedFunctionArn),
         InvocationType: "Event",
-        Payload: JSON.stringify({"project_name": projectName, "shard_id": shardId, "last_processed_timestamp_updated": true }) // mark that the last processed time is updated so that processHistoryShard doesn't have to also do it
+        Payload: JSON.stringify({"project_name": projectName, "shard_id": shardId, "last_processed_timestamp_updated": true }) // mark that the last processed time is updated so that assignRewards doesn't have to also do it
       };
       
       // mark the last processed time as being updated here to have the smallest possible window where multiple redundant workers could be accidentally dispatched
@@ -71,7 +89,7 @@ function dispatchHistoryProcessingIfNecessary(lambdaContext, projectName, nonRes
   })
 }
 
-module.exports.processHistoryShard = async function(event, context) {
+module.exports.assignRewards = async function(event, context) {
   
   console.log(`processing event ${JSON.stringify(event)}`)
 
@@ -96,7 +114,7 @@ module.exports.processHistoryShard = async function(event, context) {
     // check size of the keys to be re-processed and reshard if necessary
     const totalSize = staleS3KeysMetadata.reduce((acc, cur) => acc+cur.Size,0)
     console.log(`${totalSize} bytes of stale history data for project ${projectName} shard ${shardId}`)
-    if (totalSize > (process.env.HISTORY_SHARD_WORKER_MAX_PAYLOAD_IN_MB * 1024 * 1024)) {
+    if (totalSize > (process.env.REWARD_ASSIGNMENT_WORKER_MAX_PAYLOAD_IN_MB * 1024 * 1024)) {
       console.log(`resharding project ${projectName} shard ${shardId} - stale history data is too large`)
       return shard.invokeReshardLambda(context, projectName, shardId)
     }
