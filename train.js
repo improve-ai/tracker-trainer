@@ -29,8 +29,6 @@ function createFeatureTrainingJob(projectName, model) {
   
   const trainingJobName = getFeatureTrainingJobName(projectName, model)
   
-  console.log(`creating feature training job ${trainingJobName} project ${projectName} model ${model}`)
-  
   var params = {
     TrainingJobName: trainingJobName,
     HyperParameters: hyperparameters,
@@ -75,6 +73,8 @@ function createFeatureTrainingJob(projectName, model) {
       MaxRuntimeInSeconds: process.env.FEATURE_TRAINING_MAX_RUNTIME_IN_SECONDS,
     },
   };
+  
+  console.log(`creating feature training job ${trainingJobName} project ${projectName} model ${model} params ${JSON.stringify(params)}`)
 
   return sagemaker.createTrainingJob(params).promise().catch(error => {
     // handle the error locally because the training job should not be re-attempted.
@@ -108,7 +108,7 @@ module.exports.featureModelCreated = async (event, context) => {
       }
     }
 
-    console.log(`Attempting to create model ${trainingJobName}`);
+    console.log(`Attempting to create model ${trainingJobName} params ${JSON.stringify(params)}`);
     return sagemaker.createModel(params).promise().then((response) => {
       if (response.ModelArn) {
         // model created, kick off the transform job
@@ -148,7 +148,7 @@ function createTransformJob(projectName, model, trainingJobName) {
     },
   };
   
-  console.log(`Attempting to create transform job ${trainingJobName}`);
+  console.log(`Attempting to create transform job ${trainingJobName} params ${JSON.stringify(params)}`);
   return sagemaker.createTransformJob(params).promise()
 }
 
@@ -178,7 +178,7 @@ function createXGBoostTrainingJob(projectName, model, trainingJobName) {
   
   // TODO clean up transformed parent shards and out of range dates
   
-  console.log(`creating xgboost training job ${trainingJobName} project ${projectName} model ${model}`)
+  console.log(`creating xgboost training job ${trainingJobName} project ${projectName} model ${model} params ${JSON.stringify(params)}`)
   
   var params = {
     TrainingJobName: trainingJobName,
@@ -259,7 +259,7 @@ function createModelTransformJob(projectName, model, xgboostTrainingJobName) {
     TransformJobName: transformJobName,
     ModelName: featureModelTrainingJobName,
     TransformInput: {
-      CompressionType: "application/gzip",
+      ContentType: "application/gzip",
       DataSource: { 
         S3DataSource: { 
           S3DataType: "S3Prefix",
@@ -276,7 +276,7 @@ function createModelTransformJob(projectName, model, xgboostTrainingJobName) {
     },
   };
   
-  console.log(`Attempting to create model transform job ${transformJobName}`);
+  console.log(`Attempting to create model transform job ${transformJobName} params ${JSON.stringify(params)}`);
   return sagemaker.createTransformJob(params).promise()
 }
 
