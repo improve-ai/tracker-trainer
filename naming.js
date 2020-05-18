@@ -199,12 +199,21 @@ module.exports.getXGBoostModelsS3Uri = (projectName, modelName) => {
   return `s3://${process.env.RECORDS_BUCKET}/xgboost_models/${projectName}/${modelName}`
 }
 
+module.exports.getXGBoostModelS3Uri = (projectName, model, xgboostTrainingJobName) => {
+  return `s3://${process.env.RECORDS_BUCKET}/xgboost_models/${projectName}/${model}/${xgboostTrainingJobName}`
+}
+
+module.exports.getTransformedModelsS3Uri = (projectName, modelName) => {
+  return `s3://${process.env.RECORDS_BUCKET}/transformed_models/${projectName}/${modelName}`
+}
+
 module.exports.allProjects = () => {
   return Object.keys(customize.config.projects)
 }
 
 module.exports.getModelsByProject = () => {
-  return Object.fromEntries(Object.entries(customize.config.projects).map(([project, projectDict]) => [project, Object.keys(projectDict.models)]))
+  // don't include projects that have no models
+  return Object.fromEntries(Object.entries(customize.config.projects).filter(([project, projectDict]) => projectDict.models).map(([project, projectDict]) => [project, Object.keys(projectDict.models)]))
 }
 
 module.exports.getModelForDomain = (projectName, domain) => {

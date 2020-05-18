@@ -61,5 +61,3 @@ module.exports.rewardsRecordFromHistoryRecord = (projectName, historyRecord) => 
 }
 
 module.exports.config = yaml.safeLoad(fs.readFileSync('./customize.yml', 'utf8'));
-
-console.log(JSON.stringify(module.exports.config));

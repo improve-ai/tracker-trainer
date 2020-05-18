@@ -1,5 +1,4 @@
 ---
-preDeployMessage: "Default configuration serves models from a public https endpoint. Set xxx in customize.yml to disable public model serving." # feel free to change or remove this message
 rewardWindowInSeconds: 7200
 binaryRewards: true
 featureHyperparameters:
@@ -21,20 +20,29 @@ projects:
       boostedModel: true # .boost ?
   bible: 
     models:
-      default_model:
+      default_model: # catch all
         isDefaultModel: true
+# TODO probably change actions to property keys so we can have configuration per action such as allowed properties/context (maybe???)
       messages:
-        domains: # TODO probably change actions to property keys so we can have configuration per action such as allowed properties/context (maybe???)
+        domains: 
           - "messages"
-        featureHyperparameters:
-#          maxAge: 3456000
+      themes:
+        domains:
+          - "themes"
+      songs:
+        domains:
+          - "songs"
 
   mindful:
     models:
       default_model:
         isDefaultModel: true
       messages:
-        domains:
+        domains: 
           - "messages"
-        featureHyperparameters:
-#          maxAge: 15552000
+      themes:
+        domains:
+          - "themes"
+      songs:
+        domains:
+          - "songs"

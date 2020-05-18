@@ -68,7 +68,7 @@ function createFeatureTrainingJob(projectName, model) {
     ResourceConfig: { 
       InstanceCount: process.env.FEATURE_TRAINING_INSTANCE_COUNT, 
       InstanceType: process.env.FEATURE_TRAINING_INSTANCE_TYPE,
-      VolumeSizeInGB: process.env.FEATURE_TRAINING_VOLUME_SIZE_IN_GB
+      VolumeSizeInGB: 1
     },
     RoleArn: process.env.FEATURE_TRAINING_ROLE_ARN,
     StoppingCondition: { 
@@ -97,8 +97,7 @@ module.exports.featureModelCreated = async (event, context) => {
 
     // feature_models/projectName/modelName/<feature training job>/model.tar.gz
     let [projectName, model, trainingJobName] = s3Key.split('/').slice(1,4)
-    trainingJobName = "t"+trainingJobName.substring(1) // TODO not right???
-
+    
     // Use the trainingJobName as the ModelName
     let params = {
       ExecutionRoleArn: process.env.FEATURE_TRAINING_ROLE_ARN,
@@ -123,8 +122,11 @@ module.exports.featureModelCreated = async (event, context) => {
 
 function createTransformJob(projectName, model, trainingJobName) {
   
+  // change the name from -f to -t
+  const transformJobName = trainingJobName.substring(0, trainingJobName.length-1)+'t'
+
   var params = {
-    TransformJobName: trainingJobName,
+    TransformJobName: transformJobName,
     ModelName: trainingJobName,
     TransformInput: {
       CompressionType: 'Gzip',
@@ -158,12 +160,15 @@ module.exports.transformJobCompleted = async function(event, context) {
     throw new Error(`WARN: Invalid cloudwatch event ${JSON.stringify(event)}`)
   }
   
-  // TODO is this a record transform job or model transform job?
-  
   const transformJobName = event.detail.TransformJobName
+  if (!transformJobName.endsWith('-t')) {
+    console.log("Not a record transform job. Nothing to do.")
+    return;
+  }
+  
   const [projectName, model] = getProjectNameAndModelFromTransformS3OutputPath(event.detail.TransformOutput.S3OutputPath)
   
-  // change the name from -f to -x
+  // change the name from -t to -x
   const trainingJobName = transformJobName.substring(0, transformJobName.length-1)+'x'
   
   return createXGBoostTrainingJob(projectName, model, trainingJobName)
@@ -235,58 +240,35 @@ module.exports.xgboostModelCreated = async (event, context) => {
   return Promise.all(event.Records.map(s3EventRecord => {
     const s3Key = s3EventRecord.s3.object.key
 
-    // feature_models/projectName/modelName/<feature training job>/model.tar.gz
+    // xgboost_models/projectName/modelName/<xgboost training job>/model.tar.gz
     let [projectName, model, trainingJobName] = s3Key.split('/').slice(1,4)
 
-    // Use the trainingJobName as the ModelName
-    let params = {
-      ExecutionRoleArn: process.env.FEATURE_TRAINING_ROLE_ARN,
-      ModelName: trainingJobName,
-      PrimaryContainer: { 
-        Image: process.env.FEATURE_TRAINING_IMAGE,
-        ModelDataUrl: `s3://${s3EventRecord.s3.bucket.name}/${s3Key}`,
-      }
-    }
-
-    // TODO should I load the XGBoost model as a model into the transform job or should
-    // I just use the original feature model?  I think I need to use the feature model and input
-    // the XGBoost model because the XGBoost model will only have xgboost info in it.
-    // the model I think will be called xgboost-model
-    
-    
-    console.log(`Attempting to create model ${trainingJobName}`);
-    return sagemaker.createModel(params).promise().then((response) => {
-      if (response.ModelArn) {
-        return [projectName, model, trainingJobName]; // trainingJobName is the ModelName
-      } else {
-        throw new Error("No ModelArn in response, assuming failure");
-      }
-    }).then(([projectName, model, trainingJobName]) => {
-      trainingJobName = "t"+trainingJobName.substring(1)
-      return ""//createTransformJob(projectName, model, trainingJobName)
-    })
+    // the model is already created when feature training is complete, so just launch the transform
+    return createModelTransformJob(projectName, model, trainingJobName)
   }))
 }
 
+function createModelTransformJob(projectName, model, xgboostTrainingJobName) {
+    
+  // change the name from -x to -f to get the original feature training job and model name
+  const featureModelTrainingJobName = xgboostTrainingJobName.substring(0, xgboostTrainingJobName.length-1)+'f'
 
-function createModelTransformJob(projectName, model, trainingJobName) {
-  
+  const transformJobName = featureModelTrainingJobName.substring(0, featureModelTrainingJobName.length-1)+'m'
+
   var params = {
-    TransformJobName: trainingJobName,
-    ModelName: trainingJobName,
+    TransformJobName: transformJobName,
+    ModelName: featureModelTrainingJobName,
     TransformInput: {
-      CompressionType: 'Gzip', // TODO probably not.  I think we'll leave it compressed
+      CompressionType: "application/gzip",
       DataSource: { 
         S3DataSource: { 
           S3DataType: "S3Prefix",
-          S3Uri: naming.getRewardedDecisionS3Uri(projectName, model), // transform all train/validation splits. XGBoost will seperate them again.
+          S3Uri: naming.getXGBoostModelS3Uri(projectName, model, xgboostTrainingJobName), 
         }
       },
-      SplitType: "Line",
     },
     TransformOutput: { 
-      AssembleWith: "None",
-      S3OutputPath: naming.getTransformedS3Uri(projectName, model),
+      S3OutputPath: naming.getTransformedModelsS3Uri(projectName, model),
     },
     TransformResources: { 
       InstanceType: process.env.TRANSFORM_INSTANCE_TYPE,
@@ -294,7 +276,7 @@ function createModelTransformJob(projectName, model, trainingJobName) {
     },
   };
   
-  console.log(`Attempting to create transform job ${trainingJobName}`);
+  console.log(`Attempting to create model transform job ${transformJobName}`);
   return sagemaker.createTransformJob(params).promise()
 }
 

@@ -171,7 +171,7 @@ function loadAndConsolidateHistoryRecords(historyS3Keys) {
           }
           return record
         }
-      }))).then(all => all.flat()).then(records => {
+      }))).then(all => all.flat().filter(x => x)).then(records => {
         if (pathS3Keys.length == 1) {
           return records
         }
@@ -182,8 +182,7 @@ function loadAndConsolidateHistoryRecords(historyS3Keys) {
           s3utils.deleteAllKeys(pathS3Keys)
         }).then(() => records)
       })
-  })).then(all => {
-    const records = all.flat()
+  })).then(all => all.flat()).then(records => {
     if (duplicates) {
       console.log(`ignoring ${duplicates} records with missing or duplicate message_id fields`)
     }
