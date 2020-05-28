@@ -45,8 +45,8 @@ module.exports.decisionRecordsFromHistoryRecord = (projectName, historyRecord, i
   }
   // backwards compatibility with Improve v4
   if (historyRecord.record_type === "using") {
-    historyRecord.chosen = historyRecord.properties
-    historyRecord.domain = "messages"
+    historyRecord.variant = historyRecord.properties
+    historyRecord.namespace = "messages"
     return historyRecord
   }
 }

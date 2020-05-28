@@ -216,7 +216,7 @@ module.exports.getModelsByProject = () => {
   return Object.fromEntries(Object.entries(customize.config.projects).filter(([project, projectDict]) => projectDict.models).map(([project, projectDict]) => [project, Object.keys(projectDict.models)]))
 }
 
-module.exports.getModelForDomain = (projectName, domain) => {
+module.exports.getModelForNamespace = (projectName, namespace) => {
   if (!customize.config.projects || !customize.config.projects[projectName]) {
     throw new Error("no configured project ${projectName}")
   }
@@ -228,22 +228,22 @@ module.exports.getModelForDomain = (projectName, domain) => {
       throw new Error(`invalid model name ${model}, not alphanumeric, underscore, dash, space, period`)
     }
     // there is only one catchall model
-    if (!modelConfig || !modelConfig.domains || modelConfig.domains.length == 0) {
+    if (!modelConfig || !modelConfig.namespaces || modelConfig.namespaces.length == 0) {
       if (catchallModel) {
-        throw new Error(`only one catchall model (zero \"domains\") can be configured per project ${projectName} - ${JSON.stringify(modelConfigs)}`)
+        throw new Error(`only one catchall model (zero \"namespaces\") can be configured per project ${projectName} - ${JSON.stringify(modelConfigs)}`)
       }
       catchallModel = model
     } else {
-      // check to see if this domain is explicitly handled by a model
-      for (const acceptedDomain of modelConfig.domains) {
-        if (acceptedDomain === domain) {
+      // check to see if this namespace is explicitly handled by a model
+      for (const acceptedNamespace of modelConfig.namespaces) {
+        if (acceptedNamespace === namespace) {
           return model
         }
       }
     }
   }
 
-  // this domain is not explicitly configured. Use the catchall model
+  // this namespace is not explicitly configured. Use the catchall model
   return catchallModel
 }
 
@@ -279,15 +279,15 @@ module.exports.assertValidRewardedDecision = (ra) => {
   assert(_.isString(ra.history_id), `'history_id' must be string for ${JSON.stringify(ra)}`)
   assert(_.isString(ra.message_id), `'message_id' must be string for ${JSON.stringify(ra)}`)
   assert(_.isString(ra.timestamp), `'timestamp' must be string for ${JSON.stringify(ra)}`)
-  // TODO disallow empty chosen, but allow null
-  assert(ra.chosen, `'chosen' field is required for ${JSON.stringify(ra)}`)
+  // TODO disallow empty variant, but allow null
+  assert(ra.variant, `'variant' field is required for ${JSON.stringify(ra)}`)
   // TODO disallow null context
   if (ra.context) {
     assert(me.isObjectNotArray(ra.context), `'context' must be a dictionary for ${JSON.stringify(ra)}`)
   }
-  // TODO disallow null domain
-  if (ra.domain) {
-    assert(_.isString(ra.domain),`'domain' must be string for ${JSON.stringify(ra)}`)
+  // TODO disallow null namespace
+  if (ra.namespace) {
+    assert(_.isString(ra.namespace),`'namespace' must be string for ${JSON.stringify(ra)}`)
   }
   if (ra.reward) {
     assert(_.isFinite(ra.reward), `'reward' must be a finite number for ${JSON.stringify(ra)}`)

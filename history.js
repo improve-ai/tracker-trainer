@@ -345,7 +345,7 @@ function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
       maxReward = Math.max(reward, maxReward)
     }
 
-    const s3Key = naming.getRewardedDecisionS3Key(projectName, getModelForDomain(projectName, rewardedDecision.domain), shardId, timestampDate)
+    const s3Key = naming.getRewardedDecisionS3Key(projectName, getModelForNamespace(projectName, rewardedDecision.namespace), shardId, timestampDate)
     let buffers = buffersByS3Key[s3Key]
     if (!buffers) {
       buffers = []
@@ -363,7 +363,7 @@ function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
 }
 
 function finalizeRewardedDecision(projectName, rewardedDecisionRecord) {
-  let rewardedDecision = _.pick(rewardedDecisionRecord, ["chosen", "context", "domain", "timestamp", "message_id", "history_id", "reward", "propensity"])
+  let rewardedDecision = _.pick(rewardedDecisionRecord, ["variant", "context", "namespace", "timestamp", "message_id", "history_id", "reward", "propensity"])
 
   // an exception here will cause the entire history process task to fail
   rewardedDecision = customize.modifyRewardedDecision(projectName, rewardedDecision)
@@ -373,20 +373,20 @@ function finalizeRewardedDecision(projectName, rewardedDecisionRecord) {
 }
 
 // cached wrapper of naming.getModelForDecision
-const projectDomainModelCache = {}
-function getModelForDomain(projectName, domain) {
-  // this is looked up for every rewarded domain record during history procesing so needs to be fast
-  let domainModelCache = projectDomainModelCache[projectName]
-  if (domainModelCache) {
-    const model = domainModelCache[domain]
+const projectNamespaceModelCache = {}
+function getModelForNamespace(projectName, namespace) {
+  // this is looked up for every rewarded namespace record during history procesing so needs to be fast
+  let namespaceModelCache = projectNamespaceModelCache[projectName]
+  if (namespaceModelCache) {
+    const model = namespaceModelCache[namespace]
     if (model) {
       return model
     }
   }
   
-  const model = naming.getModelForDomain(projectName, domain)
-  domainModelCache = {[domain]: model}
-  projectDomainModelCache[projectName] = domainModelCache
+  const model = naming.getModelForNamespace(projectName, namespace)
+  namespaceModelCache = {[namespace]: model}
+  projectNamespaceModelCache[projectName] = namespaceModelCache
   return model
 }
 
