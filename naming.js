@@ -49,7 +49,7 @@ module.exports.getDateForHistoryS3Key = (s3Key) => {
   }
   
   // histories/data/projectName/shardId/yyyy/MM/dd/improve-events-shardId-yyyy-MM-dd-uuid.gz
-  return Date.UTC(...s3Key.split('/').slice(4,7).map(e => Number(e)))
+  return new Date(Date.UTC(...s3Key.split('/').slice(4,7).map(e => Number(e))))
 }
 
 module.exports.isIncomingHistoryS3Key = (s3Key) => {

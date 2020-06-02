@@ -54,7 +54,7 @@ function dispatchAssignRewardsIfNecessary(lambdaContext, projectName, nonReshard
     incomingShardsWithDates.sort((a, b) => a[1] - b[1])
     
     let remainingWorkers = Math.max(process.env.REWARD_ASSIGNMENT_WORKER_COUNT, 1)
-    console.log(`processing up to ${remainingWorkers} shard(s) for project ${projectName}`)
+    console.log(`assigning up to ${remainingWorkers} worker(s) for project ${projectName}`)
     
     return Promise.all(incomingShardsWithDates.map(([shardId, lastProcessed]) => {
 
@@ -231,6 +231,8 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
       decisionRecords.concat(decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId))
     }
     
+    // TODO shit shit, middle stale may just be stale on a rewards or a propensity....shit shit
+    // TODO also what about pending decisions whose entire reward window hasn't elapsed yet
     // TODO maybe have to copy propensity and rewards records to avoid timestampTime clobbering
     // type clobbering too
     // TODO also examine how the customize is working
