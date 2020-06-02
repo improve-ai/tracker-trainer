@@ -131,3 +131,13 @@ functions:
             detail:
               TransformJobStatus:
                 - Completed
+  repack:
+    handler: repack.repack
+    events:
+      - s3:
+          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+          existing: true # prevents repeated bucket creation
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: transformed_models/
+            - suffix: model.tar.gz.out

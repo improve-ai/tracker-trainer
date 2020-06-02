@@ -87,36 +87,11 @@ resources:
       DeletionPolicy: Retain
       Properties:
         BucketName: ${self:service}-${opt:stage, self:provider.stage}-records-#{AWS::AccountId}
-    ModelsS3ObjectCreatedSnsTopic:
-      Type: 'AWS::SNS::Topic'
-      Properties:
-        TopicName: ${self:service}-${opt:stage, self:provider.stage}-ModelsS3ObjectCreated
-    ModelsS3ObjectCreatedSnsTopicPolicy:
-      Type: 'AWS::SNS::TopicPolicy'
-      Properties:
-        Topics:
-          - 
-            Ref: ModelsS3ObjectCreatedSnsTopic
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action: 'sns:Publish'
-              Resource:
-                Ref: ModelsS3ObjectCreatedSnsTopic
-              Principal:
-                AWS: '*'
     ModelsS3Bucket:
       Type: 'AWS::S3::Bucket'
       DeletionPolicy: Retain
-      DependsOn: ModelsS3ObjectCreatedSnsTopic
       Properties:
         BucketName: ${self:service}-${opt:stage, self:provider.stage}-models-#{AWS::AccountId}
-        NotificationConfiguration:
-          TopicConfigurations:
-            - Topic:
-                Ref: ModelsS3ObjectCreatedSnsTopic
-              Event: 's3:ObjectCreated:*'
     PublicModelsS3Bucket:
       Type: 'AWS::S3::Bucket'
       DeletionPolicy: Retain
@@ -139,8 +114,5 @@ resources:
     PublicModelsS3Bucket:
       Value: 
         Ref: PublicModelsS3Bucket
-    ModelsS3ObjectCreatedSnsTopic:
-      Value: 
-        Ref: ModelsS3ObjectCreatedSnsTopic
     SagemakerExecutionRoleArn:
-      Value: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] } 
+      Value: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
