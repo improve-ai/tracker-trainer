@@ -104,6 +104,9 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
     if (timestamp > Date.now()) {
       console.log(`WARN: timestamp in the future ${JSON.stringify(eventRecord)}`)
     }
+    
+    // ensure everything in history is UTC
+    eventRecord.timestamp = timestamp.toISOString()
 
     const projectName = eventRecord.project_name;
 
@@ -142,7 +145,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
   
       // look at the list of available shards and assign the event to one
       // events are also segmented by event date
-      s3Key = shard.assignToHistoryS3Key(sortedShardsByProjectName[projectName], projectName, eventRecord.history_id, timestamp, uuidPart)
+      s3Key = shard.assignToHistoryS3Key(sortedShardsByProjectName[projectName], projectName, eventRecord.history_id, eventRecord.timestamp, uuidPart)
     }
 
     let buffers = buffersByS3Key[s3Key]

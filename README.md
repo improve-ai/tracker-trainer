@@ -28,7 +28,7 @@ After 15 minutes or 128MB of data, the Kinesis firehose is flushed to S3, the da
 
 ## Reward Assignment
 
-New data from the /histories folder is processed and rewards are joined to decisions.  The result is output to the /rewarded_decisions folder in the records bucket.
+New data from the /histories folder is processed and rewards are joined to decisions.  The result is sorted by project and model and then output to the /rewarded_decisions folder in the records bucket.
 
 ## Model Training
 

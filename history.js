@@ -109,7 +109,10 @@ module.exports.assignRewards = async function(event, context) {
 
   // list the incoming keys and history keys for this shard
   return updateLastProcessed.then(() => Promise.all([naming.listAllHistoryShardS3KeysMetadata(projectName, shardId), naming.listAllIncomingHistoryShardS3Keys(projectName, shardId)]).then(([historyS3KeysMetadata, incomingHistoryS3Keys]) => {
-    const staleS3KeysMetadata = filterStaleHistoryS3KeysMetadata(historyS3KeysMetadata, incomingHistoryS3Keys)
+    const staleDates = incomingHistoryS3Keys.map(k => naming.getDateForIncomingHistoryS3Key(k))
+    
+    // get history S3 keys prior to the stale dates for joining propensity, and after the stale dates for joining rewards
+    const staleS3KeysMetadata = filterStaleHistoryS3KeysMetadata(projectName, historyS3KeysMetadata, staleDates)
 
     // check size of the keys to be re-processed and reshard if necessary
     const totalSize = staleS3KeysMetadata.reduce((acc, cur) => acc+cur.Size,0)
@@ -131,7 +134,7 @@ module.exports.assignRewards = async function(event, context) {
       let rewardedDecisions = []
       
       for (const [historyId, historyRecords] of Object.entries(historyRecordsByHistoryId)) {
-        rewardedDecisions = rewardedDecisions.concat(getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRecords))
+        rewardedDecisions = rewardedDecisions.concat(getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRecords, staleDates))
       }
 
       return writeRewardedDecisions(projectName, shardId, rewardedDecisions)      
@@ -142,12 +145,21 @@ module.exports.assignRewards = async function(event, context) {
   }))
 }
 
-// TODO filter
-function filterStaleHistoryS3KeysMetadata(historyS3Keys, incomingHistoryS3Keys) {
-  // TODO log the dates that we're looking at
-  // Oh crap, we can't process decisions after date X if we're processing in the middle of a window. So if we receive some old events
-  // we need to grab the entire window for those old events and ONLY process those old events.
-  return historyS3Keys
+function filterStaleHistoryS3KeysMetadata(projectName, historyS3KeysMetadata, staleDates) {
+  const maxPropensityWindow = naming.getMaxPropensityWindowInSeconds(projectName) * 1000
+  const maxRewardWindow = naming.getMaxRewardWindowInSeconds(projectName) * 1000
+  const maxMillisPerDay = 86401 * 1000 // leap second
+
+  console.log(`filtering history S3 keys for project ${projectName} maxPropensityWindow ${maxPropensityWindow} maxRewardWindow ${maxRewardWindow} staleDates ${JSON.stringify(staleDates)}`)
+  
+  return historyS3KeysMetadata.filter(m => {
+    const keyTime = naming.getDateForHistoryS3Key(m.Key).getTime()
+    return staleDates.some(staleDate => {
+      const startTime = staleDate.getTime() - maxPropensityWindow - maxMillisPerDay
+      const endTime = staleDate.getTime() + maxRewardWindow + maxMillisPerDay
+      return keyTime >= startTime && keyTime <= endTime
+    })
+  })
 }
 
 function loadAndConsolidateHistoryRecords(historyS3Keys) {
@@ -195,11 +207,12 @@ function loadAndConsolidateHistoryRecords(historyS3Keys) {
 // throw an Error on any parsing problems or customize bugs, causing the whole historyId to be skipped
 // TODO parsing problems should be massaged before this point so that the only possible source of parsing bugs
 // is customize calls.
-function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRecords) {
-  // TODO write traverse/dump function for summarizing keys 
+function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRecords, staleDates) {
 
+  const propensityRecords = []
   const decisionRecords = []
   const rewardsRecords = []
+  
   for (const historyRecord of historyRecords) {
     // make sure the history ids weren't modified in customize
     if (historyId !== historyRecord.history_id) {
@@ -218,67 +231,105 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
       throw new Error(`invalid message_id for history record ${JSON.stringify(historyRecord)}`)
     }
 
-    let inferredDecisionRecords; // may remain null or be an array of decisionRecords
+  // TODO staleDates
+    // only process decision records that land on staleDates.
+    //timestamp.toISOString().slice(0,10)
+    decisionRecords.concat(decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId, messageId, timestampDate))
     
-    // the history record may be of type "decision", in which case it itself is an decision record
-    if (historyRecord.type === "decision") {
-      inferredDecisionRecords = [historyRecord]
-    }
-    
-    // the history record may have attached "decisions"
-    if (historyRecord.decisions) {
-      if (!Array.isArray(historyRecord.decisions)) {
-        throw new Error(`attached decisions must be array type ${JSON.stringify(historyRecord)}`)
-      } 
-      
-      if (!inferredDecisionRecords) {
-        inferredDecisionRecords = historyRecord.decisions
-      } else {
-        inferredDecisionRecords.concat(historyRecord.decisions)
-      }
+    // may return a single propensity record or null
+    const propensityRecord = propensityRecordFromHistoryRecord(projectName, historyRecord, timestampDate)
+    if (propensityRecord) {
+      propensityRecords.push(propensityRecord)
     }
 
-    // may return a single decision record, an array of decision records, or null
-    let newDecisionRecords = customize.decisionRecordsFromHistoryRecord(projectName, historyRecord, inferredDecisionRecords)
-
-    if (newDecisionRecords) {
-      // wrap it as an array if they just returned one decision record
-      if (!Array.isArray(newDecisionRecords)) {
-        newDecisionRecords = [newDecisionRecords]
-      }
-      for (let i=0;i<newDecisionRecords.length;i++) {
-        const newDecisionRecord = newDecisionRecords[i]
-        newDecisionRecord.type = "decision" // allows getRewardedDecisions to assign rewards in one pass
-        newDecisionRecord.timestamp = timestamp
-        newDecisionRecord.timestampDate = timestampDate // for sorting. filtered out later
-        // give each decision a unique message id
-        newDecisionRecord.message_id = i == 0 ? messageId : `${messageId}-${i}`;
-        newDecisionRecord.history_id = historyId
-
-        decisionRecords.push(newDecisionRecord)
-      }
-    }
-    
     // may return a single rewards record or null
-    let newRewardsRecord = customize.rewardsRecordFromHistoryRecord(projectName, historyRecord)
-
-    if (newRewardsRecord) {
-      if (!naming.isObjectNotArray(newRewardsRecord.rewards)) {
-        throw new Error(`rewards must be object type and not array ${JSON.stringify(newRewardsRecord)}`)
-      } 
-      
-      newRewardsRecord.type = "rewards" // allows getRewardedDecisions to assign rewards in one pass
-      // timestampDate is used for sorting
-      newRewardsRecord.timestampDate = timestampDate
-      rewardsRecords.push(newRewardsRecord)
+    const rewardsRecord = rewardsRecordFromHistoryRecord(projectName, historyRecord, timestampDate)
+    if (rewardsRecord) {
+      rewardsRecords.push(rewardsRecord)
     }
   }
 
-  return assignRewardsToDecisions(decisionRecords, rewardsRecords)
+  return assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionRecords, rewardsRecords)
 }
 
-// in a single pass assign rewards to all decision records
-function assignRewardsToDecisions(decisionRecords, rewardsRecords) {
+function decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId, messageId, timestampDate) {
+  let inferredDecisionRecords; // may remain null or be an array of decisionRecords
+  
+  // the history record may be of type "decision", in which case it itself is an decision record
+  if (historyRecord.type === "decision") {
+    inferredDecisionRecords = [historyRecord]
+  }
+  
+  // the history record may have attached "decisions"
+  if (historyRecord.decisions) {
+    if (!Array.isArray(historyRecord.decisions)) {
+      throw new Error(`attached decisions must be array type ${JSON.stringify(historyRecord)}`)
+    } 
+    
+    if (!inferredDecisionRecords) {
+      inferredDecisionRecords = historyRecord.decisions
+    } else {
+      inferredDecisionRecords.concat(historyRecord.decisions)
+    }
+  }
+
+  // may return a single decision record, an array of decision records, or null
+  let decisionRecords = customize.decisionRecordsFromHistoryRecord(projectName, historyRecord, inferredDecisionRecords)
+
+  if (decisionRecords) {
+    // wrap it as an array if they just returned one decision record
+    if (!Array.isArray(decisionRecords)) {
+      decisionRecords = [decisionRecords]
+    }
+    for (let i=0;i<decisionRecords.length;i++) {
+      const newDecisionRecord = decisionRecords[i]
+      newDecisionRecord.type = "decision" // allows getRewardedDecisions to assign rewards in one pass
+      newDecisionRecord.timestamp = timestampDate.toISOString()
+      newDecisionRecord.timestampDate = timestampDate // for sorting. filtered out later
+      // give each decision a unique message id
+      newDecisionRecord.message_id = i == 0 ? messageId : `${messageId}-${i}`;
+      newDecisionRecord.history_id = historyId
+    }
+  }
+  
+  return decisionRecords
+}
+
+function propensityRecordFromHistoryRecord(projectName, historyRecord, timestampDate) {
+  let propensityRecord = customize.propensityRecordFromHistoryRecord(projectName, historyRecord)
+
+  if (propensityRecord) {
+
+    propensityRecord.type = "propensity" // allows getRewardedDecisions to assign rewards in one pass
+    // timestampDate is used for sorting
+    propensityRecord.timestampDate = timestampDate
+  }
+  return propensityRecord
+  
+}
+
+
+function rewardsRecordFromHistoryRecord(projectName, historyRecord, timestampDate) {
+  let rewardsRecord = customize.rewardsRecordFromHistoryRecord(projectName, historyRecord)
+
+  if (rewardsRecord) {
+    if (!naming.isObjectNotArray(rewardsRecord.rewards)) {
+      throw new Error(`rewards must be object type and not array ${JSON.stringify(rewardsRecord)}`)
+    } 
+    
+    rewardsRecord.type = "rewards" // allows getRewardedDecisions to assign rewards in one pass
+    // timestampDate is used for sorting
+    rewardsRecord.timestampDate = timestampDate
+  }
+  return rewardsRecord
+  
+}
+
+// in a single pass assign propensities and rewards to all decision records
+function assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionRecords, rewardsRecords) {
+  // TODO propensity records
+  // TODO -1 milli to propensity, +1 milli to rewards
+  
   if (!rewardsRecords.length) {
     // for sparse rewards this should speed up processing considerably
     return decisionRecords

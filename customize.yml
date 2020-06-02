@@ -1,4 +1,5 @@
 ---
+propensityWindowInSeconds: 7200
 rewardWindowInSeconds: 7200
 binaryRewards: true
 featureHyperparameters:

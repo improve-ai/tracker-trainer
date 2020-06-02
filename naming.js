@@ -9,9 +9,8 @@ const customize = require("./customize.js")
 
 const me = module.exports
 
-module.exports.getHistoryS3Key = (projectName, shardId, timestamp, uuid) => {
-  // ensure that we're using UTC
-  const [year, month, day] = timestamp.toISOString().slice(0,10).split('-')
+module.exports.getHistoryS3Key = (projectName, shardId, utcTimestampString, uuid) => {
+  const [year, month, day] = utcTimestampString.slice(0,10).split('-')
 
   // histories/data/projectName/shardId/yyyy/MM/dd/improve-events-shardId-yyyy-MM-dd-uuid.gz
   return `histories/data/${projectName}/${shardId}/${year}/${month}/${day}/improve-events-${shardId}-${year}-${month}-${day}-${uuid}.gz`
@@ -22,6 +21,65 @@ module.exports.getConsolidatedHistoryS3Key = (historyS3Key) => {
   assert(me.isHistoryS3Key(historyS3Key), "must be a history S3 Key")
   const [histories, data, projectName, shardId, year, month, day, file] = historyS3Key.split('/')
   return `histories/data/${projectName}/${shardId}/${year}/${month}/${day}/improve-events-${shardId}-${year}-${month}-${day}-${uuidv4()}.gz`
+}
+
+module.exports.isHistoryS3Key = (s3Key) => {
+  return s3Key.startsWith("histories/data/")
+}
+    
+module.exports.getHistoryS3KeyPrefix = (projectName) => {
+  return `histories/data/${projectName}/`
+}
+
+module.exports.getHistoryShardS3KeyPrefix = (projectName, shardId) => {
+  return `histories/data/${projectName}/${shardId}/`
+}
+
+module.exports.getProjectNameFromHistoryS3Key = (historyS3Key) => {
+  return historyS3Key.split('/')[2]
+}
+
+module.exports.groupHistoryS3KeysByDatePath = (historyS3Keys) => {
+  return _.groupBy(historyS3Keys, (s3Key) => s3Key.split('/').slice(0,7).join('/'))
+}
+
+module.exports.getDateForHistoryS3Key = (s3Key) => {
+  if (!me.isHistoryS3Key(s3Key)) {
+    throw new Error(`s3Key ${s3Key} must be an history s3 key`)
+  }
+  
+  // histories/data/projectName/shardId/yyyy/MM/dd/improve-events-shardId-yyyy-MM-dd-uuid.gz
+  return Date.UTC(...s3Key.split('/').slice(4,7).map(e => Number(e)))
+}
+
+module.exports.isIncomingHistoryS3Key = (s3Key) => {
+  return s3Key.startsWith("histories/meta/incoming/")
+}
+
+module.exports.getIncomingHistoryS3Key = (s3Key) => {
+  if (!me.isHistoryS3Key(s3Key)) {
+    throw new Error(`s3Key ${s3Key} must be an history s3 key`)
+  }
+  return `histories/meta/incoming/${s3Key.substring("histories/data/".length)}.json`
+}
+
+module.exports.getDateForIncomingHistoryS3Key = (s3Key) => {
+  return me.getDateForHistoryS3Key(me.getHistoryS3KeyForIncomingHistoryS3Key(s3Key))
+}
+
+module.exports.getHistoryS3KeyForIncomingHistoryS3Key = (s3Key) => {
+  if (!me.isIncomingHistoryS3Key(s3Key)) {
+    throw new Error(`s3Key ${s3Key} must be an incoming history s3 key`)
+  }
+  return `histories/data/${s3Key.substring("histories/meta/incoming/".length, s3Key.length-".json".length)}`
+}
+
+module.exports.getIncomingHistoryS3KeyPrefix = (projectName) => {
+  return `histories/meta/incoming/${projectName}/`
+}
+
+module.exports.getIncomingHistoryShardS3KeyPrefix = (projectName, shardId) => {
+  return `histories/meta/incoming/${projectName}/${shardId}/`
 }
 
 module.exports.getShardIdForS3Key = (s3Key) => {
@@ -66,6 +124,14 @@ module.exports.replaceShardIdForRewardedDecisionS3Key = (s3Key, newShardId, time
   return me.getRewardedDecisionS3Key(projectName, modelName, newShardId, timestamp)
 }
 
+module.exports.getShardTimestampsS3KeyPrefix = (projectName) => {
+  return `histories/meta/shard_timestamps/${projectName}/`
+}
+
+module.exports.getUniqueShardTimestampsS3Key = (projectName) => {
+  return `${me.getShardTimestampsS3KeyPrefix(projectName)}shard-timestamps-${uuidv4()}.json`
+}
+
 module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {
   const dashSplitS3Key = firehoseS3Key.split('-')
   const [year, month, day, hour, minute, second] = dashSplitS3Key.slice(dashSplitS3Key.length-11, dashSplitS3Key.length - 5) // parse from the back to avoid unexpected dashes
@@ -73,60 +139,6 @@ module.exports.getVariantsS3Key = (projectName, modelName, firehoseS3Key) => {
 
   // variants/data/projectName/modelName/yyyy/MM/dd/improve-variants-yyyy-MM-dd-hh-mm-ss-firehoseUuid.gz
   return `variants/data/${projectName}/${modelName}/${year}/${month}/${day}/improve-variants-${year}-${month}-${day}-${hour}-${minute}-${second}-${firehoseUuid}.gz`
-}
-
-module.exports.isHistoryS3Key = (s3Key) => {
-  return s3Key.startsWith("histories/data/")
-}
-    
-module.exports.getHistoryS3KeyPrefix = (projectName) => {
-  return `histories/data/${projectName}/`
-}
-
-module.exports.getHistoryShardS3KeyPrefix = (projectName, shardId) => {
-  return `histories/data/${projectName}/${shardId}/`
-}
-
-module.exports.groupHistoryS3KeysByDatePath = (historyS3Keys) => {
-  return _.groupBy(historyS3Keys, (s3Key) => s3Key.split('/').slice(0,7).join('/'))
-}
-
-module.exports.isIncomingHistoryS3Key = (s3Key) => {
-  return s3Key.startsWith("histories/meta/incoming/")
-}
-
-module.exports.getIncomingHistoryS3Key = (s3Key) => {
-  if (!me.isHistoryS3Key(s3Key)) {
-    throw new Error(`s3Key ${s3Key} must be an history s3 key`)
-  }
-  return `histories/meta/incoming/${s3Key.substring("histories/data/".length)}.json`
-}
-
-module.exports.getHistoryS3KeyForIncomingHistoryS3Key = (s3Key) => {
-  if (!me.isIncomingHistoryS3Key(s3Key)) {
-    throw new Error(`s3Key ${s3Key} must be an incoming history s3 key`)
-  }
-  return `histories/data/${s3Key.substring("histories/meta/incoming/".length, s3Key.length-".json".length)}`
-}
-
-module.exports.getIncomingHistoryS3KeyPrefix = (projectName) => {
-  return `histories/meta/incoming/${projectName}/`
-}
-
-module.exports.getIncomingHistoryShardS3KeyPrefix = (projectName, shardId) => {
-  return `histories/meta/incoming/${projectName}/${shardId}/`
-}
-
-module.exports.getProjectNameFromHistoryS3Key = (historyS3Key) => {
-  return historyS3Key.split('/')[2]
-}
-
-module.exports.getShardTimestampsS3KeyPrefix = (projectName) => {
-  return `histories/meta/shard_timestamps/${projectName}/`
-}
-
-module.exports.getUniqueShardTimestampsS3Key = (projectName) => {
-  return `${me.getShardTimestampsS3KeyPrefix(projectName)}shard-timestamps-${uuidv4()}.json`
 }
 
 module.exports.isRewardedDecisionS3Key = (s3Key) => {
@@ -255,6 +267,14 @@ module.exports.getXGBoostHyperparameters = (projectName, model) => {
   }
   
   return Object.assign(hyperparameters, customize.config.xgboostHyperparameters)
+}
+
+module.exports.getMaxPropensityWindowInSeconds = (projectName) => {
+  return customize.config.propensityWindowInSeconds // TODO propensity window by model
+}
+
+module.exports.getMaxRewardWindowInSeconds = (projectName) => {
+  return customize.config.rewardWindowInSeconds // TODO reward window by model
 }
 
 // allow alphanumeric, underscore, dash, space, period
