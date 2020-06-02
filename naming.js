@@ -149,6 +149,7 @@ module.exports.getRewardDecisionProjectS3KeyPrefix = (projectName) => {
   return `rewarded_decisions/data/${projectName}/`
 }
 
+// TODO change to UTCString
 module.exports.getRewardedDecisionS3Key = (projectName, modelName, shardId, timestamp) => {
     // ensure that we're using UTC
   const [year, month, day] = timestamp.toISOString().slice(0,10).split('-')
@@ -289,6 +290,10 @@ module.exports.isValidProjectName = (projectName) => {
 // from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
 module.exports.isValidDate = (date) => {
   return (new Date(date) !== "Invalid Date") && !isNaN(new Date(date));
+}
+
+module.exports.isValidMessageId = (messageId) => {
+  return messageId && _.isString(messageId)
 }
 
 module.exports.isObjectNotArray = (value) => {

@@ -173,7 +173,7 @@ function loadAndConsolidateHistoryRecords(historyS3Keys) {
       return Promise.all(pathS3Keys.map(s3Key => s3utils.processCompressedJsonLines(process.env.RECORDS_BUCKET, s3Key, (record) => {
         // check for duplicate message ids.  This is most likely do to re-processing firehose files multiple times.
         const messageId = record.message_id
-        if (!messageId || messageIds.has(messageId)) {
+        if (!naming.isValidMessageId(messageId) || messageIds.has(messageId)) {
           duplicates++
           return null
         } else {
@@ -213,37 +213,36 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
   const decisionRecords = []
   const rewardsRecords = []
   
+  const staleYearMonthDays = staleDates.map(e => e.ISOString().slice(0,10))
+  
   for (const historyRecord of historyRecords) {
-    // make sure the history ids weren't modified in customize
-    if (historyId !== historyRecord.history_id) {
-      // (this might not be a big deal since we're using shard Id to write)
-      throw new Error(`historyId ${historyId} does not match record ${JSON.stringify(historyRecord)}`)
-    }
-    
-    // grab all the values that we don't want to change before during further calls to customize
-    const timestamp = historyRecord.timestamp
-    const timestampDate = new Date(timestamp)
-    if (!timestamp || isNaN(timestampDate.getTime())) {
-      throw new Error(`invalid timestamp for history record ${JSON.stringify(historyRecord)}`)
-    }
     const messageId = historyRecord.message_id
-    if (!messageId || !_.isString(messageId)) {
+    if (!naming.isValidMessageId(messageId)) {
       throw new Error(`invalid message_id for history record ${JSON.stringify(historyRecord)}`)
     }
+    
+    if (!naming.isValidDate(historyRecord.timestamp)) {
+      throw new Error(`invalid timestamp for history record ${JSON.stringify(historyRecord)}`)
+    }
+    const timestampYearMonthDay = historyRecord.timestamp.slice(0,10)
 
-  // TODO staleDates
     // only process decision records that land on staleDates.
-    //timestamp.toISOString().slice(0,10)
-    decisionRecords.concat(decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId, messageId, timestampDate))
+    if (staleYearMonthDays.some(e => e === timestampYearMonthDay)) {
+      decisionRecords.concat(decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId))
+    }
+    
+    // TODO maybe have to copy propensity and rewards records to avoid timestampTime clobbering
+    // type clobbering too
+    // TODO also examine how the customize is working
     
     // may return a single propensity record or null
-    const propensityRecord = propensityRecordFromHistoryRecord(projectName, historyRecord, timestampDate)
+    const propensityRecord = propensityRecordFromHistoryRecord(projectName, historyRecord)
     if (propensityRecord) {
       propensityRecords.push(propensityRecord)
     }
 
     // may return a single rewards record or null
-    const rewardsRecord = rewardsRecordFromHistoryRecord(projectName, historyRecord, timestampDate)
+    const rewardsRecord = rewardsRecordFromHistoryRecord(projectName, historyRecord)
     if (rewardsRecord) {
       rewardsRecords.push(rewardsRecord)
     }
@@ -252,7 +251,7 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
   return assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionRecords, rewardsRecords)
 }
 
-function decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId, messageId, timestampDate) {
+function decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId) {
   let inferredDecisionRecords; // may remain null or be an array of decisionRecords
   
   // the history record may be of type "decision", in which case it itself is an decision record
@@ -284,10 +283,9 @@ function decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId,
     for (let i=0;i<decisionRecords.length;i++) {
       const newDecisionRecord = decisionRecords[i]
       newDecisionRecord.type = "decision" // allows getRewardedDecisions to assign rewards in one pass
-      newDecisionRecord.timestamp = timestampDate.toISOString()
-      newDecisionRecord.timestampDate = timestampDate // for sorting. filtered out later
+      newDecisionRecord.timestamp = historyRecord.timestamp
       // give each decision a unique message id
-      newDecisionRecord.message_id = i == 0 ? messageId : `${messageId}-${i}`;
+      newDecisionRecord.message_id = i == 0 ? historyRecord.messageId : `${historyRecord.messageId}-${i}`;
       newDecisionRecord.history_id = historyId
     }
   }
@@ -295,21 +293,19 @@ function decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId,
   return decisionRecords
 }
 
-function propensityRecordFromHistoryRecord(projectName, historyRecord, timestampDate) {
+function propensityRecordFromHistoryRecord(projectName, historyRecord) {
   let propensityRecord = customize.propensityRecordFromHistoryRecord(projectName, historyRecord)
 
   if (propensityRecord) {
 
     propensityRecord.type = "propensity" // allows getRewardedDecisions to assign rewards in one pass
-    // timestampDate is used for sorting
-    propensityRecord.timestampDate = timestampDate
+    propensityRecord.timestamp = historyRecord.timestamp
   }
   return propensityRecord
   
 }
 
-
-function rewardsRecordFromHistoryRecord(projectName, historyRecord, timestampDate) {
+function rewardsRecordFromHistoryRecord(projectName, historyRecord) {
   let rewardsRecord = customize.rewardsRecordFromHistoryRecord(projectName, historyRecord)
 
   if (rewardsRecord) {
@@ -318,25 +314,27 @@ function rewardsRecordFromHistoryRecord(projectName, historyRecord, timestampDat
     } 
     
     rewardsRecord.type = "rewards" // allows getRewardedDecisions to assign rewards in one pass
-    // timestampDate is used for sorting
-    rewardsRecord.timestampDate = timestampDate
+    rewardsRecord.timestamp = historyRecord.timestamp
   }
   return rewardsRecord
-  
 }
 
 // in a single pass assign propensities and rewards to all decision records
 function assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionRecords, rewardsRecords) {
-  // TODO propensity records
-  // TODO -1 milli to propensity, +1 milli to rewards
-  
-  if (!rewardsRecords.length) {
-    // for sparse rewards this should speed up processing considerably
+  if (!rewardsRecords.length && !propensityRecords.length) {
+    // nothing to join
     return decisionRecords
   }
+
+  // -1 millis to propensity, +1 millis to rewards to ensure proper sorting when they come from the same event
+  propensityRecords.forEach(e => e.timestampTime = new Date(e.timestamp).getTime()-1)
+  decisionRecords.forEach(e => e.timestampTime = new Date(e.timestamp).getTime())
+  propensityRecords.forEach(e => e.timestampTime = new Date(e.timestamp).getTime()+1)
+
+  // TODO propensities
   
   // combine all the records together so we can process in a single pass
-  const sortedRecords = decisionRecords.concat(rewardsRecords).sort((a, b) => a.timestampDate - b.timestampDate)
+  const sortedRecords = decisionRecords.concat(rewardsRecords).sort((a, b) => a.timestampTime - b.timestampTime)
   const decisionRecordsByRewardKey = {}
   
   for (const record of sortedRecords) {
@@ -352,7 +350,7 @@ function assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionReco
         decisionRecordsByRewardKey[rewardKey] = listeners
       }
       // TODO robust configuration
-      record.rewardWindowEndDate = new Date(record.timestampDate.getTime() + customize.config.rewardWindowInSeconds * 1000)
+      record.rewardWindowEndTime = record.timestampTime + customize.config.rewardWindowInSeconds * 1000
       listeners.push(record)
     } else if (record.type === "rewards") {
       // iterate through each reward key and find listening decisions
@@ -364,7 +362,7 @@ function assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionReco
         // loop backwards so that removing an expired listener doesn't break the array loop
         for (let i = listeners.length - 1; i >= 0; i--) {
           const listener = listeners[i]
-          if (listener.rewardWindowEndDate < record.timestampDate) { // the listener is expired
+          if (listener.rewardWindowEndTime < record.timestampTime) { // the listener is expired
             listeners.splice(i,1) // remove the element
           } else {
             listener.reward = (listener.reward || 0) + Number(reward) // Number allows booleans to be treated as 1 and 0
@@ -386,7 +384,6 @@ function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
   let maxReward = 0
 
   for (let rewardedDecision of rewardedDecisions) {
-    const timestampDate = rewardedDecision.timestampDate
     rewardedDecision = finalizeRewardedDecision(projectName, rewardedDecision)
 
     const reward = rewardedDecision.reward
@@ -396,7 +393,7 @@ function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
       maxReward = Math.max(reward, maxReward)
     }
 
-    const s3Key = naming.getRewardedDecisionS3Key(projectName, getModelForNamespace(projectName, rewardedDecision.namespace), shardId, timestampDate)
+    const s3Key = naming.getRewardedDecisionS3Key(projectName, getModelForNamespace(projectName, rewardedDecision.namespace), shardId, new Date(rewardedDecision.timestamp))
     let buffers = buffersByS3Key[s3Key]
     if (!buffers) {
       buffers = []
