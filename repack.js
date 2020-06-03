@@ -75,6 +75,11 @@ module.exports.repack = async function(event, context) {
   const pipeline = util.promisify(stream.pipeline);
 
   // Unpack existing models
+  const modelNameFileFilter = (path) => {
+    // Return true if the file is related to a model listed in customize.yml
+    const modelName = path.split('.')[0];
+    return modelName && models && !models.includes(modelName);
+  };
   if (await isFieExists(modelsBucket, multiarchiveiOSKey)) {
 
     let iOSDownloadStream = s3.getObject({
@@ -83,7 +88,7 @@ module.exports.repack = async function(event, context) {
     })
     .createReadStream();
 
-    let parseiOS = new tar.Parse()
+    let parseiOS = new tar.Parse({ filter: modelNameFileFilter })
     .on('entry', function(entry) {
       packiOS.add(entry);
     });
@@ -99,7 +104,7 @@ module.exports.repack = async function(event, context) {
     })
     .createReadStream();
 
-    let parseAndroid = new tar.Parse()
+    let parseAndroid = new tar.Parse({ filter: modelNameFileFilter })
     .on('entry', function(entry) {
       packAndroid.add(entry);
     });
