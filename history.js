@@ -368,7 +368,7 @@ function propensityRecordFromHistoryRecord(historyRecord) {
   let propensityRecord = null
   
   if (historyRecord.propensity && _.isFinite(historyRecord.propensity)) {
-    propensityRecord = _.pick("propensity", "variant", "timestamp") // copy so that each record is a unique object
+    propensityRecord = _.pick(historyRecord, ["propensity", "variant", "timestamp"]) // copy so that each record is a unique object
     propensityRecord.type = "propensity" // allows getRewardedDecisions to assign rewards in one pass
   }
 
@@ -380,7 +380,7 @@ function rewardsRecordFromHistoryRecord(historyRecord) {
   let rewardsRecord = null
 
   if (historyRecord.rewards && naming.isObjectNotArray(historyRecord.rewards)) {
-    rewardsRecord = _.pick("rewards", "timestamp") // copy so that each record is a unique object
+    rewardsRecord = _.pick(historyRecord, ["rewards", "timestamp"]) // copy so that each record is a unique object
     rewardsRecord.type = "rewards" // allows getRewardedDecisions to assign rewards in one pass
   }
   
