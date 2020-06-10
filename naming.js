@@ -289,7 +289,7 @@ module.exports.isValidProjectName = (projectName) => {
 
 // from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
 module.exports.isValidDate = (date) => {
-  return !!me.getValidDate(date)
+  return !!me.parseDate(date)
 }
 
 module.exports.parseDate = (dateString) => {
