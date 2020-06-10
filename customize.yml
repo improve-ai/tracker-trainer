@@ -1,5 +1,5 @@
 ---
-propensityWindowInSeconds: 7200
+propensityWindowInSeconds: 7200 # TODO 23 hours 59 minutes 
 rewardWindowInSeconds: 7200
 binaryRewards: true
 featureHyperparameters:

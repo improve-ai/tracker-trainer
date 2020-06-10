@@ -99,6 +99,10 @@ module.exports.assignRewards = async function(event, context) {
   if (!projectName || !shardId) {
     throw new Error(`WARN: missing project_name or shard_id ${JSON.stringify(event)}`)
   }
+
+  // since records for all models/namespaces for this project are lumped together, we need to use the max window sizes for processing
+  const propensityWindowInSeconds = naming.getMaxPropensityWindowInSeconds(projectName)
+  const rewardWindowInSeconds = naming.getMaxRewardWindowInSeconds(projectName)
   
   let updateLastProcessed = Promise.resolve(true)
   // this lambda should only ever be invoked from dispatchHistoryProcessingIfNecessary, but in case
@@ -109,20 +113,35 @@ module.exports.assignRewards = async function(event, context) {
 
   // list the incoming keys and history keys for this shard
   return updateLastProcessed.then(() => Promise.all([naming.listAllHistoryShardS3KeysMetadata(projectName, shardId), naming.listAllIncomingHistoryShardS3Keys(projectName, shardId)]).then(([historyS3KeysMetadata, incomingHistoryS3Keys]) => {
-    const staleDates = incomingHistoryS3Keys.map(k => naming.getDateForIncomingHistoryS3Key(k))
+    //
+    // these date ranges are rather tricky. An incoming record could contain rewards for past decisions, propensities for future decisions, or actual decisions
+    // incoming records are processed as one large window, with the minimum size being a single day, then at least one day one either end needs to be added for stale decisions records
+    // then at least at an additional day needs to be added to each end for leading propensity records and trailing rewards rewards, for a minimum of 5 days processed in the
+    // case of an incoming record that happened more than a day or two ago.
+    //
+    const incomingDateRange = getIncomingDateRange(incomingHistoryS3Keys) // the range of the actual incoming records
+    console.log(`incoming records from ${incomingDateRange[0]} to ${incomingDateRange[1]}`)
+
+    // calculate the range of only the stale decision records to re-process, using the incomingDateRange
+    const staleDecisionsDateRange = getStaleDecisionsDateRange(incomingDateRange, propensityWindowInSeconds, rewardWindowInSeconds) 
+    console.log(`stale decision records from ${staleDecisionsDateRange[0]} to ${staleDecisionsDateRange[1]}`)
+
+    // calculate the whole window needed to process the stale decisions, including leading propensity records and trailing rewards records
+    const historyWindowDateRange = getHistoryWindowDateRange(staleDecisionsDateRange, propensityWindowInSeconds, rewardWindowInSeconds)
+    console.log(`required history window from ${historyWindowDateRange[0]} to ${historyWindowDateRange[1]}`)
     
     // get history S3 keys prior to the stale dates for joining propensity, and after the stale dates for joining rewards
-    const staleS3KeysMetadata = filterStaleHistoryS3KeysMetadata(projectName, historyS3KeysMetadata, staleDates)
+    const historyWindowS3KeysMetadata = filterHistoryWindowS3KeysMetadata(projectName, historyS3KeysMetadata, historyWindowDateRange)
 
     // check size of the keys to be re-processed and reshard if necessary
-    const totalSize = staleS3KeysMetadata.reduce((acc, cur) => acc+cur.Size,0)
+    const totalSize = historyWindowS3KeysMetadata.reduce((acc, cur) => acc+cur.Size,0)
     console.log(`${totalSize} bytes of stale history data for project ${projectName} shard ${shardId}`)
     if (totalSize > (process.env.REWARD_ASSIGNMENT_WORKER_MAX_PAYLOAD_IN_MB * 1024 * 1024)) {
       console.log(`resharding project ${projectName} shard ${shardId} - stale history data is too large`)
       return shard.invokeReshardLambda(context, projectName, shardId)
     }
     
-    return loadAndConsolidateHistoryRecords(staleS3KeysMetadata.map(o => o.Key)).then(staleHistoryRecords => {
+    return loadAndConsolidateHistoryRecords(historyWindowS3KeysMetadata.map(o => o.Key)).then(staleHistoryRecords => {
 
       // perform customize before we access the records
       staleHistoryRecords = customize.modifyHistoryRecords(projectName, staleHistoryRecords)
@@ -134,7 +153,7 @@ module.exports.assignRewards = async function(event, context) {
       let rewardedDecisions = []
       
       for (const [historyId, historyRecords] of Object.entries(historyRecordsByHistoryId)) {
-        rewardedDecisions = rewardedDecisions.concat(getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRecords, staleDates))
+        rewardedDecisions = rewardedDecisions.concat(getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRecords, staleDecisionsDateRange))
       }
 
       return writeRewardedDecisions(projectName, shardId, rewardedDecisions)      
@@ -145,20 +164,61 @@ module.exports.assignRewards = async function(event, context) {
   }))
 }
 
-function filterStaleHistoryS3KeysMetadata(projectName, historyS3KeysMetadata, staleDates) {
-  const maxPropensityWindow = naming.getMaxPropensityWindowInSeconds(projectName) * 1000
-  const maxRewardWindow = naming.getMaxRewardWindowInSeconds(projectName) * 1000
-  const maxMillisPerDay = 86401 * 1000 // leap second
+// returns a tuple of startDate (inclusive) and endDate (exclusive) for the given incoming history S3 Keys
+function getIncomingDateRange(incomingHistoryS3Keys) {
+  let startDate = new Date() // now
+  let endDate = new Date(0) // unix epoch
+  
+  incomingHistoryS3Keys.forEach(k => {
+    const keyStartDate = naming.getDateForIncomingHistoryS3Key(k) // midnight
+    const keyEndDate = new Date(keyStartDate.getTime())
+    keyEndDate.setDate(keyEndDate.getDate() + 1) // midnight the next day - incrementing the day by one is leap second safe
+    
+    if (keyStartDate < startDate) {
+      startDate = keyStartDate
+    }
+    if (keyEndDate > endDate) {
+      endDate = keyEndDate
+    }
+  })
+  
+  return [startDate, endDate]
+}
 
-  console.log(`filtering history S3 keys for project ${projectName} maxPropensityWindow ${maxPropensityWindow} maxRewardWindow ${maxRewardWindow} staleDates ${JSON.stringify(staleDates)}`)
+// returns a tuple of UTC midnight startDate (inclusive) and UTC midnight endDate (exclusive) of the date range of only the decision records that should be re-processed
+function getStaleDecisionsDateRange(incomingDateRange, propensityWindowInSeconds, rewardWindowInSeconds) {
+  const startTime = new Date(incomingDateRange[0].getTime())
+  startTime.setSeconds(startTime.getSeconds()-rewardWindowInSeconds) // past decisions might need rewards records from incoming
+  startTime.setUTCHours(0,0,0,0); // set to midnight of that day
+  
+  const endTime = new Date(incomingDateRange[1].getTime())
+  endTime.setSeconds(endTime.getSeconds()+propensityWindowInSeconds) // future decisions might need propensity records from incoming
+  endTime.setUTCHours(24,0,0,0); // set to midnight of the following
+  
+  return [startTime, endTime]
+}
+
+// returns a tuple of UTC midnight startDate (inclusive) and UTC midnight endDate (exclusive) of the entire range of history records that needs to be loaded to process the stale decision records, including past propensity records and future rewards records
+function getHistoryWindowDateRange(staleDecisionsDateRange, propensityWindowInSeconds, rewardWindowInSeconds) {
+  const startTime = new Date(staleDecisionsDateRange[0].getTime())
+  startTime.setSeconds(startTime.getSeconds()-propensityWindowInSeconds) // decisions need previous propensity records
+  startTime.setUTCHours(0,0,0,0); // set to midnight of that day
+  
+  const endTime = new Date(staleDecisionsDateRange[1].getTime())
+  endTime.setSeconds(endTime.getSeconds()+rewardWindowInSeconds) // decisions need future rewards records
+  endTime.setUTCHours(24,0,0,0); // set to midnight of the following
+  
+  return [startTime, endTime]
+}
+
+function filterHistoryWindowS3KeysMetadata(projectName, historyS3KeysMetadata, historyWindowDateRange) {
+  const [startTime, endTime] = historyWindowDateRange
+  
+  console.log(`filtering history S3 keys for project ${projectName} from ${startTime} to ${endTime}}`)
   
   return historyS3KeysMetadata.filter(m => {
-    const keyTime = naming.getDateForHistoryS3Key(m.Key).getTime()
-    return staleDates.some(staleDate => {
-      const startTime = staleDate.getTime() - maxPropensityWindow - maxMillisPerDay
-      const endTime = staleDate.getTime() + maxRewardWindow + maxMillisPerDay
-      return keyTime >= startTime && keyTime <= endTime
-    })
+    const keyDate = naming.getDateForHistoryS3Key(m.Key) // UTC midnight of the key date
+    return keyDate >= startTime && keyDate < endTime // the startTime and endTime will also land on midnight so be very careful of proper inclusive/exclusive semantics
   })
 }
 
@@ -207,36 +267,41 @@ function loadAndConsolidateHistoryRecords(historyS3Keys) {
 // throw an Error on any parsing problems or customize bugs, causing the whole historyId to be skipped
 // TODO parsing problems should be massaged before this point so that the only possible source of parsing bugs
 // is customize calls.
-function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRecords, staleDates) {
+
+// the history records will include the entire range of stale decision records plus the necessary earlier propensity records and later rewards records
+// care must be taken to ensure that decision records outside the staleDecisionDateRange are not processed
+// staleDecisionDateRange is a tuple of start date (inclusive) and end date (exclusive)
+//
+// some recent stale decisions may still have open reward windows.  In that case we process any rewards available up to the present moment.  As new rewards
+// come in, those decisions will be made stale again and re-processed with the updated rewards.
+function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRecords, staleDecisionsDateRange) {
+  
+  const [staleDecisionsStartDate, staleDecisionsEndDate] = staleDecisionsDateRange
 
   const propensityRecords = []
   const decisionRecords = []
   const rewardsRecords = []
-  
-  const staleYearMonthDays = staleDates.map(e => e.ISOString().slice(0,10))
-  
+
   for (const historyRecord of historyRecords) {
     const messageId = historyRecord.message_id
     if (!naming.isValidMessageId(messageId)) {
       throw new Error(`invalid message_id for history record ${JSON.stringify(historyRecord)}`)
     }
     
-    if (!naming.isValidDate(historyRecord.timestamp)) {
+    const timestampDate = naming.parseDate(historyRecord.timestamp)
+    
+    if (!timestampDate) {
       throw new Error(`invalid timestamp for history record ${JSON.stringify(historyRecord)}`)
     }
-    const timestampYearMonthDay = historyRecord.timestamp.slice(0,10)
 
-    // only process decision records that land on staleDates.
-    if (staleYearMonthDays.some(e => e === timestampYearMonthDay)) {
-      decisionRecords.concat(decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId))
+    // only process decision records that are in the stale decision date range
+    if (timestampDate >= staleDecisionsStartDate && timestampDate < staleDecisionsEndDate) {
+      decisionRecords = decisionRecords.concat(decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId))
     }
-    
-    // TODO shit shit, middle stale may just be stale on a rewards or a propensity....shit shit
-    // TODO also what about pending decisions whose entire reward window hasn't elapsed yet
     // TODO maybe have to copy propensity and rewards records to avoid timestampTime clobbering
     // type clobbering too
     // TODO also examine how the customize is working
-    
+
     // may return a single propensity record or null
     const propensityRecord = propensityRecordFromHistoryRecord(projectName, historyRecord)
     if (propensityRecord) {

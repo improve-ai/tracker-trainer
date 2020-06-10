@@ -289,7 +289,16 @@ module.exports.isValidProjectName = (projectName) => {
 
 // from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
 module.exports.isValidDate = (date) => {
-  return (new Date(date) !== "Invalid Date") && !isNaN(new Date(date));
+  return !!me.getValidDate(date)
+}
+
+module.exports.parseDate = (dateString) => {
+  const date = new Date(dateString)
+  if ((date !== "Invalid Date") && !isNaN(date)) {
+    return date
+  } else {
+    return null
+  }
 }
 
 module.exports.isValidMessageId = (messageId) => {

@@ -136,7 +136,7 @@ functions:
     events:
       - s3:
           bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
-          existing: true # prevents repeated bucket creation
+          existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
           rules:
             - prefix: transformed_models/
