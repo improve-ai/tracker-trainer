@@ -1,5 +1,5 @@
 ---
-propensityWindowInSeconds: 7200 # TODO 23 hours 59 minutes 
+propensityWindowInSeconds: 7200 # TODO 23 hours 59 minutes TODO maybe change window semantics for 24 hours...
 rewardWindowInSeconds: 7200
 binaryRewards: true
 featureHyperparameters:

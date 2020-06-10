@@ -47,9 +47,9 @@ module.exports.getDateForHistoryS3Key = (s3Key) => {
   if (!me.isHistoryS3Key(s3Key)) {
     throw new Error(`s3Key ${s3Key} must be an history s3 key`)
   }
-  
   // histories/data/projectName/shardId/yyyy/MM/dd/improve-events-shardId-yyyy-MM-dd-uuid.gz
-  return new Date(Date.UTC(...s3Key.split('/').slice(4,7).map(e => Number(e))))
+  const [year, month, day] = s3Key.split('/').slice(4,7).map(e => Number(e))
+  return new Date(Date.UTC(year, month-1, day)) // month is zero based 
 }
 
 module.exports.isIncomingHistoryS3Key = (s3Key) => {

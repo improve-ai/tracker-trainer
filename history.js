@@ -285,8 +285,7 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
   const rewardsRecords = []
 
   for (const historyRecord of historyRecords) {
-    const messageId = historyRecord.message_id
-    if (!naming.isValidMessageId(messageId)) {
+    if (!naming.isValidMessageId(historyRecord.message_id)) {
       throw new Error(`invalid message_id for history record ${JSON.stringify(historyRecord)}`)
     }
     
@@ -335,11 +334,7 @@ function decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId)
   }
   
   // the history record may have attached "decisions"
-  if (historyRecord.decisions) {
-    if (!Array.isArray(historyRecord.decisions)) {
-      throw new Error(`attached decisions must be array type ${JSON.stringify(historyRecord)}`) // TODO
-    } 
-    
+  if (historyRecord.decisions && Array.isArray(historyRecord.decisions)) {
     if (!inferredDecisionRecords) {
       inferredDecisionRecords = historyRecord.decisions
     } else {
@@ -356,14 +351,16 @@ function decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId)
       decisionRecords = [decisionRecords]
     }
     for (let i=0;i<decisionRecords.length;i++) {
-      const newDecisionRecord = decisionRecords[i]
-      newDecisionRecord.type = "decision" // allows getRewardedDecisions to assign rewards in one pass
-      newDecisionRecord.timestamp = historyRecord.timestamp
+      const record = decisionRecords[i]
+      record.type = "decision" // allows to assign rewards in one pass
+      record.timestamp = historyRecord.timestamp
       // give each decision a unique message id
-      newDecisionRecord.message_id = i == 0 ? historyRecord.messageId : `${historyRecord.messageId}-${i}`;
-      newDecisionRecord.history_id = historyId
+      record.message_id = i == 0 ? historyRecord.message_id : `${historyRecord.message_id}-${i}`;
+      record.history_id = historyId
     }
   }
+  
+  // TODO think about if messageId should be passed in
   
   return decisionRecords
 }
@@ -470,7 +467,7 @@ function finalizeRewardedDecision(projectName, rewardedDecisionRecord) {
   return rewardedDecision
 }
 
-// cached wrapper of naming.getModelForDecision
+// cached wrapper of naming.getModelForNamespace
 const projectNamespaceModelCache = {}
 function getModelForNamespace(projectName, namespace) {
   // this is looked up for every rewarded namespace record during history procesing so needs to be fast
