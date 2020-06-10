@@ -267,6 +267,8 @@ function loadAndConsolidateHistoryRecords(historyS3Keys) {
 // throw an Error on any parsing problems or customize bugs, causing the whole historyId to be skipped
 // TODO parsing problems should be massaged before this point so that the only possible source of parsing bugs
 // is customize calls.
+    // TODO also examine how the customize is working
+
 
 // the history records will include the entire range of stale decision records plus the necessary earlier propensity records and later rewards records
 // care must be taken to ensure that decision records outside the staleDecisionDateRange are not processed
@@ -294,6 +296,10 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
       throw new Error(`invalid timestamp for history record ${JSON.stringify(historyRecord)}`)
     }
 
+    //
+    // allow decision records to be used without copying, but always copy propensity and rewards records into unique objects to avoid clobbering
+    //
+
     // only process decision records that are in the stale decision date range
     if (timestampDate >= staleDecisionsStartDate && timestampDate < staleDecisionsEndDate) {
       // may return an array of decision records or null
@@ -303,17 +309,15 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
       }
     }
 
-    // TODO also examine how the customize is working
-
-    // may return a single propensity record or null
-    const propensityRecord = propensityRecordFromHistoryRecord(historyRecord)
-    if (propensityRecord) {
+    if (historyRecord.propensity && _.isFinite(historyRecord.propensity)) {
+      const propensityRecord = _.pick(historyRecord, ["propensity", "variant", "timestamp"]) // copy so that each record is a unique object
+      propensityRecord.type = "propensity" // allows getRewardedDecisions to assign rewards in one pass
       propensityRecords.push(propensityRecord)
     }
 
-    // may return a single rewards record or null
-    const rewardsRecord = rewardsRecordFromHistoryRecord(historyRecord)
-    if (rewardsRecord) {
+    if (historyRecord.rewards && naming.isObjectNotArray(historyRecord.rewards)) {
+      const rewardsRecord = _.pick(historyRecord, ["rewards", "timestamp"]) // copy so that each record is a unique object
+      rewardsRecord.type = "rewards" // allows getRewardedDecisions to assign rewards in one pass
       rewardsRecords.push(rewardsRecord)
     }
   }
@@ -321,6 +325,7 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
   return assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionRecords, rewardsRecords)
 }
 
+// return an array of decisions or null, the decision record may simply be a reference to the original historyRecord without copying
 function decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId) {
   let inferredDecisionRecords; // may remain null or be an array of decisionRecords
   
@@ -363,29 +368,6 @@ function decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId)
   return decisionRecords
 }
 
-// return null or a single propensity record that includes propensity, timestamp and type === propensity
-function propensityRecordFromHistoryRecord(historyRecord) {
-  let propensityRecord = null
-  
-  if (historyRecord.propensity && _.isFinite(historyRecord.propensity)) {
-    propensityRecord = _.pick(historyRecord, ["propensity", "variant", "timestamp"]) // copy so that each record is a unique object
-    propensityRecord.type = "propensity" // allows getRewardedDecisions to assign rewards in one pass
-  }
-
-  return propensityRecord
-}
-
-// return null or a single rewards record that includes rewards, timestamp and type === rewards
-function rewardsRecordFromHistoryRecord(historyRecord) {
-  let rewardsRecord = null
-
-  if (historyRecord.rewards && naming.isObjectNotArray(historyRecord.rewards)) {
-    rewardsRecord = _.pick(historyRecord, ["rewards", "timestamp"]) // copy so that each record is a unique object
-    rewardsRecord.type = "rewards" // allows getRewardedDecisions to assign rewards in one pass
-  }
-  
-  return rewardsRecord
-}
 
 // in a single pass assign propensities and rewards to all decision records
 function assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionRecords, rewardsRecords) {
