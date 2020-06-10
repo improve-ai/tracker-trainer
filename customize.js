@@ -51,22 +51,5 @@ module.exports.decisionRecordsFromHistoryRecord = (projectName, historyRecord, i
   }
 }
 
-// may return null or a single rewards record.
-// modifications to timestamp or history_id will be ignored
-module.exports.rewardsRecordFromHistoryRecord = (projectName, historyRecord) => {
-  // if the history record has a "rewards" property, then it is a rewards record
-  if (historyRecord.rewards) {
-    return historyRecord;
-  }
-}
-
-// may return null or a single propensity record.
-// modifications to timestamp or history_id will be ignored
-module.exports.propensityRecordFromHistoryRecord = (projectName, historyRecord) => {
-  if (historyRecord.type === "propensity" && historyRecord.propensity) {
-    return historyRecord;
-  }
-}
-
 
 module.exports.config = yaml.safeLoad(fs.readFileSync('./customize.yml', 'utf8'));

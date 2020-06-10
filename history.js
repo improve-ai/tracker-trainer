@@ -296,20 +296,23 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
 
     // only process decision records that are in the stale decision date range
     if (timestampDate >= staleDecisionsStartDate && timestampDate < staleDecisionsEndDate) {
-      decisionRecords = decisionRecords.concat(decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId))
+      // may return an array of decision records or null
+      const newDecisionRecords = decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId)
+      if (newDecisionRecords) {
+        decisionRecords = decisionRecords.concat(newDecisionRecords)
+      }
     }
-    // TODO maybe have to copy propensity and rewards records to avoid timestampTime clobbering
-    // type clobbering too
+
     // TODO also examine how the customize is working
 
     // may return a single propensity record or null
-    const propensityRecord = propensityRecordFromHistoryRecord(projectName, historyRecord)
+    const propensityRecord = propensityRecordFromHistoryRecord(historyRecord)
     if (propensityRecord) {
       propensityRecords.push(propensityRecord)
     }
 
     // may return a single rewards record or null
-    const rewardsRecord = rewardsRecordFromHistoryRecord(projectName, historyRecord)
+    const rewardsRecord = rewardsRecordFromHistoryRecord(historyRecord)
     if (rewardsRecord) {
       rewardsRecords.push(rewardsRecord)
     }
@@ -329,13 +332,13 @@ function decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId)
   // the history record may have attached "decisions"
   if (historyRecord.decisions) {
     if (!Array.isArray(historyRecord.decisions)) {
-      throw new Error(`attached decisions must be array type ${JSON.stringify(historyRecord)}`)
+      throw new Error(`attached decisions must be array type ${JSON.stringify(historyRecord)}`) // TODO
     } 
     
     if (!inferredDecisionRecords) {
       inferredDecisionRecords = historyRecord.decisions
     } else {
-      inferredDecisionRecords.concat(historyRecord.decisions)
+      inferredDecisionRecords = inferredDecisionRecords.concat(historyRecord.decisions)
     }
   }
 
@@ -360,29 +363,27 @@ function decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId)
   return decisionRecords
 }
 
-function propensityRecordFromHistoryRecord(projectName, historyRecord) {
-  let propensityRecord = customize.propensityRecordFromHistoryRecord(projectName, historyRecord)
-
-  if (propensityRecord) {
-
-    propensityRecord.type = "propensity" // allows getRewardedDecisions to assign rewards in one pass
-    propensityRecord.timestamp = historyRecord.timestamp
-  }
-  return propensityRecord
+// return null or a single propensity record that includes propensity, timestamp and type === propensity
+function propensityRecordFromHistoryRecord(historyRecord) {
+  let propensityRecord = null
   
+  if (historyRecord.propensity && _.isFinite(historyRecord.propensity)) {
+    propensityRecord = _.pick("propensity", "variant", "timestamp") // copy so that each record is a unique object
+    propensityRecord.type = "propensity" // allows getRewardedDecisions to assign rewards in one pass
+  }
+
+  return propensityRecord
 }
 
-function rewardsRecordFromHistoryRecord(projectName, historyRecord) {
-  let rewardsRecord = customize.rewardsRecordFromHistoryRecord(projectName, historyRecord)
+// return null or a single rewards record that includes rewards, timestamp and type === rewards
+function rewardsRecordFromHistoryRecord(historyRecord) {
+  let rewardsRecord = null
 
-  if (rewardsRecord) {
-    if (!naming.isObjectNotArray(rewardsRecord.rewards)) {
-      throw new Error(`rewards must be object type and not array ${JSON.stringify(rewardsRecord)}`)
-    } 
-    
+  if (historyRecord.rewards && naming.isObjectNotArray(historyRecord.rewards)) {
+    rewardsRecord = _.pick("rewards", "timestamp") // copy so that each record is a unique object
     rewardsRecord.type = "rewards" // allows getRewardedDecisions to assign rewards in one pass
-    rewardsRecord.timestamp = historyRecord.timestamp
   }
+  
   return rewardsRecord
 }
 
