@@ -172,8 +172,8 @@ function getIncomingDateRange(incomingHistoryS3Keys) {
   incomingHistoryS3Keys.forEach(k => {
     const keyStartDate = naming.getDateForIncomingHistoryS3Key(k) // midnight
     const keyEndDate = new Date(keyStartDate.getTime())
-    keyEndDate.setDate(keyEndDate.getDate() + 1) // midnight the next day - incrementing the day by one is leap second safe
-    
+    keyEndDate.setUTCHours(24,0,0,0); // set to midnight of the following
+
     if (keyStartDate < startDate) {
       startDate = keyStartDate
     }
@@ -187,28 +187,28 @@ function getIncomingDateRange(incomingHistoryS3Keys) {
 
 // returns a tuple of UTC midnight startDate (inclusive) and UTC midnight endDate (exclusive) of the date range of only the decision records that should be re-processed
 function getStaleDecisionsDateRange(incomingDateRange, propensityWindowInSeconds, rewardWindowInSeconds) {
-  const startTime = new Date(incomingDateRange[0].getTime())
-  startTime.setSeconds(startTime.getSeconds()-rewardWindowInSeconds) // past decisions might need rewards records from incoming
-  startTime.setUTCHours(0,0,0,0); // set to midnight of that day
+  const startDate = new Date(incomingDateRange[0].getTime())
+  startDate.setSeconds(startDate.getSeconds()-rewardWindowInSeconds) // past decisions might need rewards records from incoming
+  startDate.setUTCHours(0,0,0,0); // set to midnight of that day
   
-  const endTime = new Date(incomingDateRange[1].getTime())
-  endTime.setSeconds(endTime.getSeconds()+propensityWindowInSeconds) // future decisions might need propensity records from incoming
-  endTime.setUTCHours(24,0,0,0); // set to midnight of the following
+  const endDate = new Date(incomingDateRange[1].getTime())
+  endDate.setSeconds(endDate.getSeconds()+propensityWindowInSeconds) // future decisions might need propensity records from incoming
+  endDate.setUTCHours(24,0,0,0); // set to midnight of the following
   
-  return [startTime, endTime]
+  return [startDate, endDate]
 }
 
 // returns a tuple of UTC midnight startDate (inclusive) and UTC midnight endDate (exclusive) of the entire range of history records that needs to be loaded to process the stale decision records, including past propensity records and future rewards records
 function getHistoryWindowDateRange(staleDecisionsDateRange, propensityWindowInSeconds, rewardWindowInSeconds) {
-  const startTime = new Date(staleDecisionsDateRange[0].getTime())
-  startTime.setSeconds(startTime.getSeconds()-propensityWindowInSeconds) // decisions need previous propensity records
-  startTime.setUTCHours(0,0,0,0); // set to midnight of that day
+  const startDate = new Date(staleDecisionsDateRange[0].getTime())
+  startDate.setSeconds(startDate.getSeconds()-propensityWindowInSeconds) // decisions need previous propensity records
+  startDate.setUTCHours(0,0,0,0); // set to midnight of that day
   
-  const endTime = new Date(staleDecisionsDateRange[1].getTime())
-  endTime.setSeconds(endTime.getSeconds()+rewardWindowInSeconds) // decisions need future rewards records
-  endTime.setUTCHours(24,0,0,0); // set to midnight of the following
+  const endDate = new Date(staleDecisionsDateRange[1].getTime())
+  endDate.setSeconds(endDate.getSeconds()+rewardWindowInSeconds) // decisions need future rewards records
+  endDate.setUTCHours(24,0,0,0); // set to midnight of the following
   
-  return [startTime, endTime]
+  return [startDate, endDate]
 }
 
 function filterHistoryWindowS3KeysMetadata(projectName, historyS3KeysMetadata, historyWindowDateRange) {
