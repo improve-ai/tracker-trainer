@@ -279,7 +279,7 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
   const [staleDecisionsStartDate, staleDecisionsEndDate] = staleDecisionsDateRange
 
   const propensityRecords = []
-  const decisionRecords = []
+  let decisionRecords = []
   const rewardsRecords = []
 
   for (const historyRecord of historyRecords) {
