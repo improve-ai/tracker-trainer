@@ -147,7 +147,6 @@ function reshardIncomingHistoryS3Key(s3Key) {
 // called from history.dispatchProcessingWorkers
 // reshard workers have limited reservedConcurrency so may queue for up to 6 hours (plus max 15 minutes of execution) until they should be retried
 // https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html
-// this modifies shardTimestamps as an in/out parameter
 module.exports.dispatchReshardingIfNecessary = (lambdaContext, projectName, reshardingParents, lastProcessedDates, forceContinueReshard = false) => {
   const now = new Date()
   const unix_epoch = new Date(0)

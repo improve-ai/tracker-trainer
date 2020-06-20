@@ -13,6 +13,9 @@ module.exports.projectNameForTrack = (lambdaEvent, lambdaContext) => {
   if (lambdaEvent.requestContext.identity.apiKey === "lF8yFNYXiT5fIlBHQMgbY3EtPUfbjJmS1OskfqiT") {
     return "mindful"
   }
+  if (lambdaEvent.requestContext.identity.apiKey === "xScYgcHJ3Y2hwx7oh5x02NcCTwqBonnumTeRHThI") {
+    return "test"
+  }
 }
 
 // project names are persisted to firehose files as they are ingested. To re-process old firehose files for which the project names have changed,
@@ -20,7 +23,8 @@ module.exports.projectNameForTrack = (lambdaEvent, lambdaContext) => {
 module.exports.migrateProjectName = (projectName) => {
   if (projectName === "lRgX7U2VPZ6I1DUaSUr6D8jH4iFju3MY7i3p9mbq") {
     return "bible"
-  } if (projectName === "lF8yFNYXiT5fIlBHQMgbY3EtPUfbjJmS1OskfqiT") {
+  }
+  if (projectName === "lF8yFNYXiT5fIlBHQMgbY3EtPUfbjJmS1OskfqiT") {
     return "mindful"
   }
   
