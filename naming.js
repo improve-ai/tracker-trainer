@@ -193,7 +193,7 @@ module.exports.getValidationPathPart = () => {
 }
 
 module.exports.getTransformedS3Uri = (projectName, model) => {
-  return `s3://${process.env.RECORDS_BUCKET}/transformed/${projectName}/${model}/`
+  return `s3://${process.env.RECORDS_BUCKET}/transformed_decisions/${projectName}/${model}/`
 }
 
 module.exports.getTransformedTrainS3Uri = (projectName, modelName) => {

@@ -20,7 +20,7 @@ projects:
       default_model:
         isDefaultModel: true
         boostedModel: true # .boost ?
-  bible: 
+  bible:
     models:
       default_model: # catch all
         isDefaultModel: true
