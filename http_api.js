@@ -1,6 +1,6 @@
 'use strict';
 
-const unpackFirehose = require("./unpack_firehose.js")
+const unpackFirehose = require("./firehose.js")
 const customize = require("./customize.js")
 const naming = require("./naming.js")
 

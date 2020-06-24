@@ -76,57 +76,57 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
   // keep the uuid the same so that events in the same date, project, and shard get mapped to the same key
   const uuidPart = uuidv4()
   
-  return s3utils.processCompressedJsonLines(s3Bucket, firehoseS3Key, eventRecord => {
+  return s3utils.processCompressedJsonLines(s3Bucket, firehoseS3Key, record => {
     try {
-      eventRecord.project_name = customize.migrateProjectName(eventRecord.project_name)
+      record.project_name = customize.migrateProjectName(record.project_name)
     } catch (err) {
-      console.log(`WARN: skipping record ${JSON.stringify(eventRecord)}`, err)
+      console.log(`WARN: skipping record ${JSON.stringify(record)}`, err)
       return;
     }
     
-    if (eventRecord.record_type === "choose") { // DEPRECATED
+    if (record.record_type === "choose") { // DEPRECATED
       //console.log(`WARN: skipping choose record`)
       return;
     }
 
-    if (!eventRecord || !eventRecord.project_name) {
-      console.log(`WARN: skipping record - no project_name in ${JSON.stringify(eventRecord)}`)
+    if (!record || !record.project_name) {
+      console.log(`WARN: skipping record - no project_name in ${JSON.stringify(record)}`)
       return;
     }
 
-    if (!eventRecord.timestamp || !naming.isValidDate(eventRecord.timestamp)) {
-      console.log(`WARN: skipping record - invalid timestamp in ${JSON.stringify(eventRecord)}`)
+    if (!record.timestamp || !naming.isValidDate(record.timestamp)) {
+      console.log(`WARN: skipping record - invalid timestamp in ${JSON.stringify(record)}`)
       return;
     }
 
-    const timestamp = new Date(eventRecord.timestamp)
+    const timestamp = new Date(record.timestamp)
     // client reporting of timestamps in the future are handled in sendToFireHose. This should only happen with some clock skew.
     if (timestamp > Date.now()) {
-      console.log(`WARN: timestamp in the future ${JSON.stringify(eventRecord)}`)
+      console.log(`WARN: timestamp in the future ${JSON.stringify(record)}`)
     }
     
     // ensure everything in history is UTC
-    eventRecord.timestamp = timestamp.toISOString()
+    record.timestamp = timestamp.toISOString()
 
-    const projectName = eventRecord.project_name;
+    const projectName = record.project_name;
 
     // delete project_name from requestRecord in case its sensitive
-    delete eventRecord.project_name;
+    delete record.project_name;
     
     if (!naming.isValidProjectName(projectName)) {
-      console.log(`WARN: skipping record - invalid project_name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(eventRecord)}`)
+      console.log(`WARN: skipping record - invalid project_name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(record)}`)
       return;
     }
 
     let s3Key;
     
     // Handle variants records
-    if (eventRecord.type && eventRecord.type === "variants") {
+    if (record.type && record.type === "variants") {
 
-      const model = history.getModelForNamespace(projectName, eventRecord.namespace)
+      const model = naming.getModelForNamespace(projectName, record.namespace)
 
       if (!naming.isValidModelName(model)) {
-        console.log(`WARN: skipping record - invalid model name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(eventRecord)}`)
+        console.log(`WARN: skipping record - invalid model name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(record)}`)
         return;
       }
       
@@ -134,18 +134,18 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
     } else {
       // user_id is deprecated
       // history_id is not required for variants records
-      if (!eventRecord.user_id && !eventRecord.history_id) {
-        console.log(`WARN: skipping record - no history_id in ${JSON.stringify(eventRecord)}`)
+      if (!record.user_id && !record.history_id) {
+        console.log(`WARN: skipping record - no history_id in ${JSON.stringify(record)}`)
         return;
       }
       
-      if (!eventRecord.history_id) {
-        eventRecord.history_id = eventRecord.user_id
+      if (!record.history_id) {
+        record.history_id = record.user_id
       }
   
       // look at the list of available shards and assign the event to one
       // events are also segmented by event date
-      s3Key = shard.assignToHistoryS3Key(sortedShardsByProjectName[projectName], projectName, eventRecord.history_id, eventRecord.timestamp, uuidPart)
+      s3Key = shard.assignToHistoryS3Key(sortedShardsByProjectName[projectName], projectName, record.history_id, record.timestamp, uuidPart)
     }
 
     let buffers = buffersByS3Key[s3Key]
@@ -153,7 +153,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
       buffers = []
       buffersByS3Key[s3Key] = buffers
     }
-    buffers.push(Buffer.from(JSON.stringify(eventRecord)+"\n"))
+    buffers.push(Buffer.from(JSON.stringify(record)+"\n"))
 
   }).then(() => {
     return writeRecords(buffersByS3Key)
