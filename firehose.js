@@ -110,7 +110,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
 
     const projectName = record.project_name;
 
-    // delete project_name from requestRecord in case its sensitive
+    // delete project_name from record in case its sensitive
     delete record.project_name;
     
     if (!naming.isValidProjectName(projectName)) {

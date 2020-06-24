@@ -376,12 +376,14 @@ function assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionReco
   // -1 millis to propensity, +1 millis to rewards to ensure proper sorting when they come from the same event
   propensityRecords.forEach(e => e.timestampTime = new Date(e.timestamp).getTime()-1)
   decisionRecords.forEach(e => e.timestampTime = new Date(e.timestamp).getTime())
-  propensityRecords.forEach(e => e.timestampTime = new Date(e.timestamp).getTime()+1)
+  rewardsRecords.forEach(e => e.timestampTime = new Date(e.timestamp).getTime()+1)
 
   // TODO propensities
   
   // combine all the records together so we can process in a single pass
   const sortedRecords = decisionRecords.concat(rewardsRecords).sort((a, b) => a.timestampTime - b.timestampTime)
+  
+  console.log(JSON.stringify(sortedRecords))
   const decisionRecordsByRewardKey = {}
   
   for (const record of sortedRecords) {
