@@ -37,55 +37,54 @@ module.exports.customizeRecords = (projectName, records) => {
   const results = []
   records.forEach(record => {
     if (record.type === "decision" || record.type === "rewards" || record.type === "propensity") {
-      results.append(record)
+      results.push(record)
       return
     }
     
     // improve v4 share rewards
     if (record.record_type == "rewards") { 
       record.type = "rewards"
-      results.append(record)
+      results.push(record)
     }
     
     // migrate improve v4 using record
-    if (record.record_type === "using") { 
-      delete record.model
+    if (record.record_type === "using" && record.properties) { 
       if (record.context) {
         delete record.context.shared // delete old shared
       }
-
-      let messageDecision = { type: "decision" }
-      messageDecision.namespace = "messages"
-      messageDecision.timestamp = record.timestamp
-      messageDecision.history_id = record.history_id
-      messageDecision.message_id = record.message_id
-      
-      if (record.properties) {
+  
+      if (record.properties.message) {
+        let messageDecision = { type: "decision" }
+        messageDecision.namespace = "messages"
+        messageDecision.timestamp = record.timestamp
+        messageDecision.history_id = record.history_id
+        messageDecision.message_id = record.message_id
         messageDecision.variant = record.properties.message
+        messageDecision.context = record.context
+        messageDecision.reward_key = record.reward_key // pass through v4 reward key
+        
+        results.push(messageDecision)
       }
-
-      messageDecision.reward_key = record.reward_key // pass through v4 reward key
-      results.append(messageDecision)
       
-      
-      let themeDecision = { type: "decision" }
-      themeDecision.namespace = "themes"
-      themeDecision.timestamp = record.timestamp
-      themeDecision.history_id = record.history_id
-      themeDecision.message_id = `${record.message_id}-1`
-      
-      if (record.properties) {
+      if (record.properties.theme) {
+        let themeDecision = { type: "decision" }
+        themeDecision.namespace = "themes"
+        themeDecision.timestamp = record.timestamp
+        themeDecision.history_id = record.history_id
+        themeDecision.message_id = `${record.message_id}-1`
         themeDecision.variant = record.properties.theme
+  
+        themeDecision.context = record.context
+        
+        // add message as context
+        if (!themeDecision.context) {
+          themeDecision.context = {}
+        }
+        themeDecision.context.message = record.properties.message
+  
+        themeDecision.reward_key = record.reward_key // pass through v4 reward key
+        results.push(themeDecision)
       }
-
-      // add message as context
-      if (!themeDecision.context) {
-        themeDecision.context = {}
-      }
-      themeDecision.context.message = record.properties.message
-
-      themeDecision.reward_key = record.reward_key // pass through v4 reward key
-      results.append(themeDecision)
     }
   })
   
