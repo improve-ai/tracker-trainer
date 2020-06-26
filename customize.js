@@ -31,8 +31,10 @@ module.exports.migrateProjectName = (projectName) => {
   return projectName
 }
 
-// return records of .type equal to "decision", "rewards", or "propensity"
-// must include "type", timestamp", "message_id", and "history_id" fields
+// return records array with each record "type" equal to "decision", "rewards", or "propensity"
+// decision records must include "type", "timestamp", "message_id", "history_id", "namespace", and "variant"
+// rewards records must include "type", "timestamp", "message_id", "history_id", and "rewards"
+// propensity records must include "type", "timestamp", "message_id", "history_id", "namespace", "variant", and "propensity"
 module.exports.customizeRecords = (projectName, records) => {
   const results = []
   records.forEach(record => {
@@ -42,7 +44,7 @@ module.exports.customizeRecords = (projectName, records) => {
     }
     
     // improve v4 share rewards
-    if (record.record_type == "rewards") { 
+    if (record.record_type === "rewards") { 
       record.type = "rewards"
       results.push(record)
     }
