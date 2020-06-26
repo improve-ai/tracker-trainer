@@ -144,10 +144,10 @@ module.exports.assignRewards = async function(event, context) {
     return loadAndConsolidateHistoryRecords(historyWindowS3KeysMetadata.map(o => o.Key)).then(staleHistoryRecords => {
 
       // perform customize before we access the records
-      staleHistoryRecords = customize.modifyHistoryRecords(projectName, staleHistoryRecords)
+      staleHistoryRecords = filterValidRecords(customize.customizeRecords(projectName, staleHistoryRecords))
 
       // group history records by history id
-      const historyRecordsByHistoryId = Object.fromEntries(Object.entries(_.groupBy(staleHistoryRecords, 'history_id')))
+      const historyRecordsByHistoryId = _.groupBy(staleHistoryRecords, 'history_id')
 
       // convert history records into rewarded decisions
       let rewardedDecisions = []
@@ -264,6 +264,11 @@ function loadAndConsolidateHistoryRecords(historyS3Keys) {
   })
 }
 
+function filterValidRecords(historyRecords) {
+  // TODO
+  return historyRecords
+}
+
 // throw an Error on any parsing problems or customize bugs, causing the whole historyId to be skipped
 // TODO parsing problems should be massaged before this point so that the only possible source of parsing bugs
 // is customize calls.
@@ -300,71 +305,21 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
     //
 
     // only process decision records that are in the stale decision date range
-    if (timestampDate >= staleDecisionsStartDate && timestampDate < staleDecisionsEndDate) {
-      // may return an array of decision records or null
-      const newDecisionRecords = decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId)
-      if (newDecisionRecords) {
-        decisionRecords = decisionRecords.concat(newDecisionRecords)
-      }
+    if (historyRecord.type === "decision" && timestampDate >= staleDecisionsStartDate && timestampDate < staleDecisionsEndDate) {
+      decisionRecords.push(historyRecord)
     }
 
-    if (historyRecord.propensity && _.isFinite(historyRecord.propensity)) {
-      const propensityRecord = _.pick(historyRecord, ["propensity", "variant", "timestamp"]) // copy so that each record is a unique object
-      propensityRecord.type = "propensity" // allows getRewardedDecisions to assign rewards in one pass
-      propensityRecords.push(propensityRecord)
+    if (historyRecord.type === "propensity" && historyRecord.propensity && _.isFinite(historyRecord.propensity)) {
+      propensityRecords.push(historyRecord)
     }
 
-    if (historyRecord.rewards && naming.isObjectNotArray(historyRecord.rewards)) {
-      const rewardsRecord = _.pick(historyRecord, ["rewards", "timestamp"]) // copy so that each record is a unique object
-      rewardsRecord.type = "rewards" // allows getRewardedDecisions to assign rewards in one pass
-      rewardsRecords.push(rewardsRecord)
+    if (historyRecord.type === "rewards" && historyRecord.rewards && naming.isObjectNotArray(historyRecord.rewards)) {
+      rewardsRecords.push(historyRecord)
     }
   }
 
   return assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionRecords, rewardsRecords)
 }
-
-// return an array of decisions or null, the decision record may simply be a reference to the original historyRecord without copying
-function decisionRecordsFromHistoryRecord(projectName, historyRecord, historyId) {
-  let inferredDecisionRecords; // may remain null or be an array of decisionRecords
-  
-  // the history record may be of type "decision", in which case it itself is an decision record
-  if (historyRecord.type === "decision") {
-    inferredDecisionRecords = [historyRecord]
-  }
-  
-  // the history record may have attached "decisions"
-  if (historyRecord.decisions && Array.isArray(historyRecord.decisions)) {
-    if (!inferredDecisionRecords) {
-      inferredDecisionRecords = historyRecord.decisions
-    } else {
-      inferredDecisionRecords = inferredDecisionRecords.concat(historyRecord.decisions)
-    }
-  }
-
-  // may return a single decision record, an array of decision records, or null
-  let decisionRecords = customize.decisionRecordsFromHistoryRecord(projectName, historyRecord, inferredDecisionRecords)
-
-  if (decisionRecords) {
-    // wrap it as an array if they just returned one decision record
-    if (!Array.isArray(decisionRecords)) {
-      decisionRecords = [decisionRecords]
-    }
-    for (let i=0;i<decisionRecords.length;i++) {
-      const record = decisionRecords[i]
-      record.type = "decision" // allows to assign rewards in one pass
-      record.timestamp = historyRecord.timestamp
-      // give each decision a unique message id
-      record.message_id = i == 0 ? historyRecord.message_id : `${historyRecord.message_id}-${i}`;
-      record.history_id = historyId
-    }
-  }
-  
-  // TODO think about if messageId should be passed in
-  
-  return decisionRecords
-}
-
 
 // in a single pass assign propensities and rewards to all decision records
 function assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionRecords, rewardsRecords) {
@@ -382,8 +337,7 @@ function assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionReco
   
   // combine all the records together so we can process in a single pass
   const sortedRecords = decisionRecords.concat(rewardsRecords).sort((a, b) => a.timestampTime - b.timestampTime)
-  
-  console.log(JSON.stringify(sortedRecords))
+
   const decisionRecordsByRewardKey = {}
   
   for (const record of sortedRecords) {
@@ -423,6 +377,7 @@ function assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionReco
     }
   }
   
+  // TODO either remove timestampTime or don't store it on the record (using a Map)
   return decisionRecords
 }
 
@@ -433,7 +388,8 @@ function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
   let maxReward = 0
 
   for (let rewardedDecision of rewardedDecisions) {
-    rewardedDecision = finalizeRewardedDecision(projectName, rewardedDecision)
+    // an exception here will cause the entire history process task to fail
+    naming.assertValidRewardedDecision(rewardedDecision)
 
     const reward = rewardedDecision.reward
     if (reward) {
@@ -457,16 +413,6 @@ function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
   }
 
   return Promise.all(Object.entries(buffersByS3Key).map(([s3Key, buffers]) => s3utils.compressAndWriteBuffers(s3Key, buffers)))
-}
-
-function finalizeRewardedDecision(projectName, rewardedDecisionRecord) {
-  let rewardedDecision = _.pick(rewardedDecisionRecord, ["variant", "context", "namespace", "timestamp", "message_id", "history_id", "reward", "propensity"])
-
-  // an exception here will cause the entire history process task to fail
-  rewardedDecision = customize.modifyRewardedDecision(projectName, rewardedDecision)
-  naming.assertValidRewardedDecision(rewardedDecision)
-  
-  return rewardedDecision
 }
 
 // cached wrapper of naming.getModelForNamespace

@@ -31,29 +31,65 @@ module.exports.migrateProjectName = (projectName) => {
   return projectName
 }
 
-// do not modify timestamps or reward windows might no longer be valid
-module.exports.modifyHistoryRecords = (projectName, historyRecords) => {
-  return historyRecords;
-}
+// return records of .type equal to "decision", "rewards", or "propensity"
+// must include "type", timestamp", "message_id", and "history_id" fields
+module.exports.customizeRecords = (projectName, records) => {
+  const results = []
+  records.forEach(record => {
+    if (record.type === "decision" || record.type === "rewards" || record.type === "propensity") {
+      results.append(record)
+      return
+    }
+    
+    // improve v4 share rewards
+    if (record.record_type == "rewards") { 
+      record.type = "rewards"
+      results.append(record)
+    }
+    
+    // migrate improve v4 using record
+    if (record.record_type === "using") { 
+      delete record.model
+      if (record.context) {
+        delete record.context.shared // delete old shared
+      }
 
-module.exports.modifyRewardedDecision = (projectName, rewardedDecision) => {
-  return rewardedDecision;
-}
+      let messageDecision = { type: "decision" }
+      messageDecision.namespace = "messages"
+      messageDecision.timestamp = record.timestamp
+      messageDecision.history_id = record.history_id
+      messageDecision.message_id = record.message_id
+      
+      if (record.properties) {
+        messageDecision.variant = record.properties.message
+      }
 
-// may return null or an array of decision records.
-// inferredDecisionRecords may be null or an array
-// modifications to timestamp or history_id will be ignored
-module.exports.decisionRecordsFromHistoryRecord = (projectName, historyRecord, inferredDecisionRecords) => {
-  if (inferredDecisionRecords) {
-    return inferredDecisionRecords;
-  }
-  // backwards compatibility with Improve v4
-  if (historyRecord.record_type === "using") {
-    historyRecord.variant = historyRecord.properties
-    historyRecord.namespace = "messages"
-    return historyRecord
-  }
-}
+      messageDecision.reward_key = record.reward_key // pass through v4 reward key
+      results.append(messageDecision)
+      
+      
+      let themeDecision = { type: "decision" }
+      themeDecision.namespace = "themes"
+      themeDecision.timestamp = record.timestamp
+      themeDecision.history_id = record.history_id
+      themeDecision.message_id = `${record.message_id}-1`
+      
+      if (record.properties) {
+        themeDecision.variant = record.properties.theme
+      }
 
+      // add message as context
+      if (!themeDecision.context) {
+        themeDecision.context = {}
+      }
+      themeDecision.context.message = record.properties.message
+
+      themeDecision.reward_key = record.reward_key // pass through v4 reward key
+      results.append(themeDecision)
+    }
+  })
+  
+  return results
+}
 
 module.exports.config = yaml.safeLoad(fs.readFileSync('./customize.yml', 'utf8'));
