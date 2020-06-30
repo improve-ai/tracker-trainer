@@ -387,6 +387,7 @@ function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
   let maxReward = 0
 
   for (let rewardedDecision of rewardedDecisions) {
+    rewardedDecision = _.pick(rewardedDecision, ["variant", "context", "namespace", "timestamp", "message_id", "history_id", "reward", "propensity"])
     // an exception here will cause the entire history process task to fail
     naming.assertValidRewardedDecision(rewardedDecision)
 
