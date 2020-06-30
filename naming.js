@@ -229,6 +229,7 @@ module.exports.getModelsByProject = () => {
   return Object.fromEntries(Object.entries(customize.config.projects).filter(([project, projectDict]) => projectDict.models).map(([project, projectDict]) => [project, Object.keys(projectDict.models)]))
 }
 
+// TODO check isDefaultModel
 module.exports.getModelForNamespace = (projectName, namespace) => {
   if (!customize.config.projects || !customize.config.projects[projectName]) {
     throw new Error("no configured project ${projectName}")

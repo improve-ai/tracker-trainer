@@ -78,18 +78,38 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
   
   return s3utils.processCompressedJsonLines(s3Bucket, firehoseS3Key, record => {
     try {
-      record.project_name = customize.migrateProjectName(record.project_name)
+      record.project_name = customize.migrateProjectName(record.project_name || record.api_key) // api_key is deprecated
     } catch (err) {
       console.log(`WARN: skipping record ${JSON.stringify(record)}`, err)
       return;
     }
-    
-    if (record.record_type === "choose") { // DEPRECATED
-      //console.log(`WARN: skipping choose record`)
-      return;
+
+    // migrate improve v4 records
+    if (record.record_type) {
+      switch (record.record_type) {
+        case "choose":
+          // skip old choose records
+          return;
+        case "using":
+          record.type = "decision"
+          record.variant = record.properties
+          delete record.properties
+          record.namespace = record.model
+          delete record.model
+          break;
+        case "rewards":
+          record.type = "rewards"
+          break;
+      }
+      delete record.record_type
     }
 
-    if (!record || !record.project_name) {
+    if (!record.history_id) {
+      record.history_id = record.user_id
+      delete record.user_id
+    }
+
+    if (!record.project_name) {
       console.log(`WARN: skipping record - no project_name in ${JSON.stringify(record)}`)
       return;
     }
@@ -132,15 +152,10 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
       
       s3Key = naming.getVariantsS3Key(projectName, model, firehoseS3Key)
     } else {
-      // user_id is deprecated
       // history_id is not required for variants records
-      if (!record.user_id && !record.history_id) {
+      if (!record.history_id) {
         console.log(`WARN: skipping record - no history_id in ${JSON.stringify(record)}`)
         return;
-      }
-      
-      if (!record.history_id) {
-        record.history_id = record.user_id
       }
   
       // look at the list of available shards and assign the event to one

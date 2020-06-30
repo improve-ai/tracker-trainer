@@ -36,61 +36,15 @@ module.exports.migrateProjectName = (projectName) => {
 // rewards records must include "type", "timestamp", "message_id", "history_id", and "rewards"
 // propensity records must include "type", "timestamp", "message_id", "history_id", "namespace", "variant", and "propensity"
 module.exports.customizeRecords = (projectName, records) => {
-  const results = []
-  records.forEach(record => {
-    if (record.type === "decision" || record.type === "rewards" || record.type === "propensity") {
-      results.push(record)
-      return
+  return records.map(r => {
+    if (r.namespace && r.namespace === "messages-1.0") {
+      r.namespace = "pages" // migrate improve v4
     }
-    
-    // improve v4 share rewards
-    if (record.record_type === "rewards") { 
-      record.type = "rewards"
-      results.push(record)
+    if (r.context) {
+      delete r.context.shared // delete shared for now
     }
-    
-    // migrate improve v4 using record
-    if (record.record_type === "using" && record.properties) { 
-      if (record.context) {
-        delete record.context.shared // delete old shared
-      }
-  
-      if (record.properties.message) {
-        let messageDecision = { type: "decision" }
-        messageDecision.namespace = "messages"
-        messageDecision.timestamp = record.timestamp
-        messageDecision.history_id = record.history_id
-        messageDecision.message_id = record.message_id
-        messageDecision.variant = record.properties.message
-        messageDecision.context = record.context
-        messageDecision.reward_key = record.reward_key // pass through v4 reward key
-        
-        results.push(messageDecision)
-      }
-      
-      if (record.properties.theme) {
-        let themeDecision = { type: "decision" }
-        themeDecision.namespace = "themes"
-        themeDecision.timestamp = record.timestamp
-        themeDecision.history_id = record.history_id
-        themeDecision.message_id = `${record.message_id}-1`
-        themeDecision.variant = record.properties.theme
-  
-        themeDecision.context = record.context
-        
-        // add message as context
-        if (!themeDecision.context) {
-          themeDecision.context = {}
-        }
-        themeDecision.context.message = record.properties.message
-  
-        themeDecision.reward_key = record.reward_key // pass through v4 reward key
-        results.push(themeDecision)
-      }
-    }
+    return r
   })
-  
-  return results
 }
 
 module.exports.config = yaml.safeLoad(fs.readFileSync('./customize.yml', 'utf8'));

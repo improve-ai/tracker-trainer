@@ -164,6 +164,8 @@ module.exports.assignRewards = async function(event, context) {
   }))
 }
 
+// TODO cap date range and only delete the processed incomingHistoryS3Keys
+
 // returns a tuple of startDate (inclusive) and endDate (exclusive) for the given incoming history S3 Keys
 function getIncomingDateRange(incomingHistoryS3Keys) {
   let startDate = new Date() // now
@@ -290,6 +292,7 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
   const rewardsRecords = []
 
   for (const historyRecord of historyRecords) {
+    // TODO refactor this into filterValid
     if (!naming.isValidMessageId(historyRecord.message_id)) {
       throw new Error(`invalid message_id for history record ${JSON.stringify(historyRecord)}`)
     }
@@ -299,10 +302,6 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
     if (!timestampDate) {
       throw new Error(`invalid timestamp for history record ${JSON.stringify(historyRecord)}`)
     }
-
-    //
-    // allow decision records to be used without copying, but always copy propensity and rewards records into unique objects to avoid clobbering
-    //
 
     // only process decision records that are in the stale decision date range
     if (historyRecord.type === "decision" && timestampDate >= staleDecisionsStartDate && timestampDate < staleDecisionsEndDate) {
