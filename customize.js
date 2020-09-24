@@ -39,14 +39,15 @@ module.exports.customizeRecords = (projectName, records) => {
   const results = []
   
   records.forEach(r => {
-  if (r.model && r.model === "messages-1.0" && r.variant) {
-    const messageDecision = { type: "decision", model: "messages-2.0", variant: decision.variant.message, reward_key: decision.reward_key }
-    const themeDecision = { type: "decision", model: "themes-2.0", variant: decision.variant.theme, reward_key: decision.reward_key }
-    results.append(messageDecision);
-    results.append(themeDecision);
-  } else {
-    results.append(r)
-  }
+    if (r.model && r.model === "messages-1.0" && r.variant) {
+      const messageDecision = { type: "decision", model: "messages-2.0", variant: r.variant.message, reward_key: r.reward_key }
+      const themeDecision = { type: "decision", model: "themes-2.0", variant: r.variant.theme, reward_key: r.reward_key }
+      results.append(messageDecision);
+      results.append(themeDecision);
+    } else {
+      results.append(r)
+    }
+  })
 
   return results
 }
