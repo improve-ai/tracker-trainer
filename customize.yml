@@ -1,5 +1,4 @@
 ---
-propensityWindowInSeconds: 7200 # TODO 23 hours 59 minutes TODO maybe change window semantics for 24 hours...
 rewardWindowInSeconds: 7200
 binaryRewards: true
 featureHyperparameters:
@@ -18,37 +17,16 @@ projects:
   test:
     models:
       default_model:
-        isDefaultModel: true
-        boostedModel: true # .boost ?
   bible:
     models:
-      default_model: # catch all
-        isDefaultModel: true
-        allowedNamespaces: foo
-        rejectedNamespaces: bar
-        deniedNamespaces: baz
-        excludedNamespaces: beez
-# TODO probably change namespaces to property keys so we can have configuration per action such as allowed properties/context (maybe???)
-      # messages:
-      #   namespaces: 
-      #     - "messages"
-      # themes:
-      #   namespaces:
-      #     - "themes"
-      # songs:
-      #   namespaces:
-      #     - "songs"
+      messages-2.0:
+      themes-2.0:
+      songs-2.0:
+      stories-2.0:
 
   mindful:
     models:
-      default_model:
-        isDefaultModel: true
-      # messages:
-      #   namespaces: 
-      #     - "messages"
-      # themes:
-      #   namespaces:
-      #     - "themes"
-      # songs:
-      #   namespaces:
-      #     - "songs"
+      messages-2.0:
+      themes-2.0:
+      songs-2.0:
+      stories-2.0:

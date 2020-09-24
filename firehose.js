@@ -94,8 +94,6 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
           record.type = "decision"
           record.variant = record.properties
           delete record.properties
-          record.namespace = record.model
-          delete record.model
           break;
         case "rewards":
           record.type = "rewards"

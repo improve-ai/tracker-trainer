@@ -31,20 +31,24 @@ module.exports.migrateProjectName = (projectName) => {
   return projectName
 }
 
-// return records array with each record "type" equal to "decision", "rewards", or "propensity"
+// return records array with each record "type" equal to "decision" or "rewards"
 // decision records must include "type", "timestamp", "message_id", "history_id", "namespace", and "variant"
 // rewards records must include "type", "timestamp", "message_id", "history_id", and "rewards"
-// propensity records must include "type", "timestamp", "message_id", "history_id", "namespace", "variant", and "propensity"
 module.exports.customizeRecords = (projectName, records) => {
-  return records.map(r => {
-    if (r.namespace && r.namespace === "messages-1.0") {
-      r.namespace = "pages" // migrate improve v4
-    }
-    if (r.context) {
-      delete r.context.shared // delete shared for now
-    }
-    return r
-  })
+  
+  const results = []
+  
+  records.forEach(r => {
+  if (r.model && r.model === "messages-1.0" && r.variant) {
+    const messageDecision = { type: "decision", model: "messages-2.0", variant: decision.message, reward_key: decision.reward_key }
+    const themeDecision = { type: "decision", model: "themes-2.0", variant: decision.theme, reward_key: decision.reward_key }
+    results.append(messageDecision);
+    results.append(themeDecision);
+  } else {
+    results.append(r)
+  }
+
+  return results
 }
 
 module.exports.config = yaml.safeLoad(fs.readFileSync('./customize.yml', 'utf8'));
