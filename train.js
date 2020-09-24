@@ -130,8 +130,8 @@ function createTransformJob(projectName, model, trainingJobName) {
     ModelName: trainingJobName,
     TransformInput: {
       CompressionType: 'Gzip',
-      DataSource: { 
-        S3DataSource: { 
+      DataSource: {
+        S3DataSource: {
           S3DataType: "S3Prefix",
           S3Uri: naming.getRewardedDecisionS3Uri(projectName, model), // transform all train/validation splits. XGBoost will seperate them again.
         }
@@ -139,6 +139,7 @@ function createTransformJob(projectName, model, trainingJobName) {
       SplitType: "Line",
     },
     TransformOutput: { 
+      Accept: "text/csv",
       AssembleWith: "None",
       S3OutputPath: naming.getTransformedS3Uri(projectName, model),
     },
@@ -179,29 +180,33 @@ function createXGBoostTrainingJob(projectName, model, trainingJobName) {
   // TODO clean up transformed parent shards and out of range dates
   
   console.log(`creating xgboost training job ${trainingJobName} project ${projectName} model ${model} params ${JSON.stringify(params)}`)
+  const hyperparameters = naming.getXGBoostHyperparameters(projectName, model)
+  hyperparameters["csv_weights"] = "1"
   
   var params = {
     TrainingJobName: trainingJobName,
-    HyperParameters: naming.getXGBoostHyperparameters(projectName, model),
+    HyperParameters: hyperparameters,
     AlgorithmSpecification: { /* required */
       TrainingImage: process.env.XGBOOST_TRAINING_IMAGE,
-      TrainingInputMode: "File",
+      TrainingInputMode: "Pipe",
     },
-    InputDataConfig: [ 
+    InputDataConfig: [
       {
         ChannelName: 'train',
         CompressionType: 'None',
-        DataSource: { 
-          S3DataSource: { 
+        ContentType: 'text/csv',
+        DataSource: {
+          S3DataSource: {
             S3DataType:"S3Prefix",
-            S3Uri: naming.getTransformedTrainS3Uri(projectName, model), 
+            S3Uri: naming.getTransformedTrainS3Uri(projectName, model),
             S3DataDistributionType: "ShardedByS3Key",
           }
         },
       },
-      {
+     /* {
         ChannelName: 'validation',
         CompressionType: 'None',
+        ContentType: 'text/csv',
         DataSource: { 
           S3DataSource: { 
             S3DataType:"S3Prefix",
@@ -209,7 +214,7 @@ function createXGBoostTrainingJob(projectName, model, trainingJobName) {
             S3DataDistributionType: "ShardedByS3Key",
           }
         },
-      },
+      },*/
     ],
     OutputDataConfig: { 
       S3OutputPath: naming.getXGBoostModelsS3Uri(projectName, model), 

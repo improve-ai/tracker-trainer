@@ -9,6 +9,7 @@ const customize = require("./customize.js")
 
 const me = module.exports
 
+// TODO projectName should really be top level in histories and rewarded_decisions
 module.exports.getHistoryS3Key = (projectName, shardId, utcTimestampString, uuid) => {
   const [year, month, day] = utcTimestampString.slice(0,10).split('-')
 
