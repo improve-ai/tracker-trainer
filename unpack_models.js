@@ -11,7 +11,7 @@ const uuidv4 = require('uuid/v4');
  Expects s3:ObjectCreated event which is fired when SageMaker creates model artifcats.
  Expected S3 key should be like: 'transformed_models/<project_name>/<model_name>/test-mindful-messages10-202005112319-83072c36cecb-f/output/model.tar.gz.out'
  */
-module.exports.unpack = async function(event, context) {
+module.exports.unpack = function(event, context) {
   
   console.log(`processing event records from firehose bucket SNS event ${JSON.stringify(event)}`);
 
@@ -46,9 +46,8 @@ module.exports.unpack = async function(event, context) {
   var extract = tar.extract();
 
   extract.on('entry', function(header, inputStream, next) {
-
-      const key = getTimestampedS3Key(projectName, modelName, header.name);
-      const latestKey = getLatestS3Key(projectName, modelName, header.name);
+      const key = getTimestampedS3KeyForFile(projectName, modelName, header.name);
+      const latestKey = getLatestS3KeyForFile(projectName, modelName, header.name);
       
       if (key && latestKey) {
         inputStream.pipe(uploadFromStream(key, latestKey));
@@ -85,18 +84,16 @@ function uploadFromStream(key, latestKey) {
       Key: latestKey
     };
 
+    console.log(`uplading with params ${JSON.stringify(writeParams)}`)
     s3.upload(writeParams).promise().then((data) => {
-        return s3.copyObject(copyParams).promise();
-    }).then((data) => {
-      context.done(null, data);
-    }, (err) => {
-      context.done(err, null);
+      console.log(`copying with params ${JSON.stringify(copyParams)}`)
+      return s3.copyObject(copyParams).promise();
     });
 
     return pass;
 }
 
-function getTimestampedS3Key(projectName, modelName, filePath) {
+function getTimestampedS3KeyForFile(projectName, modelName, filePath) {
   if (filePath.endsWith('.tar.gz')) {
     return getTimestampedXgbS3Key(projectName, modelName)
   } else if (filePath.endsWith('.mlmodel')) {
@@ -106,7 +103,7 @@ function getTimestampedS3Key(projectName, modelName, filePath) {
   }
 }
 
-function getLatestS3Key(projectName, modelName, filePath) {
+function getLatestS3KeyForFile(projectName, modelName, filePath) {
   if (filePath.endsWith('.tar.gz')) {
     return getLatestXgbS3Key(projectName, modelName)
   } else if (filePath.endsWith('.mlmodel')) {

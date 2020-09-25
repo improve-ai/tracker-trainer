@@ -131,7 +131,7 @@ functions:
             detail:
               TransformJobStatus:
                 - Completed
-  repack:
+  unpackModels:
     handler: unpack_models.unpack
     events:
       - s3:
