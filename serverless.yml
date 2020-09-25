@@ -132,7 +132,7 @@ functions:
               TransformJobStatus:
                 - Completed
   repack:
-    handler: repack.repack
+    handler: unpack_models.unpack
     events:
       - s3:
           bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}

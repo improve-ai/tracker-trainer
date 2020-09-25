@@ -39,6 +39,7 @@ module.exports.customizeRecords = (projectName, records) => {
   const results = []
   
   records.forEach(r => {
+    // migrate messages-1.0 { message: ..., theme: ... }
     if (r.model && r.model === "messages-1.0" && r.variant) {
       const messageDecision = {...r}
       messageDecision.model = "messages-2.0"
