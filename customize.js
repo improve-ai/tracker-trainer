@@ -41,11 +41,11 @@ module.exports.customizeRecords = (projectName, records) => {
   records.forEach(r => {
     // migrate messages-1.0 { message: ..., theme: ... }
     if (r.model && r.model === "messages-1.0" && r.variant) {
-      const messageDecision = {...r}
+      const messageDecision = Object.assign({}, r)
       messageDecision.model = "messages-2.0"
       messageDecision.variant = r.variant.message
       
-      const themeDecision = {...r}
+      const themeDecision = Object.assign({}, r)
       themeDecision.model = "themes-2.0"
       themeDecision.variant = r.variant.theme
       // set the message on the context
