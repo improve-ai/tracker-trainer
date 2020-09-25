@@ -100,7 +100,7 @@ module.exports.assignRewards = async function(event, context) {
     throw new Error(`WARN: missing project_name or shard_id ${JSON.stringify(event)}`)
   }
 
-  // since records for all models/namespaces for this project are lumped together, we need to use the max window sizes for processing
+  // since records for all models for this project are lumped together, we need to use the max window sizes for processing
   const propensityWindowInSeconds = naming.getMaxPropensityWindowInSeconds(projectName)
   const rewardWindowInSeconds = naming.getMaxRewardWindowInSeconds(projectName)
   
@@ -387,7 +387,7 @@ function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
   let maxReward = 0
 
   for (let rewardedDecision of rewardedDecisions) {
-    rewardedDecision = _.pick(rewardedDecision, ["variant", "context", "namespace", "timestamp", "message_id", "history_id", "reward", "propensity"])
+    rewardedDecision = _.pick(rewardedDecision, ["variant", "context", "model", "timestamp", "message_id", "history_id", "reward", "propensity"])
     // an exception here will cause the entire history process task to fail
     naming.assertValidRewardedDecision(rewardedDecision)
 
@@ -398,7 +398,7 @@ function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
       maxReward = Math.max(reward, maxReward)
     }
 
-    const s3Key = naming.getRewardedDecisionS3Key(projectName, getModelForNamespace(projectName, rewardedDecision.namespace), shardId, new Date(rewardedDecision.timestamp))
+    const s3Key = naming.getRewardedDecisionS3Key(projectName, naming.getModelForRecordModel(projectName, rewardedDecision.model), shardId, new Date(rewardedDecision.timestamp))
     let buffers = buffersByS3Key[s3Key]
     if (!buffers) {
       buffers = []
@@ -413,24 +413,6 @@ function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
   }
 
   return Promise.all(Object.entries(buffersByS3Key).map(([s3Key, buffers]) => s3utils.compressAndWriteBuffers(s3Key, buffers)))
-}
-
-// cached wrapper of naming.getModelForNamespace
-const projectNamespaceModelCache = {}
-function getModelForNamespace(projectName, namespace) {
-  // this is looked up for every rewarded namespace record during history procesing so needs to be fast
-  let namespaceModelCache = projectNamespaceModelCache[projectName]
-  if (namespaceModelCache) {
-    const model = namespaceModelCache[namespace]
-    if (model) {
-      return model
-    }
-  }
-  
-  const model = naming.getModelForNamespace(projectName, namespace)
-  namespaceModelCache = {[namespace]: model}
-  projectNamespaceModelCache[projectName] = namespaceModelCache
-  return model
 }
 
 module.exports.markHistoryS3KeyAsIncoming = (historyS3Key) => {

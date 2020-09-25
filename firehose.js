@@ -128,7 +128,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
 
     const projectName = record.project_name;
 
-    // delete project_name from record in case its sensitive
+    // delete project_name from record in case it is sensitive
     delete record.project_name;
     
     if (!naming.isValidProjectName(projectName)) {
@@ -136,30 +136,14 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
       return;
     }
 
-    let s3Key;
-    
-    // Handle variants records
-    if (record.type && record.type === "variants") {
-
-      const model = naming.getModelForNamespace(projectName, record.namespace)
-
-      if (!naming.isValidModelName(model)) {
-        console.log(`WARN: skipping record - invalid model name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(record)}`)
-        return;
-      }
-      
-      s3Key = naming.getVariantsS3Key(projectName, model, firehoseS3Key)
-    } else {
-      // history_id is not required for variants records
-      if (!record.history_id) {
-        console.log(`WARN: skipping record - no history_id in ${JSON.stringify(record)}`)
-        return;
-      }
-  
-      // look at the list of available shards and assign the event to one
-      // events are also segmented by event date
-      s3Key = shard.assignToHistoryS3Key(sortedShardsByProjectName[projectName], projectName, record.history_id, record.timestamp, uuidPart)
+    if (!record.history_id) {
+      console.log(`WARN: skipping record - no history_id in ${JSON.stringify(record)}`)
+      return;
     }
+  
+    // look at the list of available shards and assign the event to one
+    // events are also segmented by event date
+    const s3Key = shard.assignToHistoryS3Key(sortedShardsByProjectName[projectName], projectName, record.history_id, record.timestamp, uuidPart)
 
     let buffers = buffersByS3Key[s3Key]
     if (!buffers) {

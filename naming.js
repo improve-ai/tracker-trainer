@@ -230,36 +230,22 @@ module.exports.getModelsByProject = () => {
   return Object.fromEntries(Object.entries(customize.config.projects).filter(([project, projectDict]) => projectDict.models).map(([project, projectDict]) => [project, Object.keys(projectDict.models)]))
 }
 
-// TODO check isDefaultModel
-module.exports.getModelForNamespace = (projectName, namespace) => {
+module.exports.getModelForRecordModel = (projectName, recordModel) => {
   if (!customize.config.projects || !customize.config.projects[projectName]) {
     throw new Error("no configured project ${projectName}")
   }
 
-  let catchallModel;
   const modelConfigs = customize.config.projects[projectName].models
   for (const [model, modelConfig] of Object.entries(modelConfigs)) {
     if (!me.isValidModelName(model)) {
       throw new Error(`invalid model name ${model}, not alphanumeric, underscore, dash, space, period`)
     }
-    // there is only one catchall model
-    if (!modelConfig || !modelConfig.namespaces || modelConfig.namespaces.length == 0) {
-      if (catchallModel) {
-        throw new Error(`only one catchall model (zero \"namespaces\") can be configured per project ${projectName} - ${JSON.stringify(modelConfigs)}`)
-      }
-      catchallModel = model
-    } else {
-      // check to see if this namespace is explicitly handled by a model
-      for (const acceptedNamespace of modelConfig.namespaces) {
-        if (acceptedNamespace === namespace) {
-          return model
-        }
-      }
+    if (model === recordModel) {
+      return recordModel
     }
   }
 
-  // this namespace is not explicitly configured. Use the catchall model
-  return catchallModel
+  throw new Error(`no model ${recordModel} configured`)
 }
 
 // TODO
@@ -321,9 +307,9 @@ module.exports.assertValidRewardedDecision = (ra) => {
   if (ra.context) {
     assert(me.isObjectNotArray(ra.context), `'context' must be a dictionary for ${JSON.stringify(ra)}`)
   }
-  // TODO disallow null namespace
-  if (ra.namespace) {
-    assert(_.isString(ra.namespace),`'namespace' must be string for ${JSON.stringify(ra)}`)
+  // TODO disallow null model, check model chars
+  if (ra.model) {
+    assert(_.isString(ra.model),`'model' must be string for ${JSON.stringify(ra)}`)
   }
   if (ra.reward) {
     assert(_.isFinite(ra.reward), `'reward' must be a finite number for ${JSON.stringify(ra)}`)
