@@ -22,7 +22,7 @@ module.exports.dispatchTrainingJobs = async () => {
 
 function createFeatureTrainingJob(projectName, model) {
   
-  let hyperparameters = {} 
+  let hyperparameters = { model: model } 
   if (customize.config.binaryRewards) {
     Object.assign(hyperparameters,  { binary_rewards: "true" })
   }
