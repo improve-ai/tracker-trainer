@@ -43,9 +43,16 @@ module.exports.customizeRecords = (projectName, records) => {
       const messageDecision = {...r}
       messageDecision.model = "messages-2.0"
       messageDecision.variant = r.variant.message
+      
       const themeDecision = {...r}
       themeDecision.model = "themes-2.0"
       themeDecision.variant = r.variant.theme
+      // set the message on the context
+      if (!themeDecision.context) {
+        themeDecision.context = {}
+      }
+      themeDecision.context.message = r.variant.message
+      
       results.append(messageDecision)
       results.append(themeDecision)
     } else {
