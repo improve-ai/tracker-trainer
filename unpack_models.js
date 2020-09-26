@@ -122,27 +122,27 @@ function getLatestS3KeyForFile(projectName, modelName, filePath) {
 }
 
 function getLatestMLModelS3Key(projectName, modelName) {
-  return `models/${projectName}/${modelName}/mlmodel/latest/improve-${modelName}.mlmodel`
+  return `models/${projectName}/latest/improve-${modelName}.mlmodel`
 }
 
 function getLatestXgbS3Key(projectName, modelName) {
-  return `models/${projectName}/${modelName}/xgb/latest/improve-${modelName}.tar.gz`
+  return `models/${projectName}/latest/improve-${modelName}.tar.gz`
 }
 
 function getTimestampedMLModelS3Key(projectName, modelName) {
-  return getTimestampedS3Key(projectName, modelName, "mlmodel", "mlmodel");
+  return getTimestampedS3Key(projectName, modelName, "mlmodel");
 }
 
 function getTimestampedXgbS3Key(projectName, modelName) {
-  return getTimestampedS3Key(projectName, modelName, "xgb", "tar.gz");
+  return getTimestampedS3Key(projectName, modelName, "tar.gz");
 }
 
-function getTimestampedS3Key(projectName, modelName, type, extension) {
+function getTimestampedS3Key(projectName, modelName, extension) {
   const now = new Date();
   let dateStr = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}-`;
   dateStr += `${now.getUTCHours()}-${now.getUTCMinutes()}-${now.getUTCSeconds()}`;
 
   const uuidStr = uuidv4();
 
-  return `models/${projectName}/${modelName}/${type}/improve-${modelName}-${dateStr}-${uuidStr}.${extension}`
+  return `models/${projectName}/archive/improve-${modelName}-${dateStr}-${uuidStr}.${extension}`
 }
