@@ -77,6 +77,10 @@ function uploadFromStream(key, latestKey) {
         Key: key,
         Body: pass
     };
+    
+    if (key.endsWith(".mlmodel")) {
+      writeParams.ContentType = "application/protobuf" // allows cloudfront to automatically compress .mlmodel files
+    }
 
     const copyParams = {
       Bucket: process.env.MODELS_BUCKET,
@@ -88,6 +92,10 @@ function uploadFromStream(key, latestKey) {
     s3.upload(writeParams).promise().then((data) => {
       console.log(`copying with params ${JSON.stringify(copyParams)}`)
       return s3.copyObject(copyParams).promise();
+    }).then((data) => {
+      console.log('copy completed');
+    }, (err) => {
+      console.log('copy failed', err);
     });
 
     return pass;
