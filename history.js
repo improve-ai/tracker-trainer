@@ -101,7 +101,7 @@ module.exports.assignRewards = async function(event, context) {
   }
 
   // since records for all models for this project are lumped together, we need to use the max window sizes for processing
-  const propensityWindowInSeconds = naming.getMaxPropensityWindowInSeconds(projectName)
+  const propensityWindowInSeconds = 1 // TODO delete
   const rewardWindowInSeconds = naming.getMaxRewardWindowInSeconds(projectName)
   
   let updateLastProcessed = Promise.resolve(true)

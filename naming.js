@@ -258,10 +258,6 @@ module.exports.getXGBoostHyperparameters = (projectName, model) => {
   return Object.assign(hyperparameters, customize.config.xgboostHyperparameters)
 }
 
-module.exports.getMaxPropensityWindowInSeconds = (projectName) => {
-  return customize.config.propensityWindowInSeconds // TODO propensity window by model
-}
-
 module.exports.getMaxRewardWindowInSeconds = (projectName) => {
   return customize.config.rewardWindowInSeconds // TODO reward window by model
 }
