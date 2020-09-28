@@ -39,6 +39,8 @@ module.exports.customizeRecords = (projectName, records) => {
   const results = []
   
   records.forEach(r => {
+    delete r.shared
+    
     // migrate messages-1.0 { message: ..., theme: ... }
     if (r.model && r.model === "messages-1.0" && r.variant) {
       const messageDecision = Object.assign({}, r)
@@ -49,15 +51,18 @@ module.exports.customizeRecords = (projectName, records) => {
       themeDecision.model = "themes-2.0"
       themeDecision.variant = r.variant.theme
       // set the message on the context
-      if (!themeDecision.context) {
-        themeDecision.context = {}
-      }
+      themeDecision.context = Object.assign({}, r.context)
       themeDecision.context.message = r.variant.message
       
-      results.append(messageDecision)
-      results.append(themeDecision)
+      // TODO check valid record
+      if (messageDecision.variant) {
+        results.push(messageDecision)
+      }
+      if (themeDecision.variant) {
+        results.push(themeDecision)
+      }
     } else {
-      results.append(r)
+      results.push(r)
     }
   })
 
