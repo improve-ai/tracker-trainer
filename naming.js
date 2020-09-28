@@ -245,7 +245,8 @@ module.exports.getModelForRecordModel = (projectName, recordModel) => {
     }
   }
 
-  throw new Error(`no model ${recordModel} configured`)
+
+  return null;
 }
 
 // TODO
