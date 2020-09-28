@@ -1,31 +1,47 @@
-service: improve-v4
+service: improve-v5
 provider:
   name: aws
   region: us-west-2
-  runtime: nodejs10.x
-  timeout: 6
+  runtime: nodejs12.x
+  timeout: 900
   memorySize: 192
   environment:
     #
     # Customize your deployment here:
     #
-    TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/decision_service:latest # Scalable Decision Service image using XGBoost
-    # TRAINING_IMAGE: 117097735164.dkr.ecr.us-east-2.amazonaws.com/multi_armed_bandit:latest # Multi-Armed Bandit image for Thompson Sampling/Bayesian Bandits and Epsilon Greedy
-    TRAINING_INSTANCE_TYPE: ml.m5.large # choose an instance type with enough memory to hold the entire training set
-    TRAINING_VOLUME_SIZE_IN_GB: 20 # must be at least 2x the training data size
-    TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
-    HOSTING_INSTANCE_TYPE: ml.t2.medium # Note that t* instance types don't support autoscaling
-    HOSTING_INITIAL_INSTANCE_COUNT: 1 # should be large enough that model updates can immediately serve a production load without waiting for auto-scaling
+    TRAINING_JOB_SCHEDULE: rate(24 hours) # trades off between learning latency and cost
+    FEATURE_TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
+    FEATURE_TRAINING_INSTANCE_TYPE: ml.m5.large
+    FEATURE_TRAINING_INSTANCE_COUNT: 1
+    FEATURE_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
+    TRANSFORM_INSTANCE_TYPE: ml.m5.large
+    TRANSFORM_INSTANCE_COUNT: 4
+    XGBOOST_TRAINING_IMAGE: 246618743249.dkr.ecr.us-west-2.amazonaws.com/sagemaker-xgboost:0.90-2-cpu-py3 # XGBoost (0.90) do this after validating everything # 433757028032.dkr.ecr.us-west-2.amazonaws.com/xgboost:latest  #
+    XGBOOST_TRAINING_INSTANCE_TYPE: ml.m5.xlarge
+    XGBOOST_TRAINING_INSTANCE_COUNT: 4
+    XGBOOST_TRAINING_VOLUME_SIZE_IN_GB: 10
+    XGBOOST_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
+    DEFAULT_REWARD_WINDOW_IN_SECONDS: 7200 # 2 hours
+    FIREHOSE_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory. Buffer size is configured in resources/serverless.yml
+    REWARD_ASSIGNMENT_WORKER_MEMORY_IN_MB: 1024 # must be large enough to hold a reward window's worth of events for a single history shard
+    REWARD_ASSIGNMENT_WORKER_MAX_PAYLOAD_IN_MB: 32 # If the size of the compressed data processed for a reward window exceeds this size, a reshard will be triggered, splitting the shard in half
+    REWARD_ASSIGNMENT_WORKER_COUNT: 1 # larger deployments with many shards will want to increase this number. Processes the least recently processed shards each time a firehose unpack finishes. S3 and lambda costs will increase approximately linearly.
+    #
+    # When configured with a low number of workers, increasing this may further decrease Lambda and S3 costs by re-processing history shards less often.
+    REWARD_ASSIGNMENT_REPROCESS_SHARD_WAIT_TIME_IN_SECONDS: 30 # 900 # 15 minutes.  Don't re-process the same shard any more frequently than this number, regardless of the number of workers.
+    RESHARD_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack a single day's data for one shard in memory.
+    RESHARD_WORKER_RESERVED_CONCURRENCY: 50 # limits maximum concurrency, but reduces the shared lambda pool for this AWS account in this region
     # 
     # End customization
     #
-    HOSTING_IMAGE: ${self:provider.environment.TRAINING_IMAGE}
-    TRAINING_ROLE_ARN: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
+    VALIDATION_PROPORTION: .3 # CAUTION: changes require re-mapping all files in /rewarded_actions to the proper train/validation directories.
+    FEATURE_TRAINING_ROLE_ARN: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
     FIREHOSE_DELIVERY_STREAM_NAME: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.V4Firehose}
     RECORDS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
     MODELS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.ModelsS3Bucket}
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
+    PRE_DEPLOY_CHECK: ${file(predeploy.js)} # execute the pre deploy checks
   iamRoleStatements: 
     - Effect: Allow
       Action:
@@ -43,45 +59,85 @@ provider:
       Action:
         - "iam:PassRole"
       Resource: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
+    - Effect: Allow
+      Action:
+        - "lambda:InvokeFunction"
+        - "lambda:InvokeAsync"
+      Resource: "arn:aws:lambda:${self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-*"
 
 functions:
-  choose:
-    handler: api.choose
+  track:
+    handler: http_api.track
+    timeout: 6
     events:
       - http:
-          path: choose
+          path: track
           method: post
           cors: true
-          private: true
-  using:
-    handler: api.using
-    events:
-      - http:
-          path: using
-          method: post
-          cors: true
-          private: true
-  rewards:
-    handler: api.rewards
-    events:
-      - http:
-          path: rewards
-          method: post
-          cors: true
-          private: true
-  unpackFirehose:
-    handler: unpack_firehose.unpackFirehose
-    memorySize: 1024
-    timeout: 300
-    events:
-      - sns: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3ObjectCreatedSnsTopic}
+        #  private: true # uncomment if you wish to require authentication via API Gateway
   dispatchTrainingJobs:
-    handler: train_deploy.dispatchTrainingJobs
-    timeout: 300
+    handler: train.dispatchTrainingJobs
     events:
-      - schedule: rate(24 hours)
-  deployUpdatedModels:
-    handler: train_deploy.deployUpdatedModels
-    timeout: 300
+      - schedule: ${self:provider.environment.TRAINING_JOB_SCHEDULE}
+  unpackFirehose:
+    handler: firehose.unpackFirehose
+    memorySize: ${self:provider.environment.FIREHOSE_WORKER_MEMORY_IN_MB} 
     events:
-      - schedule: rate(1 minute)
+      - s3:
+          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3Bucket}
+          existing: true # created in resources/serverless.yml
+          event: s3:ObjectCreated:*
+  dispatchRewardAssignmentWorkers:
+    handler: history.dispatchRewardAssignmentWorkers
+    reservedConcurrency: 1 # enforce serial execution to avoid potential concurrency issues
+  assignRewards:
+    handler: history.assignRewards
+    memorySize: ${self:provider.environment.REWARD_ASSIGNMENT_WORKER_MEMORY_IN_MB}
+  splitShard:
+    handler: shard.splitShard
+  splitFile:
+    handler: shard.splitFile
+    memorySize: ${self:provider.environment.RESHARD_WORKER_MEMORY_IN_MB}
+    reservedConcurrency: ${self:provider.environment.RESHARD_WORKER_RESERVED_CONCURRENCY}
+  featureModelCreated:
+    handler: train.featureModelCreated
+    events:
+      - s3:
+          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+          existing: true # created in resources/serverless.yml
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: feature_models/
+            - suffix: model.tar.gz
+  xgboostModelCreated:
+    handler: train.xgboostModelCreated
+    events:
+      - s3:
+          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+          existing: true # created in resources/serverless.yml
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: xgboost_models/
+            - suffix: model.tar.gz
+  transformJobCompleted:
+    handler: train.transformJobCompleted
+    events:
+      - cloudwatchEvent:
+          event:
+            source:
+              - 'aws.sagemaker'
+            detail-type:
+              - 'SageMaker Transform Job State Change'
+            detail:
+              TransformJobStatus:
+                - Completed
+  unpackModels:
+    handler: unpack_models.unpack
+    events:
+      - s3:
+          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+          existing: true # created in resources/serverless.yml
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: transformed_models/
+            - suffix: model.tar.gz.out

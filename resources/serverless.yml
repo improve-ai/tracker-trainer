@@ -1,4 +1,4 @@
-service: improve-v4-resources
+service: improve-v5-resources
 provider:
   name: aws
   region: us-west-2
@@ -62,36 +62,11 @@ resources:
                 - s3:ListBucket
                 - s3:PutObject
                 Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-*-#{AWS::AccountId}*"
-    FirehoseS3ObjectCreatedSnsTopic:
-      Type: 'AWS::SNS::Topic'
-      Properties:
-        TopicName: ${self:service}-${opt:stage, self:provider.stage}-FirehoseS3ObjectCreated
-    FirehoseS3ObjectCreatedSnsTopicPolicy:
-      Type: 'AWS::SNS::TopicPolicy'
-      Properties:
-        Topics:
-          - 
-            Ref: FirehoseS3ObjectCreatedSnsTopic
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action: 'sns:Publish'
-              Resource:
-                Ref: FirehoseS3ObjectCreatedSnsTopic
-              Principal:
-                AWS: '*'
     FirehoseS3Bucket:
       Type: 'AWS::S3::Bucket'
       DeletionPolicy: Retain
-      DependsOn: FirehoseS3ObjectCreatedSnsTopic
       Properties:
         BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose-#{AWS::AccountId}
-        NotificationConfiguration:
-          TopicConfigurations:
-            - Topic:
-                Ref: FirehoseS3ObjectCreatedSnsTopic
-              Event: 's3:ObjectCreated:*'
     V4Firehose:
       Type: AWS::KinesisFirehose::DeliveryStream
       Properties:
@@ -103,7 +78,7 @@ resources:
             - - 'arn:aws:s3:::'
               - Ref: FirehoseS3Bucket
           BufferingHints:
-            IntervalInSeconds: "900"
+            IntervalInSeconds: "300"
             SizeInMBs: "128"
           CompressionFormat: "GZIP"
           RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
@@ -117,6 +92,11 @@ resources:
       DeletionPolicy: Retain
       Properties:
         BucketName: ${self:service}-${opt:stage, self:provider.stage}-models-#{AWS::AccountId}
+    PublicModelsS3Bucket:
+      Type: 'AWS::S3::Bucket'
+      DeletionPolicy: Retain
+      Properties:
+        BucketName: ${self:service}-${opt:stage, self:provider.stage}-public-models-#{AWS::AccountId}
 
   Outputs:
     V4Firehose:
@@ -131,8 +111,8 @@ resources:
     ModelsS3Bucket:
       Value: 
         Ref: ModelsS3Bucket
-    FirehoseS3ObjectCreatedSnsTopic:
+    PublicModelsS3Bucket:
       Value: 
-        Ref: FirehoseS3ObjectCreatedSnsTopic
+        Ref: PublicModelsS3Bucket
     SagemakerExecutionRoleArn:
-      Value: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] } 
+      Value: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
