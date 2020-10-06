@@ -300,6 +300,7 @@ module.exports.assertValidRewardedDecision = (ra) => {
   assert(_.isString(ra.timestamp), `'timestamp' must be string for ${JSON.stringify(ra)}`)
   // TODO disallow empty variant, but allow null
   assert(ra.variant, `'variant' field is required for ${JSON.stringify(ra)}`)
+  assert(ra.model, `'model' field is required for ${JSON.stringify(ra)}`)
   // TODO disallow null context
   if (ra.context) {
     assert(me.isObjectNotArray(ra.context), `'context' must be a dictionary for ${JSON.stringify(ra)}`)
