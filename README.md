@@ -1,4 +1,4 @@
-# Improve.ai Serverless Tracker & Trainer
+# Improve.ai Decision Tracker & Model Trainer
 
 # Install the Serverless Framework
 npm install -g serverless
