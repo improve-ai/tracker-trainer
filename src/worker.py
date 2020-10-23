@@ -3,7 +3,7 @@ NAME
 Script that ...
 -------------------------------------------------------------------------------
 Usage:
-    ...
+    python worker.py
 """
 
 # Built-in imports
