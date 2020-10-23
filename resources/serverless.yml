@@ -4,19 +4,6 @@ provider:
   region: us-west-2
 plugins:
   - serverless-pseudo-parameters
-  # - serverless-vpc-plugin
-# custom:
-#   vpcConfig:
-#     # cidrBlock: '10.0.0.0/16'
-#     createNetworkAcl: false
-#     createNatGateway: false
-#     createDbSubnet: false
-#     createFlowLogs: false
-#     createNatInstance: false
-#     createParameters: false
-#     zones:
-#       - us-west-2a
-#     exportOutputs: false
 
 resources:
   Resources:
