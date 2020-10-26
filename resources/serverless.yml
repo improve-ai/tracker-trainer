@@ -68,6 +68,8 @@ resources:
         DeletionPolicy: Retain
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose-#{AWS::AccountId}
+          VersioningConfiguration:
+            Status: Enabled
       V4Firehose:
         Type: AWS::KinesisFirehose::DeliveryStream
         Properties:
@@ -88,16 +90,22 @@ resources:
         DeletionPolicy: Retain
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-records-#{AWS::AccountId}
+          VersioningConfiguration:
+            Status: Enabled
       ModelsS3Bucket:
         Type: 'AWS::S3::Bucket'
         DeletionPolicy: Retain
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-models-#{AWS::AccountId}
+          VersioningConfiguration:
+            Status: Enabled
       PublicModelsS3Bucket:
         Type: 'AWS::S3::Bucket'
         DeletionPolicy: Retain
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-public-models-#{AWS::AccountId}
+          VersioningConfiguration:
+            Status: Enabled
       VPC:
         Type: AWS::EC2::VPC
         Properties:
