@@ -1,4 +1,11 @@
 service: improve-v5
+
+plugins:
+  - serverless-pseudo-parameters
+
+custom:
+  resource-identifier: resources
+
 provider:
   name: aws
   region: us-west-2
@@ -35,10 +42,10 @@ provider:
     # End customization
     #
     VALIDATION_PROPORTION: .3 # CAUTION: changes require re-mapping all files in /rewarded_actions to the proper train/validation directories.
-    FEATURE_TRAINING_ROLE_ARN: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
-    FIREHOSE_DELIVERY_STREAM_NAME: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.V4Firehose}
-    RECORDS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
-    MODELS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.ModelsS3Bucket}
+    #FEATURE_TRAINING_ROLE_ARN: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
+    #FIREHOSE_DELIVERY_STREAM_NAME: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.V4Firehose}
+    #RECORDS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+    #MODELS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.ModelsS3Bucket}
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
     PRE_DEPLOY_CHECK: ${file(predeploy.js)} # execute the pre deploy checks
@@ -46,7 +53,7 @@ provider:
     - Effect: Allow
       Action:
         - "firehose:*"
-      Resource: "arn:aws:firehose:*:*:deliverystream/${cf:${self:service}-resources-${opt:stage, self:provider.stage}.V4Firehose}"
+      Resource: !GetAtt V4Firehose.Arn
     - Effect: Allow
       Action:
         - "s3:*"
@@ -58,7 +65,8 @@ provider:
     - Effect: Allow
       Action:
         - "iam:PassRole"
-      Resource: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
+      Resource: !GetAtt SagemakerExecutionRole.Arn
+      #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
     - Effect: Allow
       Action:
         - "lambda:InvokeFunction"
@@ -84,7 +92,9 @@ functions:
     memorySize: ${self:provider.environment.FIREHOSE_WORKER_MEMORY_IN_MB} 
     events:
       - s3:
-          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3Bucket}
+          bucket:
+            Ref: FirehoseS3Bucket
+          #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3Bucket}
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
   dispatchRewardAssignmentWorkers:
@@ -103,7 +113,9 @@ functions:
     handler: train.featureModelCreated
     events:
       - s3:
-          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+          bucket:
+            Ref: RecordsS3Bucket 
+          #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
           rules:
@@ -113,7 +125,9 @@ functions:
     handler: train.xgboostModelCreated
     events:
       - s3:
-          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+          bucket: 
+            Ref: RecordsS3Bucket
+          #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
           rules:
@@ -135,9 +149,248 @@ functions:
     handler: unpack_models.unpack
     events:
       - s3:
-          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+          bucket:
+            Ref: RecordsS3Bucket 
+          #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
           rules:
             - prefix: transformed_models/
             - suffix: model.tar.gz.out
+
+resources:
+  Resources:
+      FirehoseToS3Role:
+        Type: AWS::IAM::Role
+        Properties:
+          RoleName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-FirehoseToS3Role
+          AssumeRolePolicyDocument:
+            Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                - firehose.amazonaws.com
+              Action:
+              - sts:AssumeRole
+          Policies:
+          - PolicyName: FirehoseToS3Policy
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Action:
+                  - s3:AbortMultipartUpload
+                  - s3:GetBucketLocation
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:ListBucketMultipartUploads
+                  - s3:PutObject
+                  Resource: '*'
+      SagemakerExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+          RoleName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-SagemakerExecutionRole
+          AssumeRolePolicyDocument:
+            Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                - firehose.amazonaws.com
+              Action:
+              - sts:AssumeRole
+            - Effect: Allow
+              Principal:
+                Service:
+                - sagemaker.amazonaws.com
+              Action:
+              - sts:AssumeRole
+          ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+          Policies:
+          - PolicyName: SagemakerExecutionPolicy
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Action:
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                  - s3:PutObject
+                  Resource: "arn:aws:s3:::${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-*-#{AWS::AccountId}*"
+      FirehoseS3Bucket:
+        Type: 'AWS::S3::Bucket'
+        DeletionPolicy: Retain
+        Properties:
+          BucketName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-firehose-#{AWS::AccountId}
+      V4Firehose:
+        Type: AWS::KinesisFirehose::DeliveryStream
+        Properties:
+          DeliveryStreamName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-firehose
+          S3DestinationConfiguration:
+            BucketARN:
+              Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Ref: FirehoseS3Bucket
+            BufferingHints:
+              IntervalInSeconds: 300
+              SizeInMBs: 128
+            CompressionFormat: "GZIP"
+            RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
+      RecordsS3Bucket:
+        Type: 'AWS::S3::Bucket'
+        DeletionPolicy: Retain
+        Properties:
+          BucketName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-records-#{AWS::AccountId}
+      ModelsS3Bucket:
+        Type: 'AWS::S3::Bucket'
+        DeletionPolicy: Retain
+        Properties:
+          BucketName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-models-#{AWS::AccountId}
+      PublicModelsS3Bucket:
+        Type: 'AWS::S3::Bucket'
+        DeletionPolicy: Retain
+        Properties:
+          BucketName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-public-models-#{AWS::AccountId}
+      VPC:
+        Type: AWS::EC2::VPC
+        Properties:
+          CidrBlock: 10.0.0.0/16
+      InternetGateway:
+        Type: AWS::EC2::InternetGateway
+      RouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+          VpcId:
+            Ref: VPC
+      VPCGatewayAttachment:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+          VpcId:
+            Ref: VPC
+          InternetGatewayId:
+            Ref: InternetGateway
+      SecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+          GroupDescription: EC2 Security Group for instances launched in the VPC by Batch
+          VpcId:
+            Ref: VPC
+      Subnet:
+        Type: AWS::EC2::Subnet
+        Properties:
+          CidrBlock: 10.0.0.0/24
+          VpcId:
+            Ref: VPC
+          MapPublicIpOnLaunch: false
+      Route:
+        Type: AWS::EC2::Route
+        Properties:
+          RouteTableId:
+            Ref: RouteTable
+          DestinationCidrBlock: 0.0.0.0/0
+          GatewayId:
+            Ref: InternetGateway
+      SubnetRouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+          RouteTableId:
+            Ref: RouteTable
+          SubnetId:
+            Ref: Subnet
+      IamInstanceProfile:
+        Type: AWS::IAM::InstanceProfile
+        Properties:
+          Roles:
+          - Ref: EcsInstanceRole
+      EcsInstanceRole:
+        Type: AWS::IAM::Role
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: '2008-10-17'
+            Statement:
+                Effect: Allow
+                Principal:
+                  Service: 
+                  - ec2.amazonaws.com
+                Action: sts:AssumeRole
+          ManagedPolicyArns:
+            - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+      BatchServiceRole:
+        Type: AWS::IAM::Role
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Principal:
+                  Service: 
+                  - batch.amazonaws.com
+                Action: sts:AssumeRole
+          ManagedPolicyArns:
+            - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+      ComputeEnvironment:
+        Type: AWS::Batch::ComputeEnvironment
+        Properties:
+          Type: MANAGED
+          ServiceRole: 
+            Ref: BatchServiceRole
+          ComputeEnvironmentName: '${self:service}-${self:custom.resource-identifier}-compute-environment'
+          ComputeResources:
+            MaxvCpus: 128
+            SecurityGroupIds:
+              - Ref: SecurityGroup
+            Type: SPOT
+            SpotIamFleetRole: aws-ec2-spot-fleet-tagging-role
+            Subnets:
+              - Ref: Subnet
+            MinvCpus: 0
+            InstanceRole:  
+              Ref: IamInstanceProfile
+            InstanceTypes:
+              - optimal
+            Tags: {"Name": "Batch Instance - ${self:service}-${self:custom.resource-identifier}"}
+            DesiredvCpus: 0
+          State: ENABLED
+      JobQueue:
+        Type: AWS::Batch::JobQueue
+        Properties:
+          ComputeEnvironmentOrder:
+            - Order: 1
+              ComputeEnvironment: !Ref ComputeEnvironment
+          State: ENABLED
+          Priority: 1
+          JobQueueName: '${self:service}-${self:custom.resource-identifier}-job-queue'
+      JobDefinition:
+        Type: "AWS::Batch::JobDefinition"
+        Properties:
+          Type: Container
+          ContainerProperties: 
+            Command: 
+              - ls
+            Memory: 128
+            Vcpus: 1
+            Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/batch-processing-job-repository-${opt:stage, self:provider.stage}:latest'
+          JobDefinitionName: '#{AWS::StackName}-job-definition'
+          RetryStrategy: 
+            Attempts: 1
+      BatchProcessRepository: 
+        Type: AWS::ECR::Repository
+        Properties: 
+          RepositoryName: "batch-processing-job-repository-${opt:stage, self:provider.stage}"
+          RepositoryPolicyText: 
+            Version: "2012-10-17"
+            Statement: 
+              - 
+                Sid: AllowPushPull
+                Effect: Allow
+                Principal: 
+                  AWS: 
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/${EcsInstanceRole}
+                Action: 
+                  - "ecr:GetDownloadUrlForLayer"
+                  - "ecr:BatchGetImage"
+                  - "ecr:BatchCheckLayerAvailability"
+                  - "ecr:PutImage"
+                  - "ecr:InitiateLayerUpload"
+                  - "ecr:UploadLayerPart"
+                  - "ecr:CompleteLayerUpload"
