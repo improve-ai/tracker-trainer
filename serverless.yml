@@ -74,6 +74,14 @@ provider:
       Resource: "arn:aws:lambda:${self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-*"
 
 functions:
+  joinRewards:
+    runtime: python3.6
+    events:
+    - http:
+        method: get
+        path: greet
+        cors: true
+    handler: src/handler.hello
   track:
     handler: http_api.track
     timeout: 6
