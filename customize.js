@@ -61,12 +61,7 @@ module.exports.customizeRecords = (projectName, records) => {
       if (themeDecision.variant) {
         results.push(themeDecision)
       }
-    } else if (r.type === "rewards") {
-      r.type = "event"
-      r.event = "Rewards"
-      r.properties = { value: 0.02 }
-      results.push(r)
-    } else if (r.model === "messages-2.0" || r.model === "themes-2.0" || r.model === "stories-2.0" || r.model === "songs-2.0") {
+    } else if (r.type === "rewards" || r.model === "messages-2.0" || r.model === "themes-2.0" || r.model === "stories-2.0" || r.model === "songs-2.0") {
       results.push(r)
     }
   })
