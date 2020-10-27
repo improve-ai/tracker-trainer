@@ -1,6 +1,5 @@
 ---
 rewardWindowInSeconds: 7200
-binaryRewards: true
 featureHyperparameters:
 #  maxAge: 7776000
 xgboostHyperparameters: # must be strings # TODO handle string conversion elsewhere
