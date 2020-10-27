@@ -287,9 +287,8 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
   
   const [staleDecisionsStartDate, staleDecisionsEndDate] = staleDecisionsDateRange
 
-  const propensityRecords = []
   let decisionRecords = []
-  const rewardsRecords = []
+  const eventRecords = []
 
   for (const historyRecord of historyRecords) {
     // TODO refactor this into filterValid
@@ -308,71 +307,52 @@ function getRewardedDecisionsForHistoryRecords(projectName, historyId, historyRe
       decisionRecords.push(historyRecord)
     }
 
-    if (historyRecord.type === "propensity" && historyRecord.propensity && _.isFinite(historyRecord.propensity)) {
-      propensityRecords.push(historyRecord)
-    }
-
-    if (historyRecord.type === "rewards" && historyRecord.rewards && naming.isObjectNotArray(historyRecord.rewards)) {
-      rewardsRecords.push(historyRecord)
+    if (historyRecord.type === "event") {
+      eventRecords.push(historyRecord)
     }
   }
 
-  return assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionRecords, rewardsRecords)
+  return assignPropensitiesAndRewardsToDecisions(decisionRecords, eventRecords)
 }
 
 // in a single pass assign propensities and rewards to all decision records
-function assignPropensitiesAndRewardsToDecisions(propensityRecords, decisionRecords, rewardsRecords) {
-  if (!rewardsRecords.length && !propensityRecords.length) {
+function assignPropensitiesAndRewardsToDecisions(decisionRecords, eventRecords) {
+  if (!eventRecords.length) {
     // nothing to join
     return decisionRecords
   }
 
-  // -1 millis to propensity, +1 millis to rewards to ensure proper sorting when they come from the same event
-  propensityRecords.forEach(e => e.timestampTime = new Date(e.timestamp).getTime()-1)
+  // +1 millis to events to ensure proper sorting when they come from the same event
   decisionRecords.forEach(e => e.timestampTime = new Date(e.timestamp).getTime())
-  rewardsRecords.forEach(e => e.timestampTime = new Date(e.timestamp).getTime()+1)
+  eventRecords.forEach(e => e.timestampTime = new Date(e.timestamp).getTime()+1)
 
-  // TODO propensities
-  
   // combine all the records together so we can process in a single pass
-  const sortedRecords = decisionRecords.concat(rewardsRecords).sort((a, b) => a.timestampTime - b.timestampTime)
+  const sortedRecords = decisionRecords.concat(eventRecords).sort((a, b) => a.timestampTime - b.timestampTime)
 
-  const decisionRecordsByRewardKey = {}
+  const listeners = []
   
   for (const record of sortedRecords) {
     // set up this decision to listen for rewards
     if (record.type === "decision") {
-      let rewardKey = "reward" // default reward key
-      if (record.reward_key) {
-        rewardKey = record.reward_key
-      }
-      let listeners = decisionRecordsByRewardKey[rewardKey]
-      if (!listeners) {
-        listeners = []
-        decisionRecordsByRewardKey[rewardKey] = listeners
-      }
       // TODO robust configuration
       record.rewardWindowEndTime = record.timestampTime + customize.config.rewardWindowInSeconds * 1000
       listeners.push(record)
-    } else if (record.type === "rewards") {
-      // iterate through each reward key and find listening decisions
-      for (const [rewardKey, reward] of Object.entries(record.rewards)) {
-        const listeners = decisionRecordsByRewardKey[rewardKey]
-        if (!listeners) {
-          continue;
-        }
-        // loop backwards so that removing an expired listener doesn't break the array loop
-        for (let i = listeners.length - 1; i >= 0; i--) {
-          const listener = listeners[i]
-          if (listener.rewardWindowEndTime < record.timestampTime) { // the listener is expired
-            listeners.splice(i,1) // remove the element
-          } else {
-            listener.reward = (listener.reward || 0) + Number(reward) // Number allows booleans to be treated as 1 and 0
-          }
+    } else if (record.type === "event") {
+      let value = 0.001;
+      
+      if (record.properties && record.properties.value) {
+        value = record.properties.value;
+      }
+
+      // loop backwards so that removing an expired listener doesn't break the array loop
+      for (let i = listeners.length - 1; i >= 0; i--) {
+        const listener = listeners[i]
+        if (listener.rewardWindowEndTime < record.timestampTime) { // the listener is expired
+          listeners.splice(i,1) // remove the element
+        } else {
+          listener.reward = (listener.reward || 0) + Number(value) // Number allows booleans to be treated as 1 and 0
         }
       }
-    } else { 
-      throw new Error(`type must be \"decision\" or \"rewards\" ${JSON.stringify(record)}`)
     }
   }
   
@@ -387,7 +367,7 @@ function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
   let maxReward = 0
 
   for (let rewardedDecision of rewardedDecisions) {
-    rewardedDecision = _.pick(rewardedDecision, ["variant", "context", "model", "timestamp", "message_id", "history_id", "reward", "propensity"])
+    rewardedDecision = _.pick(rewardedDecision, ["variant", "context", "model", "timestamp", "message_id", "history_id", "reward"])
     // an exception here will cause the entire history process task to fail
     naming.assertValidRewardedDecision(rewardedDecision)
 

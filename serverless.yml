@@ -18,7 +18,7 @@ provider:
     TRANSFORM_INSTANCE_COUNT: 4
     XGBOOST_TRAINING_IMAGE: 246618743249.dkr.ecr.us-west-2.amazonaws.com/sagemaker-xgboost:0.90-2-cpu-py3 # XGBoost (0.90) do this after validating everything # 433757028032.dkr.ecr.us-west-2.amazonaws.com/xgboost:latest  #
     XGBOOST_TRAINING_INSTANCE_TYPE: ml.m5.12xlarge
-    XGBOOST_TRAINING_INSTANCE_COUNT: 1
+    XGBOOST_TRAINING_INSTANCE_COUNT: 2
     XGBOOST_TRAINING_VOLUME_SIZE_IN_GB: 10
     XGBOOST_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
     DEFAULT_REWARD_WINDOW_IN_SECONDS: 7200 # 2 hours
