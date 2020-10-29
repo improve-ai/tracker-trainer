@@ -4,13 +4,26 @@ Store any constant or configuration variable of interest here.
 -------------------------------------------------------------------------------
 """
 
-REWARD_WINDOW_SECONDS = 3600 * 2
+from pathlib import Path
+import logging
 
-# Input filename (for local testing)
-INPUT_FILENAME = 'improve-v5-resources-prod-firehose-1-2020-10-19-03-59-11-ef716009-8325-4e98-befa-d5b5090ba24e'
+# Logging level
+LOGGING_LEVEL = logging.INFO
 
-# Output filename of the gzipped results
-OUTPUT_FILENAME = '{}.jsonl.gz'
+# Logging format
+LOGGING_FORMAT = '%(levelname)-5s: @%(funcName)-16s | %(message)s'
+
+# Absolute path towards the mounted EFS filesystem
+PATH_TOWARDS_EFS = Path("./src/histories")
+
+# Absolute path towards the input folder
+PATH_INPUT_DIR = PATH_TOWARDS_EFS / 'input'
+
+# Absolute path towards the output folder
+PATH_OUTPUT_DIR = PATH_TOWARDS_EFS / 'output'
+
+# Output filename template of the gzipped results 
+OUTPUT_FILENAME = '{}.gz'
 
 DEFAULT_REWARD_KEY = 'default_reward'
 
@@ -22,3 +35,4 @@ DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 
 # The default reward value of a record of type 'event'
 DEFAULT_EVENTS_REWARD_VALUE = 0.001
+

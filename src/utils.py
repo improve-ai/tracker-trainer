@@ -3,7 +3,7 @@ from datetime import datetime
 import logging
 import json
 
-# External imports
+# Local imports
 from config import DATETIME_FORMAT
 
 
