@@ -336,6 +336,19 @@ resources:
                 Action: sts:AssumeRole
           ManagedPolicyArns:
             - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+      SpotFleetServiceRole:
+        Type: AWS::IAM::Role
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Principal:
+                  Service: 
+                  - ec2.amazonaws.com
+                Action: sts:AssumeRole
+          ManagedPolicyArns:
+            - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
       ComputeEnvironment:
         Type: AWS::Batch::ComputeEnvironment
         Properties:
@@ -348,7 +361,9 @@ resources:
             SecurityGroupIds:
               - Ref: SecurityGroup
             Type: SPOT
-            SpotIamFleetRole: aws-ec2-spot-fleet-tagging-role
+            SpotIamFleetRole: 
+              Ref: SpotFleetServiceRole
+            # aws-ec2-spot-fleet-tagging-role
             Subnets:
               - Ref: Subnet
             MinvCpus: 0
@@ -378,6 +393,7 @@ resources:
             Memory: 128
             Vcpus: 1
             Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/batch-processing-job-repository-${opt:stage, self:provider.stage}:latest'
+            # '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/print-color:latest' --For Checking Tutorial Array Of Jobs Example
           JobDefinitionName: '#{AWS::StackName}-job-definition'
           RetryStrategy: 
             Attempts: 1
