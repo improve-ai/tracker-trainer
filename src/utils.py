@@ -1,7 +1,9 @@
 # Built-in imports
 from datetime import datetime
+from pathlib import Path
 import logging
 import json
+import sys
 
 # Local imports
 from config import DATETIME_FORMAT
@@ -38,3 +40,11 @@ def load_sorted_records(filename):
     ))
 
     return records
+
+
+def name_no_ext(p):
+    """Given a Path object or a str, return a filename without extensions"""
+    if isinstance(p, Path):
+        return p.stem.split('.')[0]
+    if isinstance(p, str):
+        return p.split(".")[0]

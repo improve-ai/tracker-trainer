@@ -6,21 +6,23 @@ Store any constant or configuration variable of interest here.
 
 from pathlib import Path
 import logging
+import os
+
 
 # Logging level
-LOGGING_LEVEL = logging.INFO
+LOGGING_LEVEL = logging.DEBUG
 
 # Logging format
-LOGGING_FORMAT = '%(levelname)-5s: @%(funcName)-16s | %(message)s'
+LOGGING_FORMAT = '%(levelname)-5s: @%(funcName)-25s | %(message)s'
 
 # Absolute path towards the mounted EFS filesystem
-PATH_TOWARDS_EFS = Path("./src/histories")
+PATH_TOWARDS_EFS = Path(os.environ['PATH_TOWARDS_EFS'])
 
 # Absolute path towards the input folder
-PATH_INPUT_DIR = PATH_TOWARDS_EFS / 'input'
+PATH_INPUT_DIR = PATH_TOWARDS_EFS / 'histories'
 
 # Absolute path towards the output folder
-PATH_OUTPUT_DIR = PATH_TOWARDS_EFS / 'output'
+PATH_OUTPUT_DIR = PATH_TOWARDS_EFS / 'rewarded_decision'
 
 # Output filename template of the gzipped results 
 OUTPUT_FILENAME = '{}.gz'
