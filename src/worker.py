@@ -291,6 +291,14 @@ def worker():
     node_count    = int(os.environ['JOIN_REWARDS_JOB_ARRAY_SIZE'])
     reprocess_all = True if os.environ['JOIN_REWARDS_REPROCESS_ALL'].lower() == 'true' else False
 
+    if not PATH_INPUT_DIR.exists():
+        logging.debug(f"Folder '{str(PATH_INPUT_DIR)}' doesn't exist. Creating.")
+        PATH_INPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    if not PATH_OUTPUT_DIR.exists():
+        logging.debug(f"Folder '{str(PATH_OUTPUT_DIR)}' doesn't exist. Creating.")
+        PATH_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
     dirs_to_process = identify_dirs_to_process(PATH_INPUT_DIR, node_id, node_count)
     delete_output_files(dirs_to_process, delete_all=reprocess_all)
     files_to_process = identify_files_to_process(dirs_to_process)
