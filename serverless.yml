@@ -5,6 +5,8 @@ plugins:
 
 custom:
   resource-identifier: resources
+  jobQueueName: '${self:service}-${self:custom.resource-identifier}-job-queue-${opt:stage, self:provider.stage}'
+  jobDefinitionName: '${self:service}-${self:custom.resource-identifier}-job-definition-${opt:stage, self:provider.stage}'
 
 provider:
   name: aws
@@ -16,6 +18,7 @@ provider:
     #
     # Customize your deployment here:
     #
+    JOIN_REWARDS_JOB_ARRAY_SIZE: 3 # Number of instances to launch in the compute environment
     TRAINING_JOB_SCHEDULE: rate(24 hours) # trades off between learning latency and cost
     FEATURE_TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
     FEATURE_TRAINING_INSTANCE_TYPE: ml.m5.large
@@ -72,16 +75,18 @@ provider:
         - "lambda:InvokeFunction"
         - "lambda:InvokeAsync"
       Resource: "arn:aws:lambda:${self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-*"
-
+    - Effect: Allow
+      Action:
+        - batch:SubmitJob
+      Resource: "arn:aws:batch:*:*:*"
 functions:
   joinRewards:
-    runtime: python3.6
-    events:
-    - http:
-        method: get
-        path: greet
-        cors: true
-    handler: src/handler.hello
+    runtime: python3.8
+    handler: src/handler.lambda_handler
+    description: Launch AWS Batch jobs
+    environment:
+      JOB_QUEUE_NAME: ${self:custom.jobQueueName}
+      JOB_DEFINITION_NAME: ${self:custom.jobDefinitionName}
   track:
     handler: http_api.track
     timeout: 6
@@ -349,6 +354,8 @@ resources:
                 Action: sts:AssumeRole
           ManagedPolicyArns:
             - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
+            - arn:aws:iam::aws:policy/aws-service-role/AWSEC2SpotServiceRolePolicy
+            - arn:aws:iam::aws:policy/aws-service-role/AWSEC2SpotFleetServiceRolePolicy
       ComputeEnvironment:
         Type: AWS::Batch::ComputeEnvironment
         Properties:
@@ -361,6 +368,8 @@ resources:
             SecurityGroupIds:
               - Ref: SecurityGroup
             Type: SPOT
+            AllocationStrategy: BEST_FIT # This is actually the default
+            BidPercentage: 50
             SpotIamFleetRole: 
               Ref: AmazonEC2SpotFleetRole
             # aws-ec2-spot-fleet-tagging-role
@@ -382,19 +391,20 @@ resources:
               ComputeEnvironment: !Ref ComputeEnvironment
           State: ENABLED
           Priority: 1
-          JobQueueName: '${self:service}-${self:custom.resource-identifier}-job-queue-${opt:stage, self:provider.stage}'
+          JobQueueName: ${self:custom.jobQueueName}
       JobDefinition:
         Type: "AWS::Batch::JobDefinition"
         Properties:
           Type: Container
           ContainerProperties: 
-            Command: 
-              - ls
-            Memory: 128
+            Memory: 1024
             Vcpus: 1
+            # '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/print-color:latest' --For Checking Tutorial Array Of Jobs Example
             Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/batch-processing-job-repository-${opt:stage, self:provider.stage}:latest'
-            #'#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/print-color:latest' --For Checking Tutorial Array Of Jobs Example
-          JobDefinitionName: '${self:service}-${self:custom.resource-identifier}-job-definition-${opt:stage, self:provider.stage}'
+            Environment:
+              - Name: JOIN_REWARDS_JOB_ARRAY_SIZE
+                Value: ${env:JOIN_REWARDS_JOB_ARRAY_SIZE}
+          JobDefinitionName: ${self:custom.jobDefinitionName}
           RetryStrategy: 
             Attempts: 1
       BatchProcessRepository: 
