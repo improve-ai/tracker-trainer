@@ -336,7 +336,7 @@ resources:
                 Action: sts:AssumeRole
           ManagedPolicyArns:
             - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
-      SpotFleetServiceRole:
+      AmazonEC2SpotFleetRole:
         Type: AWS::IAM::Role
         Properties:
           AssumeRolePolicyDocument:
@@ -345,7 +345,7 @@ resources:
               - Effect: Allow
                 Principal:
                   Service: 
-                  - ec2.amazonaws.com
+                  - spotfleet.amazonaws.com
                 Action: sts:AssumeRole
           ManagedPolicyArns:
             - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
@@ -355,14 +355,14 @@ resources:
           Type: MANAGED
           ServiceRole: 
             Ref: BatchServiceRole
-          ComputeEnvironmentName: '${self:service}-${self:custom.resource-identifier}-compute-environment'
+          ComputeEnvironmentName: '${self:service}-${self:custom.resource-identifier}-compute-environment-${opt:stage, self:provider.stage}'
           ComputeResources:
             MaxvCpus: 128
             SecurityGroupIds:
               - Ref: SecurityGroup
             Type: SPOT
             SpotIamFleetRole: 
-              Ref: SpotFleetServiceRole
+              Ref: AmazonEC2SpotFleetRole
             # aws-ec2-spot-fleet-tagging-role
             Subnets:
               - Ref: Subnet
@@ -382,7 +382,7 @@ resources:
               ComputeEnvironment: !Ref ComputeEnvironment
           State: ENABLED
           Priority: 1
-          JobQueueName: '${self:service}-${self:custom.resource-identifier}-job-queue'
+          JobQueueName: '${self:service}-${self:custom.resource-identifier}-job-queue-${opt:stage, self:provider.stage}'
       JobDefinition:
         Type: "AWS::Batch::JobDefinition"
         Properties:
@@ -393,8 +393,8 @@ resources:
             Memory: 128
             Vcpus: 1
             Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/batch-processing-job-repository-${opt:stage, self:provider.stage}:latest'
-            # '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/print-color:latest' --For Checking Tutorial Array Of Jobs Example
-          JobDefinitionName: '#{AWS::StackName}-job-definition'
+            #'#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/print-color:latest' --For Checking Tutorial Array Of Jobs Example
+          JobDefinitionName: '${self:service}-${self:custom.resource-identifier}-job-definition-${opt:stage, self:provider.stage}'
           RetryStrategy: 
             Attempts: 1
       BatchProcessRepository: 
