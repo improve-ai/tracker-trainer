@@ -14,7 +14,7 @@ import boto3
 
 def lambda_handler(event, context):
     """
-    Submit an array job
+    Submit an array job.
     """
     batch = boto3.client('batch')
 
@@ -32,23 +32,27 @@ def lambda_handler(event, context):
         jobQueue=job_queue_name, 
         # (name:revision) or ARN of the job definition to deregister
         jobDefinition=job_definition_name,
-        # Override the Docker CMD
+        # Set some environment variables in Docker
         containerOverrides={
             "environment":[
                 {"name": "JOIN_REWARDS_JOB_ARRAY_SIZE", "value": node_count},
                 {"name": "DEFAULT_REWARD_WINDOW_IN_SECONDS", "value": reward_window_seconds},
-                {"name": "JOIN_REWARDS_REPROCESS_ALL", "value": False}
-            ]
+                {"name": "JOIN_REWARDS_REPROCESS_ALL", "value": "False"}
+            ],
+            "command": [ "python", "./worker.py" ]
         },
         # Size of the collection of jobs to send
         arrayProperties={
-            "size": node_count
+            "size": int(node_count)
         }
     )
 
-    logging.info(
-        f"Started a new AWS Batch job,"
-        f"Job Name: '{r['jobName']}'"
-        f"Job ARN: '{r['jobArn']}'"
-        f"Job Id: '{r['jobId']}'"
-    )
+    try:
+        logging.info(
+            f"Sent a new AWS Batch job request,"
+            f"Job Name: '{r['jobName']}'"
+            f"Job ARN: '{r['jobArn']}'"
+            f"Job Id: '{r['jobId']}'"
+        )
+    except KeyError as e:
+        logging.exception("No job ARN found")
