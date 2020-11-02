@@ -394,7 +394,6 @@ resources:
             Memory: 128
             Vcpus: 1
             Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/batch-processing-job-repository-${opt:stage, self:provider.stage}:latest'
-            #'#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/print-color:latest' --For Checking Tutorial Array Of Jobs Example
           JobDefinitionName: '${self:service}-${self:custom.resource-identifier}-job-definition-${opt:stage, self:provider.stage}'
           RetryStrategy: 
             Attempts: 1
