@@ -289,7 +289,7 @@ resources:
           CidrBlock: 10.0.0.0/24
           VpcId:
             Ref: VPC
-          MapPublicIpOnLaunch: false
+          MapPublicIpOnLaunch: 'True'
       Route:
         Type: AWS::EC2::Route
         Properties:
@@ -379,7 +379,8 @@ resources:
         Properties:
           ComputeEnvironmentOrder:
             - Order: 1
-              ComputeEnvironment: !Ref ComputeEnvironment
+              ComputeEnvironment: 
+                Ref: ComputeEnvironment
           State: ENABLED
           Priority: 1
           JobQueueName: '${self:service}-${self:custom.resource-identifier}-job-queue-${opt:stage, self:provider.stage}'
