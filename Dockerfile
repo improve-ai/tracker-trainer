@@ -15,6 +15,6 @@ COPY ./pytest.ini .
 
 ENV PYTHONPATH=/code
 
-RUN python create_test_env
+RUN python create_test_env.py
 
 CMD [ "python", "src/worker.py" ] 
