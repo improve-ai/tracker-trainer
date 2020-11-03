@@ -1,8 +1,7 @@
 """
 AWS Batch worker
 This script is intended to be used from inside a Docker container to process
-files from an EFS filesystem.
-TODO: update this description
+jsonl files.
 -------------------------------------------------------------------------------
 Usage:
     python worker.py
