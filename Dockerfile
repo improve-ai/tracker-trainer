@@ -13,4 +13,4 @@ COPY tests/ ./tests
 
 ENV PYTHONPATH=/code
 
-CMD [ "python", "worker.py" ] 
+CMD [ "python", "src/worker.py" ] 
