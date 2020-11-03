@@ -170,9 +170,9 @@ def gzip_records(input_file, rewarded_records):
 
     try:
         if output_file.exists():
-            logging.info(f"Overwriting output file '{output_file}'")
+            logging.debug(f"Overwriting output file '{output_file}'")
         else:
-            logging.info(f"Writing new output file '{output_file.absolute()}'")
+            logging.debug(f"Writing new output file '{output_file.absolute()}'")
         
         with gzip.open(output_file.absolute(), mode='wt') as gzf:
             for record in rewarded_records:
