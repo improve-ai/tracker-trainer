@@ -235,14 +235,15 @@ def test_gzip_records(tmpdir, monkeypatch, rewarded_records, mocker):
 
 
 @parametrize(node_id=range(3))
-def test_identify_dirs_to_process(monkeypatch, node_id):
+def test_identify_dirs_to_process(tmpdir, monkeypatch, node_id):
 
+    base = Path(str(tmpdir))
     def mockdir(*args):
         return [Path("aa"), Path("bb"), Path("cc")]
 
     monkeypatch.setattr(Path, 'iterdir', mockdir)
     monkeypatch.setattr(Path, 'is_dir', lambda x: True)
-    input_dir = Path("irrelevant_path_since_iterdir_is_mocked")
+    input_dir = base / Path("unimportant_dir")
     node_count = 3
     actual = identify_dirs_to_process(input_dir, node_id, node_count)
 
@@ -342,6 +343,3 @@ def test_delete_output_files(tmpdir, mocker):
     assert (in_dirs[0]/in_files[0]).exists()
     assert (out_dirs[0]/out_files[0]).exists()
     assert not (out_dirs[0]/out_files[1]).exists()
-
-    
-    

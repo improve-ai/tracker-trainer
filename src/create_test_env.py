@@ -25,16 +25,19 @@ from config import DATETIME_FORMAT
 from config import PATH_INPUT_DIR
 
 
-BASE_PATH = PATH_INPUT_DIR
 RECORD_TYPES = ['decision', 'rewards']
 REWARD_KEYS =  ['reward_key_a', 'reward_key_b', 'reward_key_c']
-MAX_NUM_REWARDS = 20
-MAX_NUM_DECISION_RECORDS = 100
-MAX_NUM_FILES_PER_SUBFOLDER = 10
+MAX_NUM_REWARDS = 100
+MAX_NUM_DECISION_RECORDS = 200
+MAX_NUM_FILES_PER_SUBFOLDER = 200
 SUBDIRS = [
     'aa',
     'ab',
-    'ZZ'
+    'ac',
+    'fs',
+    'oe',
+    'pe',
+    'ZZ',
 ]
 
 
@@ -74,8 +77,9 @@ def create_reward_record(decision_record):
     return reward_record
 
 
-def create_records(history_id):
-    num_decision_records = random.randint(1, MAX_NUM_DECISION_RECORDS)
+def create_records(history_id, num_decision_records=None):
+    if not num_decision_records:
+        num_decision_records = random.randint(1, MAX_NUM_DECISION_RECORDS)
 
     records = []
     for i in range(num_decision_records):
@@ -88,8 +92,11 @@ def create_records(history_id):
     return records
 
 
-def create_jsonl_from_records(filename, records):
-    print(f'Creating file in {filename}')
+def create_jsonl_from_records(filepath, records):
+    """
+    Create a jsonl file with the given records.
+    """
+    filename = f'{filepath}.jsonl'
     with open(filename, "w") as f:
         for record in records:
             f.write(json.dumps(record) + "\n")
@@ -97,11 +104,10 @@ def create_jsonl_from_records(filename, records):
 
 if __name__ == "__main__":
     for top_level in SUBDIRS:
-        subdir = BASE_PATH / top_level
+        subdir = PATH_INPUT_DIR / top_level
         subdir.mkdir(parents=True, exist_ok=True)
         num_files = random.randint(1, MAX_NUM_FILES_PER_SUBFOLDER)
         for i in range(num_files):
             history_id = top_level + random_b64_str(30)
-            filename = f'{history_id}.jsonl'
             records = create_records(history_id)
-            create_jsonl_from_records(str(subdir/filename), records)
+            create_jsonl_from_records(str(subdir/history_id), records)

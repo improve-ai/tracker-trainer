@@ -344,14 +344,6 @@ def worker():
 
     logging.info(f"AWS Batch Array (node {node_id}) finished.")
 
-    # While we make every effort to provide this warning as soon as possible, 
-    # it is possible that your Spot Instance is terminated before the warning 
-    # can be made available. 
-    # Test your application to ensure that it handles an unexpected instance 
-    # termination gracefully, even if you are testing for interruption notices.
-    # You can do so by running the application using an On-Demand Instance and
-    # then terminating the On-Demand Instance yourself. 
-
 
 def handle_signals():
     if SIGTERM:
