@@ -347,14 +347,14 @@ def worker():
 
 def handle_signals():
     if SIGTERM:
-        logging.info('SIGTERM SIGNAL received, quitting.')
+        logging.info(f'Quitting due to SIGTERM signal (node {AWS_BATCH_JOB_ARRAY_INDEX}).')
         sys.exit()
 
 
 def signal_handler(signalNumber, frame):
     global SIGTERM
     SIGTERM = True
-    logging.info("SIGTERM received.")
+    logging.info(f"SIGTERM received (node {AWS_BATCH_JOB_ARRAY_INDEX}).")
     return
 
 
