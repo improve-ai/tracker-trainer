@@ -17,7 +17,7 @@ ARG test
 RUN if [ "$test" = "true" ]; then\
         pytest -v -s \
     else \
-        python worker.py\
+        python worker.py \
     fi
 
 CMD [ "python", "./worker.py" ] 
