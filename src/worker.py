@@ -199,6 +199,8 @@ def identify_dirs_to_process(input_dir, node_id, node_count):
         List of Path objects representing folders
     """
     
+    input_dir.mkdir(parents=True, exist_ok=True)
+
     dirs_to_process = []
     for d in input_dir.iterdir():
         if d.is_dir():
