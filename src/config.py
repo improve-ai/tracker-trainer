@@ -30,6 +30,7 @@ try:
     JOIN_REWARDS_REPROCESS_ALL = os.environ['JOIN_REWARDS_REPROCESS_ALL'].lower()
 
 except KeyError as e:
+    print(e)
     raise EnvirontmentVariableError
 
 
