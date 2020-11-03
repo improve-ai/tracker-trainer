@@ -15,8 +15,6 @@ from pytest_cases import fixture
 from src.utils import deepcopy
 from src.config import DATETIME_FORMAT
 from src.config import REWARD_WINDOW
-from src.config import PATH_OUTPUT_DIR
-from src.config import PATH_INPUT_DIR
 from src.worker import update_listeners
 from src.worker import gzip_records
 from src.worker import assign_rewards_to_decisions
@@ -196,7 +194,7 @@ def test_assign_rewards_to_decisions(decision_records, reward_records, event_rec
         assert record == decision_records[i]
 
 
-def test_gzip_records(tmpdir, monkeypatch, rewarded_records):
+def test_gzip_records(tmpdir, monkeypatch, rewarded_records, mocker):
     """
     Monkeypatch the gzip's open function with one that returns a file created
     in a temporary directory defined here.
@@ -207,7 +205,10 @@ def test_gzip_records(tmpdir, monkeypatch, rewarded_records):
         rewarded_records : a crafted fixture
     """
 
-    input_file = PATH_INPUT_DIR / "aa/aaFCA4.jsonl"
+    base_input_path = Path(str(tmpdir)) / "histories"
+    base_output_path = Path(str(tmpdir)) / "rewarded_decisions"
+
+    input_file = base_input_path / "aa/aaFCA4.jsonl"
 
     # Create a py.path.local object (equivalent to a Path object) that refers 
     # to a file in a temporary directory
@@ -218,6 +219,9 @@ def test_gzip_records(tmpdir, monkeypatch, rewarded_records):
 
     # Mocks of the gzip's open function. Returns the above file
     def mock_open(*args, **kwargs): return gzip_file
+
+    mocker.patch('src.worker.PATH_INPUT_DIR', new=base_input_path)
+    mocker.patch('src.worker.PATH_OUTPUT_DIR', new=base_output_path)
 
     monkeypatch.setattr(gzip, 'open', mock_open)
     gzip_records(input_file, rewarded_records)
@@ -290,7 +294,7 @@ def test_identify_files_to_process(tmpdir, mocker):
     assert files_to_process[0] == input_filenames[0]
 
 
-def test_delete_output_files(tmpdir, monkeypatch, mocker):
+def test_delete_output_files(tmpdir, mocker):
     
     def makedirs(dirs):
         for d in dirs: d.mkdir(parents=True, exist_ok=True)
