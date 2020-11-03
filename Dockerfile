@@ -11,7 +11,7 @@ COPY src/ ./src
 # Tests
 COPY tests/ ./tests
 
-RUN ["python" "-m" "pytest", "-vs"]
+RUN python -m pytest -vs
 
 ARG test
 RUN if [ "$test" = "true" ]; then \
