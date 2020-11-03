@@ -1,6 +1,4 @@
-boto3
 mmh3
-requests
 pytz
 pytest
 pytest_cases
