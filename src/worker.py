@@ -15,7 +15,6 @@ import logging
 import json
 import gzip
 import sys
-import os
 import shutil
 import signal
 
@@ -24,57 +23,78 @@ import mmh3
 import requests
 
 # Local imports
-from utils import load_sorted_records
-from utils import name_no_ext
-from config import OUTPUT_FILENAME
-from config import DEFAULT_REWARD_KEY
-from config import DATETIME_FORMAT
-from config import DEFAULT_EVENTS_REWARD_VALUE
-from config import DEFAULT_REWARD_VALUE
-from config import PATH_INPUT_DIR
-from config import PATH_OUTPUT_DIR
-from config import LOGGING_LEVEL
-from config import LOGGING_FORMAT
-from exceptions import InvalidType
-
+from src.utils import load_records
+from src.utils import name_no_ext
+from src.utils import sort_records_by_timestamp
+from src.config import OUTPUT_FILENAME
+from src.config import DEFAULT_REWARD_KEY
+from src.config import DATETIME_FORMAT
+from src.config import DEFAULT_EVENTS_REWARD_VALUE
+from src.config import DEFAULT_REWARD_VALUE
+from src.config import PATH_INPUT_DIR
+from src.config import PATH_OUTPUT_DIR
+from src.config import LOGGING_LEVEL
+from src.config import LOGGING_FORMAT
+from src.config import REWARD_WINDOW
+from src.config import AWS_BATCH_JOB_ARRAY_INDEX
+from src.config import JOIN_REWARDS_JOB_ARRAY_SIZE
+from src.config import JOIN_REWARDS_REPROCESS_ALL
+from src.exceptions import InvalidTypeError
+from src.exceptions import UpdateListenersError
 
 # Setup logging
 logging.basicConfig(format=LOGGING_FORMAT, level=LOGGING_LEVEL)
 
 # Time window to add to a timestamp
-window = timedelta(seconds=int(os.environ['DEFAULT_REWARD_WINDOW_IN_SECONDS']))
+window = timedelta(seconds=REWARD_WINDOW)
 
 SIGTERM = False
 
 
-def update_listeners(listeners, record, reward):
+def update_listeners(listeners, record_timestamp, reward):
     """
     Update the reward property value of each of the given list of records, 
     in place.
     
     Args:
-        listeners: list
-        record   : dict, either with a property 'type'='reward' or 'type'='event'
-        reward   : number
+        listeners        : list of dicts
+        record_timestamp : A datetime.datetime object
+        reward           : int or float
     
     Returns:
         None
+    
+    Raises:
+        TypeError if an unexpected type is received
     """
 
-    # Loop backwards to be able to remove an item in place
-    for i in range(len(listeners)-1, -1, -1):
-        listener = listeners[i]
-        listener_timestamp = datetime.strptime(listener['timestamp'], DATETIME_FORMAT)
-        record_timestamp = datetime.strptime(record['timestamp'], DATETIME_FORMAT)
-        if listener_timestamp + window < record_timestamp:
-            logging.debug(f'Deleting listener: {listener_timestamp}, Reward/event: {record_timestamp}')
-            del listeners[i]
-        else:
-            # logging.debug(f'Adding reward of {float(reward)} to decision.')
-            listener['reward'] = (listener.get('reward', DEFAULT_REWARD_VALUE)) + float(reward)
+    if not isinstance(listeners, list):
+        raise TypeError("Expecting a list for the 'listeners' arg.")
+
+    if not isinstance(record_timestamp, datetime):
+        raise TypeError("Expecting a datetime.datetime timestamp for the 'record_timestamp' arg.")
+
+    if not (isinstance(reward, int) or isinstance(reward, float)):
+        raise TypeError("Expecting int, float or bool.")
+
+    try:
+
+        # Loop backwards to be able to remove an item in place
+        for i in range(len(listeners)-1, -1, -1):
+            listener = listeners[i]
+            listener_timestamp = datetime.strptime(listener['timestamp'], DATETIME_FORMAT)
+            if listener_timestamp + window < record_timestamp:
+                logging.debug(f'Deleting listener: {listener_timestamp}, Reward/event: {record_timestamp}')
+                del listeners[i]
+            else:
+                logging.debug(f'Adding reward of {float(reward)} to decision.')
+                listener['reward'] = listener.get('reward', DEFAULT_REWARD_VALUE) + float(reward)
+
+    except Exception as e:
+        raise UpdateListenersError
 
 
-def assign_rewards_to_decisions(records):
+def assign_rewards_to_decisions(decision_records, reward_records, event_records):
     """
     1) Collect all records of type "decision" in a dictionary.
     2) Assign the rewards of records of type "rewards" to all the "decision" 
@@ -91,8 +111,15 @@ def assign_rewards_to_decisions(records):
         dict whose keys are 'reward_key's and its values are lists of records.
     
     Raises:
-        InvalidType: If a record has an invalid type attribute.
+        InvalidTypeError: If a record has an invalid type attribute.
     """
+
+    records = []
+    records.extend(decision_records)
+    records.extend(reward_records)
+    records.extend(event_records)
+    
+    sort_records_by_timestamp(records)
 
     decision_records_by_reward_key = {}
     for record in records:
@@ -103,35 +130,39 @@ def assign_rewards_to_decisions(records):
             listeners.append(record)
         
         elif record.get('type') == 'rewards':
+            record_timestamp = datetime.strptime(record['timestamp'], DATETIME_FORMAT)
             for reward_key, reward in record['rewards'].items():
                 listeners = decision_records_by_reward_key.get(reward_key, [])
-                update_listeners(listeners, record, reward)
+                update_listeners(listeners, record_timestamp, reward)
         
+        # Event type records get summed to all decisions within the time window regardless of reward_key
         elif record.get('type') == 'event':
             reward = record.get('properties', { 'properties': {} }) \
                            .get('value', DEFAULT_EVENTS_REWARD_VALUE)
-            # Update all stored records
+            record_timestamp = datetime.strptime(record['timestamp'], DATETIME_FORMAT)
             for reward_key, listeners in decision_records_by_reward_key.items():
-                update_listeners(listeners, record, reward)
+                update_listeners(listeners, record_timestamp, reward)
             
         else:
-            raise InvalidType
+            raise InvalidTypeError
     
-    return decision_records_by_reward_key
+    return decision_records
 
 
 def gzip_records(input_file, rewarded_records):
     """
-    Create a gzipped jsonlines file with the rewarded-decisions records.
-    Create parent subdir if doesn't exist (e.g. dir "aa" in aa/file.jsonl.gz)
+    Create a gzipped jsonlines file with the rewarded decision records.
+    Create a parent subdir if doesn't exist (e.g. dir "aa" in aa/file.jsonl.gz)
     
     Args:
-        input_file      : Path object towards the input jsonl file
-        rewarded_records: a dict as returned by assign_rewards_to_decisions
+        input_file      : Path object towards the input jsonl file (only for 
+                          the purpose of extracting its name)
+        rewarded_records: A list of rewarded records
+
     """
 
     output_subdir =  PATH_OUTPUT_DIR / input_file.parents[0].name
-    
+
     if not output_subdir.exists():
         logging.debug(f"Folder '{str(output_subdir)}' doesn't exist. Creating.")
         output_subdir.mkdir(parents=True, exist_ok=True)
@@ -142,12 +173,11 @@ def gzip_records(input_file, rewarded_records):
         if output_file.exists():
             logging.info(f"Overwriting output file '{output_file}'")
         else:
-            logging.info(f"Writing new output file '{output_file}'")
+            logging.info(f"Writing new output file '{output_file.absolute()}'")
         
         with gzip.open(output_file.absolute(), mode='wt') as gzf:
-            for reward_key, records in rewarded_records.items():
-                for record in records:
-                    gzf.write((json.dumps(record) + "\n"))
+            for record in rewarded_records:
+                gzf.write((json.dumps(record) + "\n"))
     
     except Exception as e:
         logging.error(
@@ -157,7 +187,7 @@ def gzip_records(input_file, rewarded_records):
         raise e
 
 
-def identify_dirs_to_process(input_dir, node_id: int, node_count: int):
+def identify_dirs_to_process(input_dir, node_id, node_count):
     """
     Identify which dirs should this worker process.
 
@@ -223,7 +253,7 @@ def identify_files_to_process(dirs_to_process):
     return files_to_process
 
 
-def delete_output_files(dirs_to_process, delete_all=False):
+def delete_output_files(delete_all=False):
     """
     Delete files and/or directories from the output directory.
 
@@ -253,6 +283,8 @@ def delete_output_files(dirs_to_process, delete_all=False):
             
             input_dir = PATH_INPUT_DIR / output_dir.name
 
+            # Delete a whole output subdir (e.g. "/aa") if the input version 
+            # doesn't exists
             if not input_dir.exists():
                 try:
                     shutil.rmtree(output_dir)
@@ -287,17 +319,9 @@ def worker():
 
     logging.info(f"Starting AWS Batch Array job.")
 
-    node_id       = int(os.environ['AWS_BATCH_JOB_ARRAY_INDEX'])
-    node_count    = int(os.environ['JOIN_REWARDS_JOB_ARRAY_SIZE'])
-    reprocess_all = True if os.environ['JOIN_REWARDS_REPROCESS_ALL'].lower() == 'true' else False
-
-    if not PATH_INPUT_DIR.exists():
-        logging.debug(f"Folder '{str(PATH_INPUT_DIR)}' doesn't exist. Creating.")
-        PATH_INPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    if not PATH_OUTPUT_DIR.exists():
-        logging.debug(f"Folder '{str(PATH_OUTPUT_DIR)}' doesn't exist. Creating.")
-        PATH_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    node_id       = AWS_BATCH_JOB_ARRAY_INDEX
+    node_count    = JOIN_REWARDS_JOB_ARRAY_SIZE
+    reprocess_all = True if JOIN_REWARDS_REPROCESS_ALL == 'true' else False
 
     dirs_to_process = identify_dirs_to_process(PATH_INPUT_DIR, node_id, node_count)
     delete_output_files(dirs_to_process, delete_all=reprocess_all)
@@ -313,8 +337,8 @@ def worker():
 
     for f in files_to_process:
         handle_signals()
-        sorted_records = load_sorted_records(str(f))
-        rewarded_records = assign_rewards_to_decisions(sorted_records)
+        decision_records, reward_records, event_records = load_records(str(f))
+        rewarded_records = assign_rewards_to_decisions(decision_records, reward_records, event_records)
         gzip_records(f, rewarded_records)
 
     logging.info(f"AWS Batch Array (node {node_id}) finished.")
