@@ -325,7 +325,7 @@ def worker():
     reprocess_all = True if JOIN_REWARDS_REPROCESS_ALL == 'true' else False
 
     dirs_to_process = identify_dirs_to_process(PATH_INPUT_DIR, node_id, node_count)
-    delete_output_files(dirs_to_process, delete_all=reprocess_all)
+    delete_output_files(delete_all=reprocess_all)
     files_to_process = identify_files_to_process(dirs_to_process)
 
     logging.debug(
