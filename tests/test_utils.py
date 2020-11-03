@@ -1,6 +1,7 @@
 # Built-in imports
 import json
 import random
+from pathlib import Path
 
 # Local imports
 from src.utils import load_records
@@ -23,18 +24,20 @@ def test_sort_records_by_timestamp(all_type_records):
     assert all_type_records[8]['message_id'] == "event_record_3"
 
 
-def test_load_records(decision_records, reward_records, event_records):
+def test_load_records(tmpdir, decision_records, reward_records, event_records):
     """
-    Create a fake jsonl file with unordered records, load and sort it and
+    Create a temp jsonl file with unordered records, load and sort it and
     verify the correct order.
     """
+
+    base = Path(str(tmpdir))
 
     records = []
     records.extend(decision_records)
     records.extend(reward_records)
     records.extend(event_records)
     
-    filename = "records.jsonl"
+    filename = base/"records.jsonl"
 
     with open(filename, "wt") as f:
         for record in records:
