@@ -14,10 +14,10 @@ ARG test
 
 # https://stackoverflow.com/questions/43654656/dockerfile-if-else-condition-with-external-arguments
 # docker build -t my_docker .  --build-arg arg=45
-RUN if [ "$test" = "true" ]; then\
-        python3 -m pytest -v -s \
+RUN if [ "$test" = "true" ]; then \
+        python3 -m pytest -v -s ; \
     else \
-        python3 worker.py \
+        python3 worker.py ; \
     fi
 
 CMD [ "python", "./worker.py" ] 
