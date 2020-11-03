@@ -20,7 +20,6 @@ import signal
 
 # External imports
 import mmh3
-import requests
 
 # Local imports
 from src.utils import load_records
