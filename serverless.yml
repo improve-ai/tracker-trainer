@@ -79,6 +79,7 @@ provider:
       Action:
         - batch:SubmitJob
       Resource: "arn:aws:batch:*:*:*"
+
 functions:
   joinRewards:
     runtime: python3.8
@@ -354,8 +355,6 @@ resources:
                 Action: sts:AssumeRole
           ManagedPolicyArns:
             - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
-            - arn:aws:iam::aws:policy/aws-service-role/AWSEC2SpotServiceRolePolicy
-            - arn:aws:iam::aws:policy/aws-service-role/AWSEC2SpotFleetServiceRolePolicy
       ComputeEnvironment:
         Type: AWS::Batch::ComputeEnvironment
         Properties:
@@ -404,7 +403,7 @@ resources:
             Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/batch-processing-job-repository-${opt:stage, self:provider.stage}:latest'
             Environment:
               - Name: JOIN_REWARDS_JOB_ARRAY_SIZE
-                Value: ${env:JOIN_REWARDS_JOB_ARRAY_SIZE}
+                Value: ${self:provider.environment.JOIN_REWARDS_JOB_ARRAY_SIZE}
           JobDefinitionName: ${self:custom.jobDefinitionName}
           RetryStrategy: 
             Attempts: 1
