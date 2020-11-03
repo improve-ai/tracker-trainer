@@ -34,7 +34,7 @@ except KeyError as e:
 
 
 # Logging level
-LOGGING_LEVEL = logging.DEBUG
+LOGGING_LEVEL = logging.INFO
 
 # Logging format
 LOGGING_FORMAT = '%(levelname)-5s: @%(funcName)-25s | %(message)s'
