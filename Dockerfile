@@ -10,6 +10,8 @@ COPY src/ ./src
 
 # Tests
 COPY tests/ ./tests
+COPY ./conftest.py .
+COPY ./pytest.ini .
 
 ENV PYTHONPATH=/code
 
