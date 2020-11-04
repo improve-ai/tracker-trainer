@@ -37,15 +37,16 @@ Example:
 ```
 And use it when tagging the image
 ```
-sudo docker tag awsbatch/worker_image BIG_CRAFTED_TAG
+sudo docker tag awsbatch/worker_image CRAFTED_TAG
 ```
 More information in the AWS documentation: [Pushing an image to ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html)
-### 3. Push the image to ECR:
+
+### 3. Push the image to ECR
 ```
-sudo docker push CRAFTED_ECR_DESTINATION
+sudo docker push CRAFTED_TAG
 ```
 
-### 4. Launch a job:
+### 4. Launch a job
 Locate the lambda function named "improve-v5-dev-joinRewards" and run it, it should launch an AWS Batch job.
 
 
@@ -63,7 +64,7 @@ pytest -vs
 To run them in Docker:
 ```
 sudo docker image build -t awsbatch/worker_image .
-sudo docker run awsbatch/worker_image pytest
+sudo docker run awsbatch/worker_image pytest -vs
 ```
 
 ## Notes:
