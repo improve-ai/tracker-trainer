@@ -6,10 +6,10 @@ COPY ./requirements.txt .
 RUN python -m pip install --no-cache-dir -r requirements.txt
 
 # Code
-COPY src/ ./src
+COPY ./src/ ./src
 
 # Tests
-COPY tests/ ./tests
+COPY ./tests/ ./tests
 COPY ./conftest.py .
 COPY ./pytest.ini .
 
