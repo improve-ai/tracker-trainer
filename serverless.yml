@@ -72,10 +72,27 @@ provider:
         - "lambda:InvokeFunction"
         - "lambda:InvokeAsync"
       Resource: "arn:aws:lambda:${self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-*"
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+        - ec2:CreateNetworkInterface
+        - ec2:DescribeNetworkInterfaces
+        - ec2:DeleteNetworkInterface
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - elasticfilesystem:ClientMount
+        - elasticfilesystem:ClientRootAccess
+        - elasticfilesystem:ClientWrite
+        - elasticfilesystem:DescribeMountTargets
+      Resource: "*"
 
 functions:
   joinRewards:
     runtime: python3.6
+    timeout: 6
     events:
     - http:
         method: get
@@ -105,6 +122,15 @@ functions:
           #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3Bucket}
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
+    fileSystemConfig:
+      localMountPath: /mnt/efs
+      arn: 
+        Fn::GetAtt: [ AccessPointResource, Arn ]
+    vpc:
+      securityGroupIds:
+        - Ref: SecurityGroup
+      subnetIds:
+        - Ref: Subnet
   dispatchRewardAssignmentWorkers:
     handler: history.dispatchRewardAssignmentWorkers
     reservedConcurrency: 1 # enforce serial execution to avoid potential concurrency issues
@@ -165,6 +191,19 @@ functions:
           rules:
             - prefix: transformed_models/
             - suffix: model.tar.gz.out
+  # demoFunction:
+  #   handler: handler.default
+  #   runtime: nodejs12.x
+  #   description: A Demo Lambda Function to check whether efs is working or not
+  #   fileSystemConfig:
+  #     localMountPath: /mnt/efs
+  #     arn: 
+  #       Fn::GetAtt: [ AccessPointResource, Arn ]
+  #   vpc:
+  #     securityGroupIds:
+  #       - Ref: SecurityGroup
+  #     subnetIds:
+  #       - Ref: Subnet
 
 resources:
   Resources:
@@ -283,6 +322,11 @@ resources:
           GroupDescription: EC2 Security Group for instances launched in the VPC by Batch
           VpcId:
             Ref: VPC
+          SecurityGroupIngress:
+            - IpProtocol: tcp
+              FromPort: 2049 #Had to open a connection for lambda to communicate with AWS EFS.
+              ToPort: 2049  #In AWS internally in a security group port 2049 is stored for network file transfer, 
+              CidrIp: 0.0.0.0/0 #so in order to make the lambda to invoke successfully I need to add an in-bound policy or ingress policy which will allow access on that port 
       Subnet:
         Type: AWS::EC2::Subnet
         Properties:
@@ -418,3 +462,44 @@ resources:
                   - "ecr:InitiateLayerUpload"
                   - "ecr:UploadLayerPart"
                   - "ecr:CompleteLayerUpload"
+      FileSystemResource:
+        Type: 'AWS::EFS::FileSystem'
+        Properties:
+          PerformanceMode: maxIO
+          Encrypted: true
+          FileSystemTags:
+            - Key: Name
+              Value: "${self:service}-${self:custom.resource-identifier}-file-system-${opt:stage, self:provider.stage}"
+          FileSystemPolicy:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "elasticfilesystem:ClientMount"
+                Principal:
+                  AWS: "*"
+      MountTarget:
+        Type: AWS::EFS::MountTarget
+        Properties:
+          FileSystemId: 
+            Ref: FileSystemResource
+          SecurityGroups:
+            - Ref: SecurityGroup
+          SubnetId: 
+            Ref: Subnet
+        DependsOn: Subnet
+      AccessPointResource:
+        Type: 'AWS::EFS::AccessPoint'
+        Properties:
+          FileSystemId: 
+            Ref: FileSystemResource
+          PosixUser:
+            Uid: "1000"
+            Gid: "1000"
+          RootDirectory:
+            CreationInfo:
+              OwnerGid: "1000"
+              OwnerUid: "1000"
+              Permissions: "0777"
+            Path: "/efs"
+        DependsOn: MountTarget
