@@ -1,4 +1,8 @@
 """
+This file is not needed by the unit tests. It is just a way of creating fake 
+data for manual testing. It can be safely deleted since it's not being called
+or used anywhere.
+
 Create a folder structure like:
     /aa/aaMXdMaWdUNlFkZ1VLblhrd0JKM05iUGNkV1V2b2xv.jsonl
     /aa/aaZHJGWE1ReTl4STNxTURjSDBGM1BqeER2TjVBdWZm.jsonl
