@@ -97,6 +97,7 @@ provider:
       Resource: "arn:aws:batch:*:*:*"
 
 functions:
+  joinRewards:
     runtime: python3.8
     handler: src/handler.lambda_handler
     description: Launch AWS Batch jobs
