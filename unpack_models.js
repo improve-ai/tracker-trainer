@@ -127,5 +127,5 @@ function getTimestampedS3Key(projectName, modelName, extension) {
 
   const uuidStr = uuidv4();
 
-  return `models/${projectName}/archive/improve-${modelName}-${dateStr}-${uuidStr}.${extension}`
+  return `models/${projectName}/archive/improve-${modelName}-${dateStr}-${uuidStr}${extension}`
 }
