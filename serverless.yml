@@ -424,6 +424,11 @@ resources:
               - optimal
             Tags: {"Name": "Batch Instance - ${self:service}-${self:custom.resource-identifier}"}
             DesiredvCpus: 0
+            LaunchTemplate:
+              LaunchTemplateId:
+                Ref: LaunchTemplateResourceForBatch
+              Version: 
+                Fn::GetAtt: [LaunchTemplateResourceForBatch, LatestVersionNumber]
           State: ENABLED
       JobQueue:
         Type: AWS::Batch::JobQueue
@@ -447,9 +452,44 @@ resources:
             Environment:
               - Name: JOIN_REWARDS_JOB_ARRAY_SIZE
                 Value: ${self:provider.environment.JOIN_REWARDS_JOB_ARRAY_SIZE}
+            MountPoints:
+              - ReadOnly: false
+                SourceVolume: efs
+                ContainerPath: /mnt/efs
+            Volumes:
+              - Host:
+                  SourcePath: /mnt/efs
+                Name: efs
           JobDefinitionName: ${self:custom.jobDefinitionName}
           RetryStrategy: 
             Attempts: 1
+      LaunchTemplateResourceForBatch:
+        Type: AWS::EC2::LaunchTemplate
+        DependsOn: FileSystemResource
+        Properties:
+          LaunchTemplateName: 'launch_template_${opt:stage, self:provider.stage}'
+          LaunchTemplateData:
+            UserData: 
+              Fn::Base64: 
+                Fn::Sub:
+                  - |
+                    MIME-Version: 1.0
+                    Content-Type: multipart/mixed; boundary="==MYBOUNDARY=="
+
+                    --==MYBOUNDARY==
+                    Content-Type: text/cloud-config; charset="us-ascii"
+
+                    packages:
+                    - amazon-efs-utils
+
+                    - mkdir -p ${EFSDirectory}
+                    - echo "${EFSFileSystem}:/ ${EFSDirectory} efs tls,_netdev" >> /etc/fstab
+                    - mount -a -t efs defaults
+
+                    --==MYBOUNDARY==--
+                  - EFSFileSystem: 
+                      Ref: FileSystemResource
+                    EFSDirectory: /mnt/efs
       BatchProcessRepository: 
         Type: AWS::ECR::Repository
         Properties: 
