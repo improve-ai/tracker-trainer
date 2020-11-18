@@ -38,7 +38,7 @@ def lambda_handler(event, context):
                 {"name": "JOIN_REWARDS_JOB_ARRAY_SIZE", "value": node_count},
                 {"name": "DEFAULT_REWARD_WINDOW_IN_SECONDS", "value": reward_window_seconds},
                 {"name": "JOIN_REWARDS_REPROCESS_ALL", "value": "False"},
-                {"name": "PATH_TOWARDS_EFS", "value": "/efs"},
+                {"name": "PATH_TOWARDS_EFS", "value": "/mnt/efs"},
             ],
         },
         # Size of the collection of jobs to send
