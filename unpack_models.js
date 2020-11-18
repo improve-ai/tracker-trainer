@@ -46,10 +46,11 @@ module.exports.unpack = function(event, context) {
   var extract = tar.extract();
 
   extract.on('entry', function(header, inputStream, next) {
-      const key = getTimestampedS3KeyForFile(projectName, modelName, header.name);
-      const latestKey = getLatestS3KeyForFile(projectName, modelName, header.name);
+      const extension = getExtension(header.name)
       
-      if (key && latestKey) {
+      if (extension) {
+        const key = getTimestampedS3Key(projectName, modelName, extension);
+        const latestKey = getLatestS3Key(projectName, modelName, extension);
         inputStream.pipe(uploadFromStream(key, latestKey));
   
         inputStream.on('end', function() {
@@ -80,6 +81,8 @@ function uploadFromStream(key, latestKey) {
     
     if (key.endsWith(".mlmodel")) {
       writeParams.ContentType = "application/protobuf" // allows cloudfront to automatically compress .mlmodel files
+    } else if (key.endsWith(".gz")) {
+      writeParams.ContentType = "application/gzip" // allows clients to automatically decompress
     }
 
     const copyParams = {
@@ -101,40 +104,20 @@ function uploadFromStream(key, latestKey) {
     return pass;
 }
 
-function getTimestampedS3KeyForFile(projectName, modelName, filePath) {
-  if (filePath.endsWith('.tar.gz')) {
-    return getTimestampedXgbS3Key(projectName, modelName)
-  } else if (filePath.endsWith('.mlmodel')) {
-    return getTimestampedMLModelS3Key(projectName, modelName)
+function getExtension(filePath) {
+  if (filePath.endsWith('.mlmodel')) {
+    return '.mlmodel'
+  } else if (filePath.endsWith('.mlmodel.gz')) {
+    return '.mlmodel.gz'
+  } else if (filePath.endsWith('.xgb.gz')) {
+    return '.xgb.gz'
   } else {
     return null;
   }
 }
 
-function getLatestS3KeyForFile(projectName, modelName, filePath) {
-  if (filePath.endsWith('.tar.gz')) {
-    return getLatestXgbS3Key(projectName, modelName)
-  } else if (filePath.endsWith('.mlmodel')) {
-    return getLatestMLModelS3Key(projectName, modelName)
-  } else {
-    return null;
-  }
-}
-
-function getLatestMLModelS3Key(projectName, modelName) {
-  return `models/${projectName}/latest/improve-${modelName}.mlmodel`
-}
-
-function getLatestXgbS3Key(projectName, modelName) {
-  return `models/${projectName}/latest/improve-${modelName}.tar.gz`
-}
-
-function getTimestampedMLModelS3Key(projectName, modelName) {
-  return getTimestampedS3Key(projectName, modelName, "mlmodel");
-}
-
-function getTimestampedXgbS3Key(projectName, modelName) {
-  return getTimestampedS3Key(projectName, modelName, "tar.gz");
+function getLatestS3Key(projectName, modelName, extension) {
+  return `models/${projectName}/latest/improve-${modelName}${extension}`
 }
 
 function getTimestampedS3Key(projectName, modelName, extension) {
@@ -144,5 +127,5 @@ function getTimestampedS3Key(projectName, modelName, extension) {
 
   const uuidStr = uuidv4();
 
-  return `models/${projectName}/archive/improve-${modelName}-${dateStr}-${uuidStr}.${extension}`
+  return `models/${projectName}/archive/improve-${modelName}-${dateStr}-${uuidStr}${extension}`
 }

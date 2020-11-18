@@ -190,7 +190,7 @@ module.exports.assignToShard = (sortedShards, historyId) => {
   const index = _.sortedIndex(sortedShards, fullShardId)
   // the previous index should be a parent of this id, if not, create either shard '0' or '1'
   if (index <= 0 || !fullShardId.startsWith(sortedShards[index-1])) {
-    return me.getShardId(historyId, 1) // create either shard '0' or '1'
+    return me.getShardId(historyId, 10) // create either shard '0' or '1'
   } else {
     return sortedShards[index-1] // this fullShardId startsWith the previous shard, so use that
   }
