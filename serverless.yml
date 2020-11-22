@@ -45,10 +45,18 @@ provider:
     # End customization
     #
     VALIDATION_PROPORTION: .3 # CAUTION: changes require re-mapping all files in /rewarded_actions to the proper train/validation directories.
-    #FEATURE_TRAINING_ROLE_ARN: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
-    #FIREHOSE_DELIVERY_STREAM_NAME: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.V4Firehose}
-    #RECORDS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
-    #MODELS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.ModelsS3Bucket}
+    FEATURE_TRAINING_ROLE_ARN:
+      Fn::GetAtt: [SagemakerExecutionRole, Arn]
+    #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
+    FIREHOSE_DELIVERY_STREAM_NAME:
+      Ref: V4Firehose 
+    #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.V4Firehose}
+    RECORDS_BUCKET:
+      Ref: RecordsS3Bucket
+    #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+    MODELS_BUCKET:
+      Ref: ModelsS3Bucket
+    #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.ModelsS3Bucket}
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
     PRE_DEPLOY_CHECK: ${file(predeploy.js)} # execute the pre deploy checks
