@@ -232,7 +232,7 @@ module.exports.getModelsByProject = () => {
 
 module.exports.getModelForRecordModel = (projectName, recordModel) => {
   if (!customize.config.projects || !customize.config.projects[projectName]) {
-    throw new Error("no configured project ${projectName}")
+    throw new Error(`no configured project ${projectName}`)
   }
 
   const modelConfigs = customize.config.projects[projectName].models
@@ -249,15 +249,38 @@ module.exports.getModelForRecordModel = (projectName, recordModel) => {
   return null;
 }
 
-// TODO
-module.exports.getXGBoostHyperparameters = (projectName, model) => {
-  const hyperparameters = {} 
+module.exports.getXGBoostHyperparameters = (projectName, modelName) => {
+  const hyperparameters = {};
+  
+  /* Load default hyperparameters */
+  Object.assign(hyperparameters, customize.config.xgboostHyperparameters);
+
   if (customize.config.binaryRewards) {
-    Object.assign(hyperparameters,  { objective: "binary:logistic" })
+    Object.assign(hyperparameters, { objective: "binary:logistic" });
+  }
+
+  /* If available, load some model-customized hyperparameters */
+  const projects = customize.config.projects;
+  if (!projects[projectName] || !projects[projectName]["models"][modelName]) {
+    console.log("Using default hyperparameters:");
+  } else {
+    Object.assign(
+      hyperparameters,
+      projects[projectName]["models"][modelName]["xgboostHyperparameters"]
+    );
+    console.log("Using customized hyperparameters:");
+  }
+
+  for (const [key, val] of Object.entries(hyperparameters)) {
+    if (_.isNumber(val)) {
+      hyperparameters[key] = val.toString();
+    }
   }
   
-  return Object.assign(hyperparameters, customize.config.xgboostHyperparameters)
-}
+  console.log(hyperparameters);
+  
+  return hyperparameters;
+};
 
 module.exports.getMaxRewardWindowInSeconds = (projectName) => {
   return customize.config.rewardWindowInSeconds // TODO reward window by model
@@ -300,6 +323,7 @@ module.exports.assertValidRewardedDecision = (ra) => {
   assert(_.isString(ra.timestamp), `'timestamp' must be string for ${JSON.stringify(ra)}`)
   // TODO disallow empty variant, but allow null
   assert(ra.variant, `'variant' field is required for ${JSON.stringify(ra)}`)
+  assert(ra.model, `'model' field is required for ${JSON.stringify(ra)}`)
   // TODO disallow null context
   if (ra.context) {
     assert(me.isObjectNotArray(ra.context), `'context' must be a dictionary for ${JSON.stringify(ra)}`)

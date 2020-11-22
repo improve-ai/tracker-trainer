@@ -95,8 +95,8 @@ sudo docker create \
 --env JOIN_REWARDS_JOB_ARRAY_SIZE=3 \
 --env JOIN_REWARDS_REPROCESS_ALL=False \
 --env DEFAULT_REWARD_WINDOW_IN_SECONDS=7200 \
---env PATH_TOWARDS_EFS=/efs \
---volume="/home/user/efs:/efs" \
+--env PATH_TOWARDS_EFS=/mnt/efs \
+--volume="/home/user/efs:/mnt/efs" \
 worker_image
 
 sudo docker container start --interactive worker_container

@@ -42,7 +42,7 @@ module.exports.customizeRecords = (projectName, records) => {
     delete r.shared
     
     // migrate messages-1.0 { message: ..., theme: ... }
-    if (r.model && r.model === "messages-1.0" && r.variant) {
+    if ((r.namespace === "messages-1.0" || r.model === "messages-1.0") && r.variant) {
       const messageDecision = Object.assign({}, r)
       messageDecision.model = "messages-2.0"
       messageDecision.variant = r.variant.message
@@ -61,7 +61,7 @@ module.exports.customizeRecords = (projectName, records) => {
       if (themeDecision.variant) {
         results.push(themeDecision)
       }
-    } else {
+    } else if (r.type === "rewards" || r.model === "messages-2.0" || r.model === "themes-2.0" || r.model === "stories-2.0" || r.model === "songs-2.0") {
       results.push(r)
     }
   })

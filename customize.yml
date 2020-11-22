@@ -3,12 +3,12 @@ rewardWindowInSeconds: 7200
 binaryRewards: true
 featureHyperparameters:
 #  maxAge: 7776000
-xgboostHyperparameters: # must be strings # TODO handle string conversion elsewhere
-  num_round: "400"
-  early_stopping_rounds: "50"
+xgboostHyperparameters:
+  num_round: "300"
+  early_stopping_rounds: "40"
   objective: "binary:logistic"
   eval_metric: "auc"
-  max_depth: "7" 
+  max_depth: "6" 
   eta: "0.1"
   subsample: "0.7"
   colsample_bytree: "0.7"
@@ -21,12 +21,17 @@ projects:
     models:
       messages-2.0:
       themes-2.0:
+        xgboostHyperparameters:
+          max_depth: 4
+          num_round: 150
       songs-2.0:
       stories-2.0:
-
   mindful:
     models:
       messages-2.0:
       themes-2.0:
+        xgboostHyperparameters:
+          max_depth: 4
+          num_round: 150.0
       songs-2.0:
       stories-2.0:
