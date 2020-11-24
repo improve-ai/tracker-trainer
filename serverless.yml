@@ -60,6 +60,8 @@ provider:
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
     PRE_DEPLOY_CHECK: ${file(predeploy.js)} # execute the pre deploy checks
+  httpApi:
+    cors: true
   iamRoleStatements: 
     - Effect: Allow
       Action:
@@ -116,11 +118,9 @@ functions:
     handler: http_api.track
     timeout: 6
     events:
-      - http:
-          path: track
-          method: post
-          cors: true
-        #  private: true # uncomment if you wish to require authentication via API Gateway
+      - httpApi:
+          method: POST
+          path: /track
   dispatchTrainingJobs:
     handler: train.dispatchTrainingJobs
     events:
