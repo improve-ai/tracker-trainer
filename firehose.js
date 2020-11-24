@@ -23,7 +23,7 @@ module.exports.sendToFirehose = (projectName, body, receivedAt, log) => {
   if (!body.message_id) {
     body["message_id"] = uuidv4()
   }
-  let firehoseData = new Buffer(JSON.stringify(body)+'\n')
+  let firehoseData = Buffer.from(JSON.stringify(body)+'\n')
   consoleTime('firehose',log)
   consoleTime('firehose-create',log)
 

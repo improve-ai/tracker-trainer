@@ -7,13 +7,31 @@ const fs   = require('fs');
 // Authentication information such as AWS Cognito IDs or AWS API Gateway api keys could be used to determine which project the data belongs to 
 module.exports.projectNameForTrack = (lambdaEvent, lambdaContext) => {
   // return Object.keys(module.exports.config.projects)[0]
-  if (lambdaEvent.requestContext.identity.apiKey === "lRgX7U2VPZ6I1DUaSUr6D8jH4iFju3MY7i3p9mbq") {
+
+  if (!lambdaEvent) {
+    console.log("WARN: null lambdaEvent")
+    return null
+  }
+  
+  const headers = lambdaEvent.headers;
+  if (!headers) {
+    console.log('WARN: null headers')
+    return null
+  }
+  
+  const apiKey = headers["x-api-key"]
+  if (!apiKey) {
+    console.log('WARN: null x-api-key header')
+    return null
+  }
+  
+  if (apiKey === "lRgX7U2VPZ6I1DUaSUr6D8jH4iFju3MY7i3p9mbq") {
     return "bible"
   }
-  if (lambdaEvent.requestContext.identity.apiKey === "lF8yFNYXiT5fIlBHQMgbY3EtPUfbjJmS1OskfqiT") {
+  if (apiKey === "lF8yFNYXiT5fIlBHQMgbY3EtPUfbjJmS1OskfqiT") {
     return "mindful"
   }
-  if (lambdaEvent.requestContext.identity.apiKey === "xScYgcHJ3Y2hwx7oh5x02NcCTwqBonnumTeRHThI") {
+  if (apiKey === "xScYgcHJ3Y2hwx7oh5x02NcCTwqBonnumTeRHThI") {
     return "test"
   }
 }
