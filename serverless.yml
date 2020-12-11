@@ -57,6 +57,7 @@ provider:
     MODELS_BUCKET:
       Ref: ModelsS3Bucket
     #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.ModelsS3Bucket}
+    EFS_FILE_PATH: /mnt/efs
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
     PRE_DEPLOY_CHECK: ${file(predeploy.js)} # execute the pre deploy checks
@@ -548,8 +549,7 @@ resources:
             Version: "2012-10-17"
             Statement:
               - Effect: "Allow"
-                Action:
-                  - "elasticfilesystem:ClientMount"
+                Action: "elasticfilesystem:Client*"
                 Principal:
                   AWS: "*"
       MountTarget:
