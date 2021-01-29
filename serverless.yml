@@ -205,19 +205,6 @@ functions:
           rules:
             - prefix: transformed_models/
             - suffix: model.tar.gz.out
-  # demoFunction:
-  #   handler: handler.default
-  #   runtime: nodejs12.x
-  #   description: A Demo Lambda Function to check whether efs is working or not
-  #   fileSystemConfig:
-  #     localMountPath: /mnt/efs
-  #     arn: 
-  #       Fn::GetAtt: [ AccessPointResource, Arn ]
-  #   vpc:
-  #     securityGroupIds:
-  #       - Ref: SecurityGroup
-  #     subnetIds:
-  #       - Ref: Subnet
 
 resources:
   Resources:
