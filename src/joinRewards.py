@@ -4,7 +4,7 @@ This script is intended to be used from inside a Docker container to process
 jsonl files.
 -------------------------------------------------------------------------------
 Usage:
-    python worker.py
+    python joinRewards.py
 """
 
 # Built-in imports

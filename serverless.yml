@@ -45,18 +45,10 @@ provider:
     # End customization
     #
     VALIDATION_PROPORTION: .3 # CAUTION: changes require re-mapping all files in /rewarded_actions to the proper train/validation directories.
-    FEATURE_TRAINING_ROLE_ARN:
-      Fn::GetAtt: [SagemakerExecutionRole, Arn]
-    #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
-    FIREHOSE_DELIVERY_STREAM_NAME:
-      Ref: V4Firehose 
-    #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.V4Firehose}
-    RECORDS_BUCKET:
-      Ref: RecordsS3Bucket
-    #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
-    MODELS_BUCKET:
-      Ref: ModelsS3Bucket
-    #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.ModelsS3Bucket}
+    FEATURE_TRAINING_ROLE_ARN: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
+    FIREHOSE_DELIVERY_STREAM_NAME: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.V4Firehose}
+    RECORDS_BUCKET: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+    MODELS_BUCKET: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.ModelsS3Bucket}
     EFS_FILE_PATH: /mnt/efs
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
@@ -67,11 +59,11 @@ provider:
     - Effect: Allow
       Action:
         - "firehose:*"
-      Resource: !GetAtt V4Firehose.Arn
+      Resource: "arn:aws:firehose:*:*:deliverystream/${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.V4Firehose}"
     - Effect: Allow
       Action:
         - "s3:*"
-      Resource: 'arn:aws:s3:::${self:service}-resources-${opt:stage, self:provider.stage}-*'
+      Resource: 'arn:aws:s3:::${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-*'
     - Effect: Allow
       Action:
         - "sagemaker:*"
@@ -79,8 +71,7 @@ provider:
     - Effect: Allow
       Action:
         - "iam:PassRole"
-      Resource: !GetAtt SagemakerExecutionRole.Arn
-      #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
+      Resource: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
     - Effect: Allow
       Action:
         - "lambda:InvokeFunction"
@@ -110,7 +101,7 @@ provider:
 functions:
   joinRewards:
     runtime: python3.8
-    handler: src/handler.lambda_handler
+    handler: src/joinRewards.lambda_handler
     description: Launch AWS Batch jobs
     environment:
       JOB_QUEUE_NAME: ${self:custom.jobQueueName}
@@ -131,20 +122,15 @@ functions:
     memorySize: ${self:provider.environment.FIREHOSE_WORKER_MEMORY_IN_MB} 
     events:
       - s3:
-          bucket:
-            Ref: FirehoseS3Bucket
-          #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3Bucket}
+          bucket: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.FirehoseS3Bucket}
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
     fileSystemConfig:
       localMountPath: /mnt/efs
-      arn: 
-        Fn::GetAtt: [ AccessPointResource, Arn ]
+      arn: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.AccessPointResourceArn}
     vpc:
-      securityGroupIds:
-        - Ref: SecurityGroup
-      subnetIds:
-        - Ref: Subnet
+      securityGroupIds: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.SecurityGroup}
+      subnetIds: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.Subnet}
   dispatchRewardAssignmentWorkers:
     handler: history.dispatchRewardAssignmentWorkers
     reservedConcurrency: 1 # enforce serial execution to avoid potential concurrency issues
@@ -161,9 +147,7 @@ functions:
     handler: train.featureModelCreated
     events:
       - s3:
-          bucket:
-            Ref: RecordsS3Bucket 
-          #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+          bucket: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.RecordsS3Bucket}
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
           rules:
@@ -173,9 +157,7 @@ functions:
     handler: train.xgboostModelCreated
     events:
       - s3:
-          bucket: 
-            Ref: RecordsS3Bucket
-          #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+          bucket: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.RecordsS3Bucket}
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
           rules:
@@ -197,370 +179,9 @@ functions:
     handler: unpack_models.unpack
     events:
       - s3:
-          bucket:
-            Ref: RecordsS3Bucket 
-          #${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+          bucket: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.RecordsS3Bucket}
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
           rules:
             - prefix: transformed_models/
             - suffix: model.tar.gz.out
-
-resources:
-  Resources:
-      FirehoseToS3Role:
-        Type: AWS::IAM::Role
-        Properties:
-          RoleName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-FirehoseToS3Role
-          AssumeRolePolicyDocument:
-            Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                - firehose.amazonaws.com
-              Action:
-              - sts:AssumeRole
-          Policies:
-          - PolicyName: FirehoseToS3Policy
-            PolicyDocument:
-              Statement:
-                - Effect: Allow
-                  Action:
-                  - s3:AbortMultipartUpload
-                  - s3:GetBucketLocation
-                  - s3:GetObject
-                  - s3:ListBucket
-                  - s3:ListBucketMultipartUploads
-                  - s3:PutObject
-                  Resource: '*'
-      SagemakerExecutionRole:
-        Type: AWS::IAM::Role
-        Properties:
-          RoleName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-SagemakerExecutionRole
-          AssumeRolePolicyDocument:
-            Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                - firehose.amazonaws.com
-              Action:
-              - sts:AssumeRole
-            - Effect: Allow
-              Principal:
-                Service:
-                - sagemaker.amazonaws.com
-              Action:
-              - sts:AssumeRole
-          ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
-          Policies:
-          - PolicyName: SagemakerExecutionPolicy
-            PolicyDocument:
-              Statement:
-                - Effect: Allow
-                  Action:
-                  - s3:GetObject
-                  - s3:DeleteObject
-                  - s3:ListBucket
-                  - s3:PutObject
-                  Resource: "arn:aws:s3:::${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-*-#{AWS::AccountId}*"
-      FirehoseS3Bucket:
-        Type: 'AWS::S3::Bucket'
-        DeletionPolicy: Retain
-        Properties:
-          BucketName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-firehose-#{AWS::AccountId}
-      V4Firehose:
-        Type: AWS::KinesisFirehose::DeliveryStream
-        Properties:
-          DeliveryStreamName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-firehose
-          S3DestinationConfiguration:
-            BucketARN:
-              Fn::Join:
-              - ''
-              - - 'arn:aws:s3:::'
-                - Ref: FirehoseS3Bucket
-            BufferingHints:
-              IntervalInSeconds: 300
-              SizeInMBs: 128
-            CompressionFormat: "GZIP"
-            RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
-      RecordsS3Bucket:
-        Type: 'AWS::S3::Bucket'
-        DeletionPolicy: Retain
-        Properties:
-          BucketName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-records-#{AWS::AccountId}
-      ModelsS3Bucket:
-        Type: 'AWS::S3::Bucket'
-        DeletionPolicy: Retain
-        Properties:
-          BucketName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-models-#{AWS::AccountId}
-      PublicModelsS3Bucket:
-        Type: 'AWS::S3::Bucket'
-        DeletionPolicy: Retain
-        Properties:
-          BucketName: ${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}-public-models-#{AWS::AccountId}
-      VPC:
-        Type: AWS::EC2::VPC
-        Properties:
-          CidrBlock: 10.0.0.0/16
-      InternetGateway:
-        Type: AWS::EC2::InternetGateway
-      RouteTable:
-        Type: AWS::EC2::RouteTable
-        Properties:
-          VpcId:
-            Ref: VPC
-      VPCGatewayAttachment:
-        Type: AWS::EC2::VPCGatewayAttachment
-        Properties:
-          VpcId:
-            Ref: VPC
-          InternetGatewayId:
-            Ref: InternetGateway
-      SecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-          GroupDescription: EC2 Security Group for instances launched in the VPC by Batch
-          VpcId:
-            Ref: VPC
-          SecurityGroupIngress:
-            - IpProtocol: tcp
-              FromPort: 2049 #Had to open a connection for lambda to communicate with AWS EFS.
-              ToPort: 2049  #In AWS internally in a security group port 2049 is stored for network file storage, 
-              CidrIp: 0.0.0.0/0 #so in order to make the lambda to invoke successfully I need to add an in-bound policy or ingress policy which will allow access on that port
-      Subnet:
-        Type: AWS::EC2::Subnet
-        Properties:
-          CidrBlock: 10.0.0.0/24
-          VpcId:
-            Ref: VPC
-          MapPublicIpOnLaunch: 'True'
-      Route:
-        Type: AWS::EC2::Route
-        Properties:
-          RouteTableId:
-            Ref: RouteTable
-          DestinationCidrBlock: 0.0.0.0/0
-          GatewayId:
-            Ref: InternetGateway
-      SubnetRouteTableAssociation:
-        Type: AWS::EC2::SubnetRouteTableAssociation
-        Properties:
-          RouteTableId:
-            Ref: RouteTable
-          SubnetId:
-            Ref: Subnet
-      S3VpcEndPoint:
-        Type: 'AWS::EC2::VPCEndpoint'
-        Properties:
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Principal: '*'
-                Action:
-                  - 's3:GetObject'
-                Resource: '*'
-          ServiceName: 
-            Fn::Sub: 'com.amazonaws.${AWS::Region}.s3'
-          VpcId: 
-            Ref: VPC
-          RouteTableIds:
-            - Ref: RouteTable
-      IamInstanceProfile:
-        Type: AWS::IAM::InstanceProfile
-        Properties:
-          Roles:
-          - Ref: EcsInstanceRole
-      EcsInstanceRole:
-        Type: AWS::IAM::Role
-        Properties:
-          AssumeRolePolicyDocument:
-            Version: '2008-10-17'
-            Statement:
-                Effect: Allow
-                Principal:
-                  Service: 
-                  - ec2.amazonaws.com
-                Action: sts:AssumeRole
-          ManagedPolicyArns:
-            - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
-      BatchServiceRole:
-        Type: AWS::IAM::Role
-        Properties:
-          AssumeRolePolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Principal:
-                  Service: 
-                  - batch.amazonaws.com
-                Action: sts:AssumeRole
-          ManagedPolicyArns:
-            - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
-      AmazonEC2SpotFleetRole:
-        Type: AWS::IAM::Role
-        Properties:
-          AssumeRolePolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Principal:
-                  Service: 
-                  - spotfleet.amazonaws.com
-                Action: sts:AssumeRole
-          ManagedPolicyArns:
-            - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
-      ComputeEnvironment:
-        Type: AWS::Batch::ComputeEnvironment
-        Properties:
-          Type: MANAGED
-          ServiceRole: 
-            Ref: BatchServiceRole
-          ComputeEnvironmentName: '${self:service}-${self:custom.resource-identifier}-compute-environment-${opt:stage, self:provider.stage}'
-          ComputeResources:
-            MaxvCpus: 128
-            SecurityGroupIds:
-              - Ref: SecurityGroup
-            Type: SPOT
-            AllocationStrategy: BEST_FIT # This is actually the default
-            BidPercentage: 50
-            SpotIamFleetRole: 
-              Ref: AmazonEC2SpotFleetRole
-            # aws-ec2-spot-fleet-tagging-role
-            Subnets:
-              - Ref: Subnet
-            MinvCpus: 0
-            InstanceRole:  
-              Ref: IamInstanceProfile
-            InstanceTypes:
-              - optimal
-            Tags: {"Name": "Batch Instance - ${self:service}-${self:custom.resource-identifier}"}
-            DesiredvCpus: 0
-            LaunchTemplate:
-              LaunchTemplateId:
-                Ref: LaunchTemplateResourceForBatch
-              Version: 
-                Fn::GetAtt: [LaunchTemplateResourceForBatch, LatestVersionNumber]
-          State: ENABLED
-      JobQueue:
-        Type: AWS::Batch::JobQueue
-        Properties:
-          ComputeEnvironmentOrder:
-            - Order: 1
-              ComputeEnvironment: 
-                Ref: ComputeEnvironment
-          State: ENABLED
-          Priority: 1
-          JobQueueName: ${self:custom.jobQueueName}
-      JobDefinition:
-        Type: "AWS::Batch::JobDefinition"
-        Properties:
-          Type: Container
-          ContainerProperties: 
-            Memory: 1024
-            Vcpus: 1
-            # '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/print-color:latest' --For Checking Tutorial Array Of Jobs Example
-            Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/batch-processing-job-repository-${opt:stage, self:provider.stage}:latest'
-            Environment:
-              - Name: JOIN_REWARDS_JOB_ARRAY_SIZE
-                Value: ${self:provider.environment.JOIN_REWARDS_JOB_ARRAY_SIZE}
-            MountPoints:
-              - ReadOnly: false
-                SourceVolume: efs
-                ContainerPath: /mnt/efs
-            Volumes:
-              - Host:
-                  SourcePath: /mnt/efs
-                Name: efs
-          JobDefinitionName: ${self:custom.jobDefinitionName}
-          RetryStrategy: 
-            Attempts: 1
-      LaunchTemplateResourceForBatch:
-        Type: AWS::EC2::LaunchTemplate
-        DependsOn: FileSystemResource
-        Properties:
-          LaunchTemplateName: 'launch_template_${opt:stage, self:provider.stage}'
-          LaunchTemplateData:
-            UserData: 
-              Fn::Base64: 
-                Fn::Sub:
-                  - |
-                    MIME-Version: 1.0
-                    Content-Type: multipart/mixed; boundary="==MYBOUNDARY=="
-
-                    --==MYBOUNDARY==
-                    Content-Type: text/cloud-config; charset="us-ascii"
-
-                    packages:
-                    - amazon-efs-utils
-
-                    - mkdir -p ${EFSDirectory}
-                    - echo "${EFSFileSystem}:/ ${EFSDirectory} efs tls,_netdev" >> /etc/fstab
-                    - mount -a -t efs defaults
-
-                    --==MYBOUNDARY==--
-                  - EFSFileSystem: 
-                      Ref: FileSystemResource
-                    EFSDirectory: /mnt/efs
-      BatchProcessRepository: 
-        Type: AWS::ECR::Repository
-        Properties: 
-          RepositoryName: "batch-processing-job-repository-${opt:stage, self:provider.stage}"
-          RepositoryPolicyText: 
-            Version: "2012-10-17"
-            Statement: 
-              - 
-                Sid: AllowPushPull
-                Effect: Allow
-                Principal: 
-                  AWS: 
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/${EcsInstanceRole}
-                Action: 
-                  - "ecr:GetDownloadUrlForLayer"
-                  - "ecr:BatchGetImage"
-                  - "ecr:BatchCheckLayerAvailability"
-                  - "ecr:PutImage"
-                  - "ecr:InitiateLayerUpload"
-                  - "ecr:UploadLayerPart"
-                  - "ecr:CompleteLayerUpload"
-      FileSystemResource:
-        Type: 'AWS::EFS::FileSystem'
-        Properties:
-          PerformanceMode: maxIO
-          Encrypted: true
-          FileSystemTags:
-            - Key: Name
-              Value: "${self:service}-${self:custom.resource-identifier}-file-system-${opt:stage, self:provider.stage}"
-          FileSystemPolicy:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action: "elasticfilesystem:Client*"
-                Principal:
-                  AWS: "*"
-      MountTarget:
-        Type: AWS::EFS::MountTarget
-        Properties:
-          FileSystemId: 
-            Ref: FileSystemResource
-          SecurityGroups:
-            - Ref: SecurityGroup
-          SubnetId: 
-            Ref: Subnet
-        DependsOn: Subnet
-      AccessPointResource:
-        Type: 'AWS::EFS::AccessPoint'
-        Properties:
-          FileSystemId: 
-            Ref: FileSystemResource
-          PosixUser:
-            Uid: "1000"
-            Gid: "1000"
-          RootDirectory:
-            CreationInfo:
-              OwnerGid: "1000"
-              OwnerUid: "1000"
-              Permissions: "0777"
-            Path: "/efs"
-        DependsOn: MountTarget

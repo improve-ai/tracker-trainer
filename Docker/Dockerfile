@@ -15,4 +15,4 @@ COPY ./pytest.ini .
 
 ENV PYTHONPATH=/code
 
-CMD [ "python", "src/worker.py" ] 
+CMD [ "python", "src/joinRewards.py" ] 
