@@ -11,7 +11,7 @@ provider:
   name: aws
   region: us-west-2
   environment:
-    JOIN_REWARDS_JOB_ARRAY_SIZE: 3
+    REWARD_ASSIGNMENT_WORKER_COUNT: 3
 
 resources:
   Resources:
@@ -271,7 +271,7 @@ resources:
             Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/batch-processing-job-repository-${opt:stage, self:provider.stage}:latest'
             Environment:
               - Name: JOIN_REWARDS_JOB_ARRAY_SIZE
-                Value: ${self:provider.environment.JOIN_REWARDS_JOB_ARRAY_SIZE}
+                Value: ${self:provider.environment.REWARD_ASSIGNMENT_WORKER_COUNT}
             MountPoints:
               - ReadOnly: false
                 SourceVolume: efs

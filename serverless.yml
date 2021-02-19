@@ -18,7 +18,6 @@ provider:
     #
     # Customize your deployment here:
     #
-    JOIN_REWARDS_JOB_ARRAY_SIZE: 3 # Number of instances to launch in the compute environment
     TRAINING_JOB_SCHEDULE: rate(24 hours) # trades off between learning latency and cost
     REWARD_ASSIGNMENT_JOB_SCHEDULE: rate(4 hours) # trades off between learning latency and cost
     FEATURE_TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
@@ -30,11 +29,7 @@ provider:
     XGBOOST_TRAINING_INSTANCE_COUNT: 4
     XGBOOST_TRAINING_VOLUME_SIZE_IN_GB: 10
     XGBOOST_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
-    DEFAULT_REWARD_WINDOW_IN_SECONDS: 7200 # 2 hours
     FIREHOSE_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory. Buffer size is configured in resources/serverless.yml
-    REWARD_ASSIGNMENT_WORKER_MEMORY_IN_MB: 1024 # must be large enough to hold a reward window's worth of events for a single history shard
-    REWARD_ASSIGNMENT_WORKER_MAX_PAYLOAD_IN_MB: 32 # If the size of the compressed data processed for a reward window exceeds this size, a reshard will be triggered, splitting the shard in half
-    REWARD_ASSIGNMENT_WORKER_COUNT: 1 # larger deployments with many shards will want to increase this number. Processes the least recently processed shards each time a firehose unpack finishes. S3 and lambda costs will increase approximately linearly.
     # 
     # End customization
     #
@@ -91,11 +86,12 @@ provider:
       Resource: "arn:aws:batch:*:*:*"
 
 package:
-  individually: true
   exclude:
     - ./**
   include:
     - 'node_modules/**'
+    - 'src/**'
+    - '!src/assign_rewards/**'
     
 functions:
   track:
@@ -106,12 +102,9 @@ functions:
       - httpApi:
           method: POST
           path: /track
-    package:
-      include:
-        - 'src/track/**'
   unpackFirehose:
     description: Ingest Records from S3 to EFS
-    handler: firehose.unpackFirehose
+    handler: src/track/firehose.unpackFirehose
     memorySize: ${self:provider.environment.FIREHOSE_WORKER_MEMORY_IN_MB} 
     events:
       - s3:
@@ -124,9 +117,6 @@ functions:
     vpc:
       securityGroupIds: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.SecurityGroup}
       subnetIds: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.Subnet}
-    package:
-      include:
-        - 'src/track/**'
   dispatchRewardAssignmentJobs:
     description: Dispatch Reward Assignment Batch Jobs
     runtime: python3.8
@@ -141,15 +131,12 @@ functions:
         - 'src/assign_rewards/start_job_lambda.py'
   dispatchTrainingJobs:
     description: Dispatch SageMaker Training Jobs
-    handler: train.dispatchTrainingJobs
+    handler: src/train/train.dispatchTrainingJobs
     events:
       - schedule: ${self:provider.environment.TRAINING_JOB_SCHEDULE}
-    package:
-      include:
-        - 'src/train/**'
   featureModelCreated:
     description: Dispatch SageMaker Training Jobs
-    handler: train.featureModelCreated
+    handler: src/train/train.featureModelCreated
     events:
       - s3:
           bucket: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.RecordsS3Bucket}
@@ -158,23 +145,13 @@ functions:
           rules:
             - prefix: feature_models/
             - suffix: model.tar.gz
-  xgboostModelCreated:
-    handler: train.xgboostModelCreated
-    events:
-      - s3:
-          bucket: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.RecordsS3Bucket}
-          existing: true # created in resources/serverless.yml
-          event: s3:ObjectCreated:*
-          rules:
-            - prefix: xgboost_models/
-            - suffix: model.tar.gz
   unpackModels:
-    handler: unpack_models.unpack
+    handler: src/train/unpack_models.unpack
     events:
       - s3:
           bucket: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.RecordsS3Bucket}
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
           rules:
-            - prefix: transformed_models/
-            - suffix: model.tar.gz.out
+            - prefix: models/
+            - suffix: model.tar.gz
