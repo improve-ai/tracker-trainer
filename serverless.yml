@@ -20,12 +20,11 @@ provider:
     #
     JOIN_REWARDS_JOB_ARRAY_SIZE: 3 # Number of instances to launch in the compute environment
     TRAINING_JOB_SCHEDULE: rate(24 hours) # trades off between learning latency and cost
+    REWARD_ASSIGNMENT_JOB_SCHEDULE: rate(4 hours) # trades off between learning latency and cost
     FEATURE_TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
     FEATURE_TRAINING_INSTANCE_TYPE: ml.m5.large
     FEATURE_TRAINING_INSTANCE_COUNT: 1
     FEATURE_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
-    TRANSFORM_INSTANCE_TYPE: ml.m5.large
-    TRANSFORM_INSTANCE_COUNT: 4
     XGBOOST_TRAINING_IMAGE: 246618743249.dkr.ecr.us-west-2.amazonaws.com/sagemaker-xgboost:0.90-2-cpu-py3 # XGBoost (0.90) do this after validating everything # 433757028032.dkr.ecr.us-west-2.amazonaws.com/xgboost:latest  #
     XGBOOST_TRAINING_INSTANCE_TYPE: ml.m5.12xlarge
     XGBOOST_TRAINING_INSTANCE_COUNT: 4
@@ -36,15 +35,9 @@ provider:
     REWARD_ASSIGNMENT_WORKER_MEMORY_IN_MB: 1024 # must be large enough to hold a reward window's worth of events for a single history shard
     REWARD_ASSIGNMENT_WORKER_MAX_PAYLOAD_IN_MB: 32 # If the size of the compressed data processed for a reward window exceeds this size, a reshard will be triggered, splitting the shard in half
     REWARD_ASSIGNMENT_WORKER_COUNT: 1 # larger deployments with many shards will want to increase this number. Processes the least recently processed shards each time a firehose unpack finishes. S3 and lambda costs will increase approximately linearly.
-    #
-    # When configured with a low number of workers, increasing this may further decrease Lambda and S3 costs by re-processing history shards less often.
-    REWARD_ASSIGNMENT_REPROCESS_SHARD_WAIT_TIME_IN_SECONDS: 30 # 900 # 15 minutes.  Don't re-process the same shard any more frequently than this number, regardless of the number of workers.
-    RESHARD_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack a single day's data for one shard in memory.
-    RESHARD_WORKER_RESERVED_CONCURRENCY: 50 # limits maximum concurrency, but reduces the shared lambda pool for this AWS account in this region
     # 
     # End customization
     #
-    VALIDATION_PROPORTION: .3 # CAUTION: changes require re-mapping all files in /rewarded_actions to the proper train/validation directories.
     FEATURE_TRAINING_ROLE_ARN: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
     FIREHOSE_DELIVERY_STREAM_NAME: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.V4Firehose}
     RECORDS_BUCKET: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.RecordsS3Bucket}
@@ -52,8 +45,7 @@ provider:
     EFS_FILE_PATH: /mnt/efs
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
-    PRE_DEPLOY_CHECK: ${file(predeploy.js)} # execute the pre deploy checks
-  httpApi:
+  httpApi: # FIX MOVE DOWN?
     cors: true
   iamRoleStatements: 
     - Effect: Allow
@@ -98,26 +90,27 @@ provider:
         - batch:SubmitJob
       Resource: "arn:aws:batch:*:*:*"
 
+package:
+  individually: true
+  exclude:
+    - ./**
+  include:
+    - 'node_modules/**'
+    
 functions:
-  joinRewards:
-    runtime: python3.8
-    handler: src/joinRewards.lambda_handler
-    description: Launch AWS Batch jobs
-    environment:
-      JOB_QUEUE_NAME: ${self:custom.jobQueueName}
-      JOB_DEFINITION_NAME: ${self:custom.jobDefinitionName}
   track:
-    handler: http_api.track
+    description: Event Tracker HTTP API
+    handler: src/track/http_api.track
     timeout: 6
     events:
       - httpApi:
           method: POST
           path: /track
-  dispatchTrainingJobs:
-    handler: train.dispatchTrainingJobs
-    events:
-      - schedule: ${self:provider.environment.TRAINING_JOB_SCHEDULE}
+    package:
+      include:
+        - 'src/track/**'
   unpackFirehose:
+    description: Ingest Records from S3 to EFS
     handler: firehose.unpackFirehose
     memorySize: ${self:provider.environment.FIREHOSE_WORKER_MEMORY_IN_MB} 
     events:
@@ -131,19 +124,31 @@ functions:
     vpc:
       securityGroupIds: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.SecurityGroup}
       subnetIds: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.Subnet}
-  dispatchRewardAssignmentWorkers:
-    handler: history.dispatchRewardAssignmentWorkers
-    reservedConcurrency: 1 # enforce serial execution to avoid potential concurrency issues
-  assignRewards:
-    handler: history.assignRewards
-    memorySize: ${self:provider.environment.REWARD_ASSIGNMENT_WORKER_MEMORY_IN_MB}
-  splitShard:
-    handler: shard.splitShard
-  splitFile:
-    handler: shard.splitFile
-    memorySize: ${self:provider.environment.RESHARD_WORKER_MEMORY_IN_MB}
-    reservedConcurrency: ${self:provider.environment.RESHARD_WORKER_RESERVED_CONCURRENCY}
+    package:
+      include:
+        - 'src/track/**'
+  dispatchRewardAssignmentJobs:
+    description: Dispatch Reward Assignment Batch Jobs
+    runtime: python3.8
+    handler: src/assign_rewards/start_job_lambda.lambda_handler
+    events:
+      - schedule: ${self:provider.environment.REWARD_ASSIGNMENT_JOB_SCHEDULE}
+    environment:
+      JOB_QUEUE_NAME: ${self:custom.jobQueueName}
+      JOB_DEFINITION_NAME: ${self:custom.jobDefinitionName}
+    package:
+      include:
+        - 'src/assign_rewards/start_job_lambda.py'
+  dispatchTrainingJobs:
+    description: Dispatch SageMaker Training Jobs
+    handler: train.dispatchTrainingJobs
+    events:
+      - schedule: ${self:provider.environment.TRAINING_JOB_SCHEDULE}
+    package:
+      include:
+        - 'src/train/**'
   featureModelCreated:
+    description: Dispatch SageMaker Training Jobs
     handler: train.featureModelCreated
     events:
       - s3:
@@ -163,18 +168,6 @@ functions:
           rules:
             - prefix: xgboost_models/
             - suffix: model.tar.gz
-  transformJobCompleted:
-    handler: train.transformJobCompleted
-    events:
-      - cloudwatchEvent:
-          event:
-            source:
-              - 'aws.sagemaker'
-            detail-type:
-              - 'SageMaker Transform Job State Change'
-            detail:
-              TransformJobStatus:
-                - Completed
   unpackModels:
     handler: unpack_models.unpack
     events:
