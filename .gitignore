@@ -1,0 +1,16 @@
+node_modules
+.serverless/
+
+# VSCode
+.vscode
+
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest
+.pytest_cache
+
+*.jsonl
+*.jsonl.gz

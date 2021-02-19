@@ -1,16 +1,16 @@
 'use strict';
 
-const AWS = require('aws-sdk')
-const s3 = new AWS.S3()
-const uuidv4 = require('uuid/v4')
-const firehose = new AWS.Firehose()
-const lambda = new AWS.Lambda()
+const AWS = require('aws-sdk');
+const uuidv4 = require('uuid/v4');
+const fs = require('fs').promises; // use this for parallel creation of the files using a promise array and resolving them all parallel fashion
+const filesystem = require('fs');
+const firehose = new AWS.Firehose();
+const naming = require("./naming.js");
+const customize = require("./customize.js");
+const shajs = require('sha.js');
+const shell = require('shelljs');
 
-const shard = require("./shard.js")
-const history = require("./history.js")
-const naming = require("./naming.js")
-const s3utils = require("./s3utils.js")
-const customize = require("./customize.js")
+const efsutils = require("./efsUtils.js")
 
 // Send the event with the timestamp and project name to firehose
 module.exports.sendToFirehose = (projectName, body, receivedAt, log) => {
@@ -47,36 +47,18 @@ module.exports.unpackFirehose = async function(event, context) {
   if (!event.Records || !event.Records.length > 0 || event.Records.some(record => !record.s3 || !record.s3.bucket || !record.s3.bucket.name || !record.s3.object || !record.s3.object.key)) {
     throw new Error(`WARN: Invalid S3 event ${JSON.stringify(event)}`)
   }
-
-  // list all of the shards so that we can decide which shard to write to
-  return naming.listSortedShardsByProjectName().then(sortedShardsByProjectName => {
-    // s3 only ever includes one record per event, but this spec allows multiple, so multiple we will process.
-    return Promise.all(event.Records.map(s3EventRecord => {
-      // process the fire hose file and write results to s3
-      return processFirehoseFile(s3EventRecord.s3.bucket.name, s3EventRecord.s3.object.key, sortedShardsByProjectName)
-    }))
-  }).then(() => {
-    // all of the files have been written and meta incoming files have been touched, dispatch the workers to process
-    const lambdaArn = naming.getLambdaFunctionArn("dispatchRewardAssignmentWorkers", context.invokedFunctionArn)
-    console.log(`invoking dispatchRewardAssignmentWorkers`)
-
-    const params = {
-      FunctionName: lambdaArn,
-      InvocationType: "Event",
-    };
-    
-    return lambda.invoke(params).promise()
-  })
+  
+  return Promise.all(event.Records.map(s3EventRecord => processFirehoseFile(s3EventRecord.s3.bucket.name, s3EventRecord.s3.object.key))).then((res) => {
+    return res;
+  }).catch(err => console.log(err));
 }
  
-function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName) {
-  
-  let buffersByS3Key = {}
-  
-  // keep the uuid the same so that events in the same date, project, and shard get mapped to the same key
-  const uuidPart = uuidv4()
-  
-  return s3utils.processCompressedJsonLines(s3Bucket, firehoseS3Key, record => {
+function processFirehoseFile(s3Bucket, firehoseS3Key) {
+
+  let buffersByFileName = {}
+
+  return efsutils.processCompressedJsonLines(s3Bucket, firehoseS3Key, record => {
+
     try {
       record.project_name = customize.migrateProjectName(record.project_name || record.api_key) // api_key is deprecated
     } catch (err) {
@@ -128,6 +110,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
 
     const projectName = record.project_name;
 
+    
     // delete project_name from record in case it is sensitive
     delete record.project_name;
     
@@ -140,37 +123,44 @@ function processFirehoseFile(s3Bucket, firehoseS3Key, sortedShardsByProjectName)
       console.log(`WARN: skipping record - no history_id in ${JSON.stringify(record)}`)
       return;
     }
-  
-    // look at the list of available shards and assign the event to one
-    // events are also segmented by event date
-    const s3Key = shard.assignToHistoryS3Key(sortedShardsByProjectName[projectName], projectName, record.history_id, record.timestamp, uuidPart)
 
-    let buffers = buffersByS3Key[s3Key]
+    const fileName = shajs('sha256').update(record.history_id).digest('base64').replace(/[\W_]+/g,'').substring(0,24); //create the filename
+
+    let buffers = buffersByFileName[fileName]; //make an array with filename as the key and the buffer value as the value-object
+
     if (!buffers) {
-      buffers = []
-      buffersByS3Key[s3Key] = buffers
+      buffers = [];
+      buffersByFileName[fileName] = buffers;
     }
-    buffers.push(Buffer.from(JSON.stringify(record)+"\n"))
 
+    buffers.push(Buffer.from(JSON.stringify(record) + "\n"));
   }).then(() => {
-    return writeRecords(buffersByS3Key)
+    return writeRecords(buffersByFileName);
   })
 }
 
-function writeRecords(buffersByS3Key) {
-  const promises = []
+function writeRecords(buffersByFileName) {
+  const promises = [];
+  const directoryPathArr = [];
     
   // write out histories
-  for (const [s3Key, buffers] of Object.entries(buffersByS3Key)) {
-      promises.push(s3utils.compressAndWriteBuffers(s3Key, buffers))
-      
-      // if its a normal history key (not a variants key) write out the incoming meta file indicating this key should be processed
-      if (naming.isHistoryS3Key(s3Key)) {
-        promises.push(history.markHistoryS3KeyAsIncoming(s3Key))
+  for (const [fileName, buffers] of Object.entries(buffersByFileName)) {
+
+      // the file path at which the history data will be stored in the file storage
+      const directoryBasePath = `${process.env.EFS_FILE_PATH}/histories/${fileName.substr(0,1)}/${fileName.substr(1,1)}/${fileName.substr(2,1)}/`;
+      const path = `${directoryBasePath}${fileName}.jsonl`;
+
+      if (!filesystem.existsSync(directoryBasePath)) {
+        shell.mkdir('-p', directoryBasePath); // create a directory if a folder path with their sub-folders doesn't exist
+        directoryPathArr.push(directoryBasePath);
       }
+
+      promises.push(fs.writeFile(path, Buffer.concat(buffers)));
     }
 
-  return Promise.all(promises)
+  console.log(`The value of the directory path is : ${JSON.stringify(directoryPathArr)} and in total ${directoryPathArr.length} directories will be created as it doesn't exist in EFS`);
+  
+  return Promise.all(promises);
 }
 
 function consoleTime(name, shouldLog) {
