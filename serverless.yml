@@ -18,7 +18,7 @@ provider:
     TRANSFORM_INSTANCE_COUNT: 4
     XGBOOST_TRAINING_IMAGE: 246618743249.dkr.ecr.us-west-2.amazonaws.com/sagemaker-xgboost:0.90-2-cpu-py3 # XGBoost (0.90) do this after validating everything # 433757028032.dkr.ecr.us-west-2.amazonaws.com/xgboost:latest  #
     XGBOOST_TRAINING_INSTANCE_TYPE: ml.m5.12xlarge
-    XGBOOST_TRAINING_INSTANCE_COUNT: 1
+    XGBOOST_TRAINING_INSTANCE_COUNT: 4
     XGBOOST_TRAINING_VOLUME_SIZE_IN_GB: 10
     XGBOOST_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
     DEFAULT_REWARD_WINDOW_IN_SECONDS: 7200 # 2 hours
@@ -42,6 +42,8 @@ provider:
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
     PRE_DEPLOY_CHECK: ${file(predeploy.js)} # execute the pre deploy checks
+  httpApi:
+    cors: true
   iamRoleStatements: 
     - Effect: Allow
       Action:
@@ -70,11 +72,9 @@ functions:
     handler: http_api.track
     timeout: 6
     events:
-      - http:
-          path: track
-          method: post
-          cors: true
-        #  private: true # uncomment if you wish to require authentication via API Gateway
+      - httpApi:
+          method: POST
+          path: /track
   dispatchTrainingJobs:
     handler: train.dispatchTrainingJobs
     events:

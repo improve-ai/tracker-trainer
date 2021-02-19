@@ -397,8 +397,12 @@ function writeRewardedDecisions(projectName, shardId, rewardedDecisions) {
       totalRewards += reward
       maxReward = Math.max(reward, maxReward)
     }
-
-    const s3Key = naming.getRewardedDecisionS3Key(projectName, naming.getModelForRecordModel(projectName, rewardedDecision.model), shardId, new Date(rewardedDecision.timestamp))
+    
+    const model = naming.getModelForRecordModel(projectName, rewardedDecision.model)
+    if (!model) { // model not configured
+      continue;
+    }
+    const s3Key = naming.getRewardedDecisionS3Key(projectName, model, shardId, new Date(rewardedDecision.timestamp))
     let buffers = buffersByS3Key[s3Key]
     if (!buffers) {
       buffers = []
