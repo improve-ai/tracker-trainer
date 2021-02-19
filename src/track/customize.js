@@ -87,4 +87,4 @@ module.exports.customizeRecords = (projectName, records) => {
   return results
 }
 
-module.exports.config = yaml.safeLoad(fs.readFileSync('./customize.yml', 'utf8'));
+//module.exports.config = yaml.safeLoad(fs.readFileSync('./customize.yml', 'utf8'));

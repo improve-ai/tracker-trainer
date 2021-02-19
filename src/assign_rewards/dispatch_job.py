@@ -20,14 +20,15 @@ def lambda_handler(event, context):
 
     job_queue_name = os.environ['JOB_QUEUE_NAME']
     job_definition_name = os.environ['JOB_DEFINITION_NAME']
-    node_count = os.environ['JOIN_REWARDS_JOB_ARRAY_SIZE']
+    node_count = os.environ['REWARD_ASSIGNMENT_WORKER_COUNT']
     reward_window_seconds = os.environ['DEFAULT_REWARD_WINDOW_IN_SECONDS']
+    stage = os.environ['STAGE']
     
     # Submit an AWS Batch job from a job definition.
     # Parameters specified during submitJob override parameters defined in the 
     # job definition.
     r = batch.submit_job(
-        jobName='batch-processing-job', 
+        jobName=f'improve-v5-assign-rewards-{stage}', 
         # Name or ARN of AWS Batch JobQueue
         jobQueue=job_queue_name, 
         # (name:revision) or ARN of the job definition to deregister

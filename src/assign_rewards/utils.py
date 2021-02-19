@@ -7,7 +7,7 @@ import json
 import sys
 
 # Local imports
-from src.config import DATETIME_FORMAT
+from config import DATETIME_FORMAT
 
 
 def load_records(filename):

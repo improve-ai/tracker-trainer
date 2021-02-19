@@ -4,7 +4,7 @@ This script is intended to be used from inside a Docker container to process
 jsonl files.
 -------------------------------------------------------------------------------
 Usage:
-    python joinRewards.py
+    python join_rewards.py
 """
 
 # Built-in imports
@@ -21,24 +21,24 @@ import signal
 import mmh3
 
 # Local imports
-from src.utils import load_records
-from src.utils import name_no_ext
-from src.utils import sort_records_by_timestamp
-from src.config import OUTPUT_FILENAME
-from src.config import DEFAULT_REWARD_KEY
-from src.config import DATETIME_FORMAT
-from src.config import DEFAULT_EVENTS_REWARD_VALUE
-from src.config import DEFAULT_REWARD_VALUE
-from src.config import PATH_INPUT_DIR
-from src.config import PATH_OUTPUT_DIR
-from src.config import LOGGING_LEVEL
-from src.config import LOGGING_FORMAT
-from src.config import REWARD_WINDOW
-from src.config import AWS_BATCH_JOB_ARRAY_INDEX
-from src.config import JOIN_REWARDS_JOB_ARRAY_SIZE
-from src.config import JOIN_REWARDS_REPROCESS_ALL
-from src.exceptions import InvalidTypeError
-from src.exceptions import UpdateListenersError
+from utils import load_records
+from utils import name_no_ext
+from utils import sort_records_by_timestamp
+from config import OUTPUT_FILENAME
+from config import DEFAULT_REWARD_KEY
+from config import DATETIME_FORMAT
+from config import DEFAULT_EVENTS_REWARD_VALUE
+from config import DEFAULT_REWARD_VALUE
+from config import PATH_INPUT_DIR
+from config import PATH_OUTPUT_DIR
+from config import LOGGING_LEVEL
+from config import LOGGING_FORMAT
+from config import REWARD_WINDOW
+from config import AWS_BATCH_JOB_ARRAY_INDEX
+from config import JOIN_REWARDS_JOB_ARRAY_SIZE
+from config import JOIN_REWARDS_REPROCESS_ALL
+from exceptions import InvalidTypeError
+from exceptions import UpdateListenersError
 
 # Setup logging
 logging.basicConfig(format=LOGGING_FORMAT, level=LOGGING_LEVEL)

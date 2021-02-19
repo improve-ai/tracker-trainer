@@ -30,6 +30,8 @@ provider:
     XGBOOST_TRAINING_VOLUME_SIZE_IN_GB: 10
     XGBOOST_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
     FIREHOSE_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory. Buffer size is configured in resources/serverless.yml
+    REWARD_ASSIGNMENT_WORKER_COUNT: 3
+    DEFAULT_REWARD_WINDOW_IN_SECONDS: 172800 # 2 days
     # 
     # End customization
     #
@@ -40,6 +42,10 @@ provider:
     EFS_FILE_PATH: /mnt/efs
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
+  ecr:
+    images:
+      assign_rewards:
+        path: ./src/assign_rewards/
   httpApi: # FIX MOVE DOWN?
     cors: true
   iamRoleStatements: 
@@ -91,8 +97,7 @@ package:
   include:
     - 'node_modules/**'
     - 'src/**'
-    - '!src/assign_rewards/**'
-    
+
 functions:
   track:
     description: Event Tracker HTTP API
@@ -120,15 +125,12 @@ functions:
   dispatchRewardAssignmentJobs:
     description: Dispatch Reward Assignment Batch Jobs
     runtime: python3.8
-    handler: src/assign_rewards/start_job_lambda.lambda_handler
+    handler: src/assign_rewards/dispatch_job.lambda_handler
     events:
       - schedule: ${self:provider.environment.REWARD_ASSIGNMENT_JOB_SCHEDULE}
     environment:
       JOB_QUEUE_NAME: ${self:custom.jobQueueName}
       JOB_DEFINITION_NAME: ${self:custom.jobDefinitionName}
-    package:
-      include:
-        - 'src/assign_rewards/start_job_lambda.py'
   dispatchTrainingJobs:
     description: Dispatch SageMaker Training Jobs
     handler: src/train/train.dispatchTrainingJobs
@@ -155,3 +157,8 @@ functions:
           rules:
             - prefix: models/
             - suffix: model.tar.gz
+  forceDockerPush: # serverless actually wants the image to be used to deploy it
+    description: Dummy Function to Force Serverless to Push Docker Image to ECR
+    image:
+      name: assign_rewards
+

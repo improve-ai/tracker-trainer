@@ -268,7 +268,7 @@ resources:
             Memory: 1024
             Vcpus: 1
             # '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/print-color:latest' --For Checking Tutorial Array Of Jobs Example
-            Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/batch-processing-job-repository-${opt:stage, self:provider.stage}:latest'
+            Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/serverless-improve-v5-${opt:stage, self:provider.stage}:assign_rewards'
             Environment:
               - Name: JOIN_REWARDS_JOB_ARRAY_SIZE
                 Value: ${self:provider.environment.REWARD_ASSIGNMENT_WORKER_COUNT}
@@ -310,27 +310,6 @@ resources:
                   - EFSFileSystem: 
                       Ref: FileSystemResource
                     EFSDirectory: /mnt/efs
-      BatchProcessRepository: 
-        Type: AWS::ECR::Repository
-        Properties: 
-          RepositoryName: "batch-processing-job-repository-${opt:stage, self:provider.stage}"
-          RepositoryPolicyText: 
-            Version: "2012-10-17"
-            Statement:
-              - 
-                Sid: AllowPushPull
-                Effect: Allow
-                Principal: 
-                  AWS: 
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/${EcsInstanceRole}
-                Action: 
-                  - "ecr:GetDownloadUrlForLayer"
-                  - "ecr:BatchGetImage"
-                  - "ecr:BatchCheckLayerAvailability"
-                  - "ecr:PutImage"
-                  - "ecr:InitiateLayerUpload"
-                  - "ecr:UploadLayerPart"
-                  - "ecr:CompleteLayerUpload"
       FileSystemResource:
         Type: 'AWS::EFS::FileSystem'
         Properties:

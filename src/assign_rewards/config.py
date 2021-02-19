@@ -10,7 +10,7 @@ import logging
 import os
 
 # Local imports
-from src.exceptions import EnvirontmentVariableError
+from exceptions import EnvirontmentVariableError
 
 
 try:

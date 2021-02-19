@@ -5,12 +5,11 @@ const uuidv4 = require('uuid/v4');
 const fs = require('fs').promises; // use this for parallel creation of the files using a promise array and resolving them all parallel fashion
 const filesystem = require('fs');
 const firehose = new AWS.Firehose();
-const naming = require("./naming.js");
 const customize = require("./customize.js");
 const shajs = require('sha.js');
 const shell = require('shelljs');
 
-const efsutils = require("./efsUtils.js")
+const s3utils = require("./s3utils.js")
 
 // Send the event with the timestamp and project name to firehose
 module.exports.sendToFirehose = (projectName, body, receivedAt, log) => {
@@ -57,7 +56,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key) {
 
   let buffersByFileName = {}
 
-  return efsutils.processCompressedJsonLines(s3Bucket, firehoseS3Key, record => {
+  return s3utils.processCompressedJsonLines(s3Bucket, firehoseS3Key, record => {
 
     try {
       record.project_name = customize.migrateProjectName(record.project_name || record.api_key) // api_key is deprecated
@@ -94,7 +93,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key) {
       return;
     }
 
-    if (!record.timestamp || !naming.isValidDate(record.timestamp)) {
+    if (!record.timestamp || !isValidDate(record.timestamp)) {
       console.log(`WARN: skipping record - invalid timestamp in ${JSON.stringify(record)}`)
       return;
     }
@@ -114,7 +113,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key) {
     // delete project_name from record in case it is sensitive
     delete record.project_name;
     
-    if (!naming.isValidProjectName(projectName)) {
+    if (!isValidProjectName(projectName)) {
       console.log(`WARN: skipping record - invalid project_name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(record)}`)
       return;
     }
@@ -173,4 +172,28 @@ function consoleTimeEnd(name, shouldLog) {
   if (shouldLog) {
     console.timeEnd(name);
   }
+}
+
+
+// from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
+function isValidDate(date) {
+  return !!parseDate(date)
+}
+
+function parseDate(dateString) {
+  const date = new Date(dateString)
+  if ((date !== "Invalid Date") && !isNaN(date)) {
+    return date
+  } else {
+    return null
+  }
+}
+
+// allow alphanumeric, underscore, dash, space, period
+function isValidModelName(modelName) {
+  return modelName.match(/^[\w\- .]+$/i)
+}
+
+function isValidProjectName(projectName) {
+  return isValidModelName(projectName) // same rules
 }
