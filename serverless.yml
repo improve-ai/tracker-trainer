@@ -132,12 +132,12 @@ functions:
       JOB_QUEUE_NAME: ${self:custom.jobQueueName}
       JOB_DEFINITION_NAME: ${self:custom.jobDefinitionName}
   dispatchTrainingJobs:
-    description: Dispatch SageMaker Training Jobs
+    description: Dispatch Decision Model Training Jobs
     handler: src/train/train.dispatchTrainingJobs
     events:
       - schedule: ${self:provider.environment.TRAINING_JOB_SCHEDULE}
   featureModelCreated:
-    description: Dispatch SageMaker Training Jobs
+    description: Dispatch Decision Model Training Jobs
     handler: src/train/train.featureModelCreated
     events:
       - s3:
@@ -158,7 +158,7 @@ functions:
             - prefix: models/
             - suffix: model.tar.gz
   forceDockerPush: # serverless actually wants the image to be used to deploy it
-    description: Dummy Function to Force Serverless to Push Docker Image to ECR
+    description: Force Serverless to Push Docker Image to ECR
     image:
       name: assign_rewards
 
