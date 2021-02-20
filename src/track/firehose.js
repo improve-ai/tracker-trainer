@@ -24,7 +24,7 @@ module.exports.unpackFirehose = async function(event, context) {
  
 function processFirehoseFile(s3Bucket, firehoseS3Key) {
 
-  let buffersByFileName = {}
+  let buffersByHistoryId = {}
 
   return s3utils.processCompressedJsonLines(s3Bucket, firehoseS3Key, record => {
 
@@ -79,7 +79,6 @@ function processFirehoseFile(s3Bucket, firehoseS3Key) {
 
     const projectName = record.project_name;
 
-    
     // delete project_name from record in case it is sensitive
     delete record.project_name;
     
@@ -93,31 +92,31 @@ function processFirehoseFile(s3Bucket, firehoseS3Key) {
       return;
     }
 
-    const fileName = shajs('sha256').update(record.history_id).digest('base64').replace(/[\W_]+/g,'').substring(0,24); //create the filename
-
-    let buffers = buffersByFileName[fileName]; //make an array with filename as the key and the buffer value as the value-object
+    let buffers = buffersByHistoryId[record.history_id]; //make an array with filename as the key and the buffer value as the value-object
 
     if (!buffers) {
       buffers = [];
-      buffersByFileName[fileName] = buffers;
+      buffersByHistoryId[record.history_id] = buffers;
     }
 
     buffers.push(Buffer.from(JSON.stringify(record) + "\n"));
   }).then(() => {
-    return writeRecords(buffersByFileName);
+    return writeRecords(buffersByHistoryId);
   })
 }
 
-function writeRecords(buffersByFileName) {
+function writeRecords(buffersByHistoryId) {
   const promises = [];
   const directoryPathArr = [];
     
   // write out histories
-  for (const [fileName, buffers] of Object.entries(buffersByFileName)) {
+  for (const [historyId, buffers] of Object.entries(buffersByHistoryId)) {
+
+      const fileName = fileNameFromHistoryId(historyId)
 
       // the file path at which the history data will be stored in the file storage
-      const directoryBasePath = `${process.env.EFS_FILE_PATH}/histories/${fileName.substr(0,1)}/${fileName.substr(1,1)}/${fileName.substr(2,1)}/`;
-      const path = `${directoryBasePath}${fileName}.jsonl`;
+      const directoryBasePath = directoryPathForHistoryFileName(fileName)
+      const path = `${directoryBasePath}${fileName}`;
 
       if (!filesystem.existsSync(directoryBasePath)) {
         shell.mkdir('-p', directoryBasePath); // create a directory if a folder path with their sub-folders doesn't exist
@@ -130,6 +129,17 @@ function writeRecords(buffersByFileName) {
   console.log(`The value of the directory path is : ${JSON.stringify(directoryPathArr)} and in total ${directoryPathArr.length} directories will be created as it doesn't exist in EFS`);
   
   return Promise.all(promises);
+}
+
+function fileNameFromHistoryId(historyId) {
+  return `${shajs('sha256').update(historyId).digest('hex')}.jsonl`
+}
+
+function directoryPathForHistoryFileName(fileName) {
+  if (fileName.length != 70) {
+    throw Error (`${fileName} isn't exactly 70 characters in length`)
+  }
+  return `${process.env.EFS_FILE_PATH}/histories/${fileName.substr(0,2)}/${fileName.substr(2,2)}/`;
 }
 
 function consoleTime(name, shouldLog) {
