@@ -107,27 +107,29 @@ function processFirehoseFile(s3Bucket, firehoseS3Key) {
 
 function writeRecords(buffersByHistoryId) {
   const promises = [];
-  const directoryPathArr = [];
-    
+  let bufferCount = 0;
+  
   // write out histories
   for (const [historyId, buffers] of Object.entries(buffersByHistoryId)) {
 
-      const fileName = fileNameFromHistoryId(historyId)
+    bufferCount += buffers.length
+    
+    const fileName = fileNameFromHistoryId(historyId)
 
-      // the file path at which the history data will be stored in the file storage
-      const directoryBasePath = directoryPathForHistoryFileName(fileName)
-      const path = `${directoryBasePath}${fileName}`;
+    // the file path at which the history data will be stored in the file storage
+    const directoryBasePath = directoryPathForHistoryFileName(fileName)
+    const path = `${directoryBasePath}${fileName}`;
 
-      if (!filesystem.existsSync(directoryBasePath)) {
-        shell.mkdir('-p', directoryBasePath); // create a directory if a folder path with their sub-folders doesn't exist
-        directoryPathArr.push(directoryBasePath);
-      }
-
-      promises.push(fs.writeFile(path, Buffer.concat(buffers)));
+    if (!filesystem.existsSync(directoryBasePath)) {
+      console.log(`creating directory ${path}`)
+      shell.mkdir('-p', directoryBasePath); // create a directory if a folder path with their sub-folders doesn't exist
     }
 
-  console.log(`The value of the directory path is : ${JSON.stringify(directoryPathArr)} and in total ${directoryPathArr.length} directories will be created as it doesn't exist in EFS`);
+    promises.push(fs.appendFile(path, Buffer.concat(buffers)));
+  }
   
+  console(`writing ${bufferCount} records for ${Object.keys(buffersByHistoryId).length} history ids`)
+
   return Promise.all(promises);
 }
 
