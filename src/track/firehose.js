@@ -4,10 +4,10 @@ const customize = require("./customize.js");
 const s3utils = require("./s3utils.js")
 
 const AWS = require('aws-sdk');
-const fs = require('fs').promises; // use this for parallel creation of the files using a promise array and resolving them all parallel fashion
-const filesystem = require('fs');
+const fs = require('fs').promises;
 const shajs = require('sha.js');
 const pLimit = require('p-limit');
+const uuidv4 = require('uuid/v4');
 
 module.exports.unpackFirehose = async function(event, context) {
 
@@ -108,40 +108,33 @@ function processFirehoseFile(s3Bucket, firehoseS3Key) {
 function writeRecords(buffersByHistoryId) {
   const promises = [];
   let bufferCount = 0;
-  const limit = pLimit(500); // limit concurrent writes
+  const limit = pLimit(50); // limit concurrent writes
   
   // write out histories
   for (const [historyId, buffers] of Object.entries(buffersByHistoryId)) {
 
     bufferCount += buffers.length
     
-    const fileName = fileNameFromHistoryId(historyId)
+    const fileName = uniqueFileName(historyId)
 
     // the file path at which the history data will be stored in the file storage
     const directoryBasePath = directoryPathForHistoryFileName(fileName)
     const path = `${directoryBasePath}${fileName}`;
 
-    // create a directory if a folder path with their sub-folders doesn't exist
-    promises.push(limit(() => fs.access(directoryBasePath).catch(err => {
+    // write a new unique file.  It will be consolidated later into a single file per history during reward assignment
+    promises.push(limit(() => fs.writeFile(path, Buffer.concat(buffers)).catch(err => {
       if (err && err.code === 'ENOENT') {
-        return fs.mkdir(directoryBasePath, { recursive: true })
+        // the parent dir probably doesn't exist, create it
+        return fs.mkdir(directoryBasePath, { recursive: true }).catch(err => { 
+          // mkdir may throw an EEXIST, swallow it
+          if (err.code != 'EEXIST') throw err;
+        }).then(() => {
+          // try the write again
+          fs.writeFile(path, Buffer.concat(buffers))
+        })
       } else {
         throw err
       }
-    }).catch(err => { 
-      // mkdir may throw an EEXIST, swallow it
-      if (err.code != 'EEXIST') throw err;
-    }).then(() => {
-      // There is intentionally no locking for performance. Firehose ingest is triggered every 15 minutes or when
-      // the buffer reaches 128 MB so should run largely as one worker at a time. If two workers were to run simultaneously
-      // they would have to write to the same file simultaneously to potentially cuase corruption.  Even then, using the JSON line format
-      // in append only mode probably only a few individual records would be corrupted and the overall file should still be parseable.
-      //
-      // These assumptions are not true in the case of a bulk ingest, in which case you may limit the lambda concurrency to 1
-      // or simply accept that some fraction of records will become corrupt. The data written to EFS is only used for model training
-      // which is robust against a small portion of the data being missing or corrupt. The original master copy of the data will
-      // still be available in S3.
-      fs.appendFile(path, Buffer.concat(buffers))
     })));
   }
   
@@ -150,13 +143,17 @@ function writeRecords(buffersByHistoryId) {
   return Promise.all(promises);
 }
 
-function fileNameFromHistoryId(historyId) {
-  return `${shajs('sha256').update(historyId).digest('hex')}.jsonl`
+function hashHistoryId(historyId) {
+  return shajs('sha256').update(historyId).digest('hex')
+}
+
+function uniqueFileName(historyId) {
+  return `${hashHistoryId(historyId)}-${uuidv4()}.jsonl.gz`
 }
 
 function directoryPathForHistoryFileName(fileName) {
-  if (fileName.length != 70) {
-    throw Error (`${fileName} isn't exactly 70 characters in length`)
+  if (fileName.length != 110) {
+    throw Error (`${fileName} isn't exactly 110 characters in length`)
   }
   return `${process.env.EFS_FILE_PATH}/histories/${fileName.substr(0,2)}/${fileName.substr(2,2)}/`;
 }
