@@ -2,11 +2,12 @@
 
 const s3utils = require("./s3utils.js")
 
-const AWS = require('aws-sdk');
-const fs = require('fs').promises;
-const shajs = require('sha.js');
-const pLimit = require('p-limit');
-const uuidv4 = require('uuid/v4');
+const AWS = require('aws-sdk')
+const fs = require('fs').promises
+const shajs = require('sha.js')
+const pLimit = require('p-limit')
+const uuidv4 = require('uuid/v4')
+const zlib = require('zlib')
 
 module.exports.unpackFirehose = async function(event, context) {
 
@@ -57,14 +58,16 @@ function writeRecords(buffersByHistoryId) {
 
     bufferCount += buffers.length
     
+    // create a new unique file.  It will be consolidated later into a single file per history during reward assignment
     const fileName = uniqueFileName(historyId)
 
     // the file path at which the history data will be stored in the file storage
     const directoryBasePath = directoryPathForHistoryFileName(fileName)
-    const path = `${directoryBasePath}${fileName}`;
+    const path = `${directoryBasePath}${fileName}`
 
-    // write a new unique file.  It will be consolidated later into a single file per history during reward assignment
-    promises.push(limit(() => fs.writeFile(path, Buffer.concat(buffers)).catch(err => {
+    const compressedData = zlib.gzipSync(Buffer.concat(buffers))
+
+    promises.push(limit(() => fs.writeFile(path, compressedData).catch(err => {
       if (err && err.code === 'ENOENT') {
         // the parent dir probably doesn't exist, create it
         return fs.mkdir(directoryBasePath, { recursive: true }).catch(err => { 
@@ -72,7 +75,7 @@ function writeRecords(buffersByHistoryId) {
           if (err.code != 'EEXIST') throw err;
         }).then(() => {
           // try the write again
-          fs.writeFile(path, Buffer.concat(buffers))
+          fs.writeFile(path, compressedData)
         })
       } else {
         throw err
@@ -95,7 +98,7 @@ function uniqueFileName(historyId) {
 
 function directoryPathForHistoryFileName(fileName) {
   if (fileName.length != 110) {
-    throw Error (`${fileName} isn't exactly 110 characters in length`)
+    throw Error (`file name ${fileName} must be exactly 110 characters in length`)
   }
-  return `${process.env.EFS_FILE_PATH}/histories/${fileName.substr(0,2)}/${fileName.substr(2,2)}/`;
+  return `${process.env.EFS_FILE_PATH}/histories/${fileName.substr(0,2)}/${fileName.substr(2,2)}/`
 }
