@@ -6,29 +6,43 @@ const firehose = new AWS.Firehose();
 const LOG_PROBABILITY = .1;
 
 module.exports.track = async function(event, context) {
-  let logging = checkShouldLog()
   let receivedAt = new Date()
   
-  if (logging) {
+  if (checkShouldLog()) {
     console.log(JSON.stringify(event))
   }
 
-  let body = JSON.parse(event.body)
+  let record = JSON.parse(event.body)
 
-  if (!body || !body.history_id || !body.message_id) {
+  if (!record || !record.history_id || !record.message_id) {
     return errorResponse("history_id and message_id fields are required")
   }
   
-  body["received_at"] = receivedAt.toISOString()
+  record["received_at"] = receivedAt.toISOString()
   // FIX timestamp must never be in the future
-  if (!body.timestamp) {
-    body["timestamp"] = body["received_at"]
+  if (!record.timestamp) {
+    record["timestamp"] = record["received_at"]
   }
+  
+/*      if (!record.timestamp || !isValidDate(record.timestamp)) {
+      console.log(`WARN: skipping record - invalid timestamp in ${JSON.stringify(record)}`)
+      return;
+    }
+
+    const timestamp = new Date(record.timestamp)
+    // client reporting of timestamps in the future are handled in sendToFireHose. This should only happen with some clock skew.
+    if (timestamp > Date.now()) {
+      console.log(`WARN: timestamp in the future ${JSON.stringify(record)}`)
+    }
+    
+    // ensure everything in history is UTC
+    record.timestamp = timestamp.toISOString()*/
+
   
   let firehoseRecord = {
     DeliveryStreamName: process.env.FIREHOSE_DELIVERY_STREAM_NAME,
     Record: { 
-        Data: Buffer.from(JSON.stringify(body)+'\n')
+        Data: Buffer.from(JSON.stringify(record)+'\n')
     }
   }
   
@@ -60,4 +74,18 @@ function errorResponse(message) {
 
 function checkShouldLog() {
   return Math.random() < LOG_PROBABILITY;
+}
+
+// from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
+function isValidDate(date) {
+  return !!parseDate(date)
+}
+
+function parseDate(dateString) {
+  const date = new Date(dateString)
+  if ((date !== "Invalid Date") && !isNaN(date)) {
+    return date
+  } else {
+    return null
+  }
 }

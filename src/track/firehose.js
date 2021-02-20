@@ -1,6 +1,5 @@
 'use strict';
 
-const customize = require("./customize.js");
 const s3utils = require("./s3utils.js")
 
 const AWS = require('aws-sdk');
@@ -28,75 +27,18 @@ function processFirehoseFile(s3Bucket, firehoseS3Key) {
 
   return s3utils.processCompressedJsonLines(s3Bucket, firehoseS3Key, record => {
 
-    try {
-      record.project_name = customize.migrateProjectName(record.project_name || record.api_key) // api_key is deprecated
-    } catch (err) {
-      console.log(`WARN: skipping record ${JSON.stringify(record)}`, err)
-      return;
-    }
-
-    // migrate improve v4 records
-    if (record.record_type) {
-      switch (record.record_type) {
-        case "choose":
-          // skip old choose records
-          return;
-        case "using":
-          record.type = "decision"
-          record.variant = record.properties
-          delete record.properties
-          break;
-        case "rewards":
-          record.type = "rewards"
-          break;
-      }
-      delete record.record_type
-    }
-
-    if (!record.history_id) {
-      record.history_id = record.user_id
-      delete record.user_id
-    }
-
-    if (!record.project_name) {
-      console.log(`WARN: skipping record - no project_name in ${JSON.stringify(record)}`)
-      return;
-    }
-
-    if (!record.timestamp || !isValidDate(record.timestamp)) {
-      console.log(`WARN: skipping record - invalid timestamp in ${JSON.stringify(record)}`)
-      return;
-    }
-
-    const timestamp = new Date(record.timestamp)
-    // client reporting of timestamps in the future are handled in sendToFireHose. This should only happen with some clock skew.
-    if (timestamp > Date.now()) {
-      console.log(`WARN: timestamp in the future ${JSON.stringify(record)}`)
-    }
+    const historyId = record.history_id
     
-    // ensure everything in history is UTC
-    record.timestamp = timestamp.toISOString()
-
-    const projectName = record.project_name;
-
-    // delete project_name from record in case it is sensitive
-    delete record.project_name;
-    
-    if (!isValidProjectName(projectName)) {
-      console.log(`WARN: skipping record - invalid project_name, not alphanumeric, underscore, dash, space, period ${JSON.stringify(record)}`)
+    if (!historyId || typeof historyId !== "string") {
+      console.log(`WARN: skipping record - invalid history_id in ${JSON.stringify(record)}`)
       return;
     }
 
-    if (!record.history_id) {
-      console.log(`WARN: skipping record - no history_id in ${JSON.stringify(record)}`)
-      return;
-    }
-
-    let buffers = buffersByHistoryId[record.history_id];
+    let buffers = buffersByHistoryId[historyId];
 
     if (!buffers) {
       buffers = [];
-      buffersByHistoryId[record.history_id] = buffers;
+      buffersByHistoryId[historyId] = buffers;
     }
 
     buffers.push(Buffer.from(JSON.stringify(record) + "\n"));
@@ -156,40 +98,4 @@ function directoryPathForHistoryFileName(fileName) {
     throw Error (`${fileName} isn't exactly 110 characters in length`)
   }
   return `${process.env.EFS_FILE_PATH}/histories/${fileName.substr(0,2)}/${fileName.substr(2,2)}/`;
-}
-
-function consoleTime(name, shouldLog) {
-  if (shouldLog) {
-    console.time(name);
-  }
-}
-
-function consoleTimeEnd(name, shouldLog) {
-  if (shouldLog) {
-    console.timeEnd(name);
-  }
-}
-
-
-// from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
-function isValidDate(date) {
-  return !!parseDate(date)
-}
-
-function parseDate(dateString) {
-  const date = new Date(dateString)
-  if ((date !== "Invalid Date") && !isNaN(date)) {
-    return date
-  } else {
-    return null
-  }
-}
-
-// allow alphanumeric, underscore, dash, space, period
-function isValidModelName(modelName) {
-  return modelName.match(/^[\w\- .]+$/i)
-}
-
-function isValidProjectName(projectName) {
-  return isValidModelName(projectName) // same rules
 }
