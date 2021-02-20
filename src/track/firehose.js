@@ -1,13 +1,14 @@
 'use strict';
 
+const customize = require("./customize.js");
+const s3utils = require("./s3utils.js")
+
 const AWS = require('aws-sdk');
 const fs = require('fs').promises; // use this for parallel creation of the files using a promise array and resolving them all parallel fashion
 const filesystem = require('fs');
-const customize = require("./customize.js");
 const shajs = require('sha.js');
 const shell = require('shelljs');
-
-const s3utils = require("./s3utils.js")
+const pLimit = require('p-limit');
 
 module.exports.unpackFirehose = async function(event, context) {
 
@@ -92,7 +93,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key) {
       return;
     }
 
-    let buffers = buffersByHistoryId[record.history_id]; //make an array with filename as the key and the buffer value as the value-object
+    let buffers = buffersByHistoryId[record.history_id];
 
     if (!buffers) {
       buffers = [];
@@ -108,6 +109,7 @@ function processFirehoseFile(s3Bucket, firehoseS3Key) {
 function writeRecords(buffersByHistoryId) {
   const promises = [];
   let bufferCount = 0;
+  const limit = pLimit(500); // limit concurrent writes
   
   // write out histories
   for (const [historyId, buffers] of Object.entries(buffersByHistoryId)) {
@@ -125,7 +127,11 @@ function writeRecords(buffersByHistoryId) {
       shell.mkdir('-p', directoryBasePath); // create a directory if a folder path with their sub-folders doesn't exist
     }
 
-    promises.push(fs.appendFile(path, Buffer.concat(buffers)));
+    // There is intentionally no locking for performance. Firehose ingest is triggered every 15 minutes or when
+    // the buffer reaches 128 MB so should run largely as one worker at a time. If two workers were to run simultaneously
+    // they would have to write to the same file simultaneously to cause a problem.  Even then, using the JSON line format
+    // in append only mode probably only a few individual records would be corrupted and the overall file would still be parseable
+    promises.push(limit(() => fs.appendFile(path, Buffer.concat(buffers))));
   }
   
   console(`writing ${bufferCount} records for ${Object.keys(buffersByHistoryId).length} history ids`)
