@@ -1,43 +1,13 @@
 'use strict';
 
 const AWS = require('aws-sdk');
-const uuidv4 = require('uuid/v4');
 const fs = require('fs').promises; // use this for parallel creation of the files using a promise array and resolving them all parallel fashion
 const filesystem = require('fs');
-const firehose = new AWS.Firehose();
 const customize = require("./customize.js");
 const shajs = require('sha.js');
 const shell = require('shelljs');
 
 const s3utils = require("./s3utils.js")
-
-// Send the event with the timestamp and project name to firehose
-module.exports.sendToFirehose = (projectName, body, receivedAt, log) => {
-  body["project_name"] = projectName;
-  body["received_at"] = receivedAt.toISOString();
-  // FIX timestamp must never be in the future
-  if (!body.timestamp) {
-    body["timestamp"] = body["received_at"];
-  }
-  if (!body.message_id) {
-    body["message_id"] = uuidv4()
-  }
-  let firehoseData = Buffer.from(JSON.stringify(body)+'\n')
-  consoleTime('firehose',log)
-  consoleTime('firehose-create',log)
-
-  let firehosePromise = firehose.putRecord({
-    DeliveryStreamName: process.env.FIREHOSE_DELIVERY_STREAM_NAME,
-    Record: { 
-        Data: firehoseData
-    }
-  }).promise().then(result => {
-    consoleTimeEnd('firehose',log)
-    return result
-  })
-  consoleTimeEnd('firehose-create',log)
-  return firehosePromise;
-}
 
 module.exports.unpackFirehose = async function(event, context) {
 

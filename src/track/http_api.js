@@ -1,6 +1,9 @@
 'use strict';
 
-const unpackFirehose = require("./firehose.js")
+const AWS = require('aws-sdk');
+const firehose = new AWS.Firehose();
+const uuidv4 = require('uuid/v4');
+
 const customize = require("./customize.js")
 const naming = require("./naming.js")
 
@@ -28,7 +31,7 @@ module.exports.track = async function(event, context) {
     return errorResponse("project misconfigured or missing credentials")
   }
 
-  return unpackFirehose.sendToFirehose(projectName, body, receivedAt, logging).then(() => {
+  return sendToFirehose(projectName, body, receivedAt, logging).then(() => {
     consoleTimeEnd('track', logging)
     return successResponse()
   }).catch(err =>{
@@ -36,6 +39,35 @@ module.exports.track = async function(event, context) {
     return errorResponse(err)
   })
 }
+
+// Send the event with the timestamp and project name to firehose
+function sendToFirehose(projectName, body, receivedAt, log) {
+  body["project_name"] = projectName;
+  body["received_at"] = receivedAt.toISOString();
+  // FIX timestamp must never be in the future
+  if (!body.timestamp) {
+    body["timestamp"] = body["received_at"];
+  }
+  if (!body.message_id) {
+    body["message_id"] = uuidv4()
+  }
+  let firehoseData = Buffer.from(JSON.stringify(body)+'\n')
+  consoleTime('firehose',log)
+  consoleTime('firehose-create',log)
+
+  let firehosePromise = firehose.putRecord({
+    DeliveryStreamName: process.env.FIREHOSE_DELIVERY_STREAM_NAME,
+    Record: { 
+        Data: firehoseData
+    }
+  }).promise().then(result => {
+    consoleTimeEnd('firehose',log)
+    return result
+  })
+  consoleTimeEnd('firehose-create',log)
+  return firehosePromise;
+}
+
 
 function successResponse() {
   return {
