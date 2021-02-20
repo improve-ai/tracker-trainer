@@ -7,7 +7,6 @@ const AWS = require('aws-sdk');
 const fs = require('fs').promises; // use this for parallel creation of the files using a promise array and resolving them all parallel fashion
 const filesystem = require('fs');
 const shajs = require('sha.js');
-const shell = require('shelljs');
 const pLimit = require('p-limit');
 
 module.exports.unpackFirehose = async function(event, context) {
@@ -122,19 +121,31 @@ function writeRecords(buffersByHistoryId) {
     const directoryBasePath = directoryPathForHistoryFileName(fileName)
     const path = `${directoryBasePath}${fileName}`;
 
-    if (!filesystem.existsSync(directoryBasePath)) {
-      console.log(`creating directory ${path}`)
-      shell.mkdir('-p', directoryBasePath); // create a directory if a folder path with their sub-folders doesn't exist
-    }
-
-    // There is intentionally no locking for performance. Firehose ingest is triggered every 15 minutes or when
-    // the buffer reaches 128 MB so should run largely as one worker at a time. If two workers were to run simultaneously
-    // they would have to write to the same file simultaneously to cause a problem.  Even then, using the JSON line format
-    // in append only mode probably only a few individual records would be corrupted and the overall file would still be parseable
-    promises.push(limit(() => fs.appendFile(path, Buffer.concat(buffers))));
+    // create a directory if a folder path with their sub-folders doesn't exist
+    promises.push(limit(() => fs.access(directoryBasePath).catch(err => {
+      if (err && err.code === 'ENOENT') {
+        return fs.mkdir(directoryBasePath, { recursive: true })
+      } else {
+        throw err
+      }
+    }).catch(err => { 
+      // mkdir may throw an EEXIST, swallow it
+      if (err.code != 'EEXIST') throw err;
+    }).then(() => {
+      // There is intentionally no locking for performance. Firehose ingest is triggered every 15 minutes or when
+      // the buffer reaches 128 MB so should run largely as one worker at a time. If two workers were to run simultaneously
+      // they would have to write to the same file simultaneously to potentially cuase corruption.  Even then, using the JSON line format
+      // in append only mode probably only a few individual records would be corrupted and the overall file should still be parseable.
+      //
+      // These assumptions are not true in the case of a bulk ingest, in which case you may limit the lambda concurrency to 1
+      // or simply accept that some fraction of records will become corrupt. The data written to EFS is only used for model training
+      // which is robust against a small portion of the data being missing or corrupt. The original master copy of the data will
+      // still be available in S3.
+      fs.appendFile(path, Buffer.concat(buffers))
+    })));
   }
   
-  console(`writing ${bufferCount} records for ${Object.keys(buffersByHistoryId).length} history ids`)
+  console.log(`writing ${bufferCount} records for ${Object.keys(buffersByHistoryId).length} history ids`)
 
   return Promise.all(promises);
 }
