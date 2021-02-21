@@ -25,13 +25,14 @@ module.exports.unpackFirehose = async function(event, context) {
 function processFirehoseFile(s3Bucket, firehoseS3Key) {
 
   let buffersByHistoryId = {}
+  let skippedRecordCount = 0
 
   return s3utils.processCompressedJsonLines(s3Bucket, firehoseS3Key, record => {
 
     const historyId = record.history_id
     
     if (!historyId || typeof historyId !== "string") {
-      console.log(`WARN: skipping record - invalid history_id in ${JSON.stringify(record)}`)
+      skippedRecordCount++
       return;
     }
 
@@ -44,6 +45,9 @@ function processFirehoseFile(s3Bucket, firehoseS3Key) {
 
     buffers.push(Buffer.from(JSON.stringify(record) + "\n"));
   }).then(() => {
+    if (skippedRecordCount) {
+      console.log(`skipped ${skippedRecordCount} records due to invalid history_id`)
+    }
     return writeRecords(buffersByHistoryId);
   })
 }
@@ -61,21 +65,20 @@ function writeRecords(buffersByHistoryId) {
     // create a new unique file.  It will be consolidated later into a single file per history during reward assignment
     const fileName = uniqueFileName(historyId)
 
-    // the file path at which the history data will be stored in the file storage
     const directoryBasePath = directoryPathForHistoryFileName(fileName)
-    const path = `${directoryBasePath}${fileName}`
+    const fullPath = `${directoryBasePath}${fileName}`
 
     const compressedData = zlib.gzipSync(Buffer.concat(buffers))
 
-    promises.push(limit(() => fs.writeFile(path, compressedData).catch(err => {
+    promises.push(limit(() => fs.writeFile(fullPath, compressedData).catch(err => {
       if (err && err.code === 'ENOENT') {
         // the parent dir probably doesn't exist, create it
         return fs.mkdir(directoryBasePath, { recursive: true }).catch(err => { 
-          // mkdir may throw an EEXIST, swallow it
+          // mkdir may throw an EEXIST if two workers try to create it at the same time, swallow it
           if (err.code != 'EEXIST') throw err;
         }).then(() => {
           // try the write again
-          fs.writeFile(path, compressedData)
+          fs.writeFile(fullPath, compressedData)
         })
       } else {
         throw err
@@ -85,7 +88,7 @@ function writeRecords(buffersByHistoryId) {
   
   console.log(`writing ${bufferCount} records for ${Object.keys(buffersByHistoryId).length} history ids`)
 
-  return Promise.all(promises);
+  return Promise.all(promises)
 }
 
 function hashHistoryId(historyId) {
