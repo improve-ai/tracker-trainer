@@ -6,8 +6,6 @@ plugins:
 provider:
   name: aws
   region: us-west-2
-  environment:
-    REWARD_ASSIGNMENT_WORKER_COUNT: 3
 
 resources:
   Resources:
@@ -83,7 +81,7 @@ resources:
               - - 'arn:aws:s3:::'
                 - Ref: FirehoseS3Bucket
             BufferingHints:
-              IntervalInSeconds: 300
+              IntervalInSeconds: 900
               SizeInMBs: 128
             CompressionFormat: "GZIP"
             RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
@@ -266,9 +264,6 @@ resources:
             Vcpus: 1
             # '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/print-color:latest' --For Checking Tutorial Array Of Jobs Example
             Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/serverless-improve-v5-${opt:stage, self:provider.stage}:assign_rewards'
-            Environment:
-              - Name: JOIN_REWARDS_JOB_ARRAY_SIZE
-                Value: ${self:provider.environment.REWARD_ASSIGNMENT_WORKER_COUNT}
             MountPoints:
               - ReadOnly: false
                 SourceVolume: efs
