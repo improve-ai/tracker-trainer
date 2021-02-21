@@ -2,11 +2,7 @@ service: improve-v5-resources
 
 plugins:
   - serverless-pseudo-parameters
-
-custom:
-  jobQueueName: '${self:service}-job-queue-${opt:stage, self:provider.stage}'
-  jobDefinitionName: '${self:service}-job-definition-${opt:stage, self:provider.stage}'
-
+         
 provider:
   name: aws
   region: us-west-2
@@ -231,7 +227,7 @@ resources:
             SecurityGroupIds:
               - Ref: SecurityGroup
             Type: SPOT
-            AllocationStrategy: BEST_FIT # This is actually the default
+            AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
             BidPercentage: 50
             SpotIamFleetRole: 
               Ref: AmazonEC2SpotFleetRole
@@ -260,7 +256,7 @@ resources:
                 Ref: ComputeEnvironment
           State: ENABLED
           Priority: 1
-          JobQueueName: ${self:custom.jobQueueName}
+          JobQueueName: '${self:service}-job-queue-${opt:stage, self:provider.stage}'
       JobDefinition:
         Type: "AWS::Batch::JobDefinition"
         Properties:
@@ -281,9 +277,9 @@ resources:
               - Host:
                   SourcePath: /mnt/efs
                 Name: efs
-          JobDefinitionName: ${self:custom.jobDefinitionName}
+          JobDefinitionName: '${self:service}-job-definition-${opt:stage, self:provider.stage}'
           RetryStrategy: 
-            Attempts: 1
+            Attempts: 2
       LaunchTemplateResourceForBatch:
         Type: AWS::EC2::LaunchTemplate
         DependsOn: FileSystemResource
@@ -314,7 +310,7 @@ resources:
       FileSystemResource:
         Type: 'AWS::EFS::FileSystem'
         Properties:
-          PerformanceMode: maxIO
+          PerformanceMode: generalPurpose
           Encrypted: true
           FileSystemTags:
             - Key: Name

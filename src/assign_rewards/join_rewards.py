@@ -48,6 +48,42 @@ window = timedelta(seconds=REWARD_WINDOW)
 
 SIGTERM = False
 
+def worker():
+    """
+    Identify the relevant folders that this worker should process, identify 
+    the files that need to be processed and write the gzipped results.
+    There are two modes:
+        - All output files and all input files reprocessed.
+        - Only input files with a last modification time newer than their 
+          counterpart in the output folder will be processed.
+    """
+
+    logging.info(f"Starting AWS Batch Array job.")
+
+    node_id       = AWS_BATCH_JOB_ARRAY_INDEX
+    node_count    = JOIN_REWARDS_JOB_ARRAY_SIZE
+    reprocess_all = True if JOIN_REWARDS_REPROCESS_ALL == 'true' else False
+
+    dirs_to_process = identify_dirs_to_process(PATH_INPUT_DIR, node_id, node_count)
+    delete_output_files(delete_all=reprocess_all)
+    files_to_process = identify_files_to_process(dirs_to_process)
+
+    logging.debug(
+        f"This instance (node {node_id}) will process the folders: "
+        f"{', '.join([d.name for d in dirs_to_process])}")
+    
+    logging.debug(
+        f"This instance (node {node_id}) will process the files: "
+        f"{', '.join([f.name for f in files_to_process])}")
+
+    for f in files_to_process:
+        handle_signals()
+        decision_records, reward_records, event_records = load_records(str(f))
+        rewarded_records = assign_rewards_to_decisions(decision_records, reward_records, event_records)
+        gzip_records(f, rewarded_records)
+
+    logging.info(f"AWS Batch Array (node {node_id}) finished.")
+
 
 def update_listeners(listeners, record_timestamp, reward):
     """
@@ -306,42 +342,6 @@ def delete_output_files(delete_all=False):
                             f"Error when trying to delete "
                             f"file '{output_file.name}'")
 
-
-def worker():
-    """
-    Identify the relevant folders that this worker should process, identify 
-    the files that need to be processed and write the gzipped results.
-    There are two modes:
-        - All output files and all input files reprocessed.
-        - Only input files with a last modification time newer than their 
-          counterpart in the output folder will be processed.
-    """
-
-    logging.info(f"Starting AWS Batch Array job.")
-
-    node_id       = AWS_BATCH_JOB_ARRAY_INDEX
-    node_count    = JOIN_REWARDS_JOB_ARRAY_SIZE
-    reprocess_all = True if JOIN_REWARDS_REPROCESS_ALL == 'true' else False
-
-    dirs_to_process = identify_dirs_to_process(PATH_INPUT_DIR, node_id, node_count)
-    delete_output_files(delete_all=reprocess_all)
-    files_to_process = identify_files_to_process(dirs_to_process)
-
-    logging.debug(
-        f"This instance (node {node_id}) will process the folders: "
-        f"{', '.join([d.name for d in dirs_to_process])}")
-    
-    logging.debug(
-        f"This instance (node {node_id}) will process the files: "
-        f"{', '.join([f.name for f in files_to_process])}")
-
-    for f in files_to_process:
-        handle_signals()
-        decision_records, reward_records, event_records = load_records(str(f))
-        rewarded_records = assign_rewards_to_decisions(decision_records, reward_records, event_records)
-        gzip_records(f, rewarded_records)
-
-    logging.info(f"AWS Batch Array (node {node_id}) finished.")
 
 
 def handle_signals():
