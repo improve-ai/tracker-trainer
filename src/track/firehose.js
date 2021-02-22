@@ -9,6 +9,9 @@ const pLimit = require('p-limit')
 const uuidv4 = require('uuid/v4')
 const zlib = require('zlib')
 
+/*
+When a new file is written to the Firehose S3 bucket, unpack the file and write out seperate files for each history_id to the EFS 'incoming' directory.
+*/
 module.exports.unpackFirehose = async function(event, context) {
 
   console.log(`processing s3 event ${JSON.stringify(event)}`)
@@ -73,7 +76,7 @@ function writeRecords(buffersByHistoryId) {
     promises.push(limit(() => fs.writeFile(fullPath, compressedData).catch(err => {
       if (err && err.code === 'ENOENT') {
         // the parent dir probably doesn't exist, create it
-        return fs.mkdir(directoryBasePath, { recursive: true }).catch(err => { 
+        return fs.mkdir(directoryBasePath).catch(err => { 
           // mkdir may throw an EEXIST if two workers try to create it at the same time, swallow it
           if (err.code != 'EEXIST') throw err;
         }).then(() => {
@@ -91,10 +94,6 @@ function writeRecords(buffersByHistoryId) {
   return Promise.all(promises)
 }
 
-function hashHistoryId(historyId) {
-  return shajs('sha256').update(historyId).digest('hex')
-}
-
 function uniqueFileName(historyId) {
-  return `${hashHistoryId(historyId)}-${uuidv4()}.jsonl.gz`
+  return `${shajs('sha256').update(historyId).digest('hex')}-${uuidv4()}.jsonl.gz`
 }
