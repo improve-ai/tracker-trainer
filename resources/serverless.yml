@@ -71,7 +71,7 @@ resources:
         IntelligentTieringConfigurations:
           - Id: '${self:service}-intelligent-tiering-firehose-${opt:stage, self:provider.stage}'
             Status: Enabled
-            Tierings: # After 30 days it automatically moves to infrequent access tier
+            Tierings: # After 30 days intelligent tiering automatically moves to infrequent access tier
               - AccessTier: ARCHIVE_ACCESS
                 Days: 90
               - AccessTier: DEEP_ARCHIVE_ACCESS
@@ -317,7 +317,7 @@ resources:
           PerformanceMode: generalPurpose
           Encrypted: true
           LifecyclePolicies:
-            - TransitionToIA: AFTER_14_DAYS
+            - TransitionToIA: AFTER_14_DAYS # when events stop arriving for a history it will transition to infrequent access
           FileSystemTags:
             - Key: Name
               Value: "${self:service}-file-system-${opt:stage, self:provider.stage}"
