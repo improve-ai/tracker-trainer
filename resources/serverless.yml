@@ -68,6 +68,15 @@ resources:
       FirehoseS3Bucket:
         Type: 'AWS::S3::Bucket'
         DeletionPolicy: Retain
+        IntelligentTieringConfigurations:
+          - Id: '${self:service}-intelligent-tiering-firehose-${opt:stage, self:provider.stage}'
+            Status: Enabled
+            Tierings: # After 30 days it automatically moves to infrequent access tier
+              - AccessTier: ARCHIVE_ACCESS
+                Days: 90
+              - AccessTier: DEEP_ARCHIVE_ACCESS
+                Days: 180
+          
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose-#{AWS::AccountId}
       V4Firehose:
@@ -307,6 +316,8 @@ resources:
         Properties:
           PerformanceMode: generalPurpose
           Encrypted: true
+          LifecyclePolicies:
+            - TransitionToIA: AFTER_14_DAYS
           FileSystemTags:
             - Key: Name
               Value: "${self:service}-file-system-${opt:stage, self:provider.stage}"
