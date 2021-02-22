@@ -65,7 +65,7 @@ function writeRecords(buffersByHistoryId) {
     // create a new unique file.  It will be consolidated later into a single file per history during reward assignment
     const fileName = uniqueFileName(historyId)
 
-    const directoryBasePath = directoryPathForHistoryFileName(fileName)
+    const directoryBasePath = `${process.env.EFS_FILE_PATH}/incoming/`
     const fullPath = `${directoryBasePath}${fileName}`
 
     const compressedData = zlib.gzipSync(Buffer.concat(buffers))
@@ -97,11 +97,4 @@ function hashHistoryId(historyId) {
 
 function uniqueFileName(historyId) {
   return `${hashHistoryId(historyId)}-${uuidv4()}.jsonl.gz`
-}
-
-function directoryPathForHistoryFileName(fileName) {
-  if (fileName.length != 110) {
-    throw Error (`file name ${fileName} must be exactly 110 characters in length`)
-  }
-  return `${process.env.EFS_FILE_PATH}/histories/${fileName.substr(0,2)}/${fileName.substr(2,2)}/`
 }
