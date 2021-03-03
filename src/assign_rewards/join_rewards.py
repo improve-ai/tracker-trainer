@@ -236,14 +236,21 @@ def identify_dirs_to_process(input_dir, node_id, node_count):
     
     input_dir.mkdir(parents=True, exist_ok=True)
 
-    dirs_to_process = []
-    for d in input_dir.iterdir():
-        if d.is_dir():
-            directory_int = mmh3.hash(d.name[:2], signed=False)
-            if (directory_int % node_count) == node_id:
-                dirs_to_process.append(d)
+    files_to_process = []
+    for f in input_dir.iterdir():
+        if f.is_dir():
+            continue
+        
+        # TODO check if chars are hex string, accumulate errors if not.
+        # or use regular expression to filter....
+        
+        # convert first 16 hex chars (64 bit) to an int
+        # the file name starts with a sha-256 hash so the bits will be random
+        # check if int mod node_count matches our node
+        if (int(f.name[:16], 16) % node_count) == node_id:
+            files_to_process.append(f)
     
-    return dirs_to_process
+    return files_to_process
 
 
 def identify_files_to_process(dirs_to_process):

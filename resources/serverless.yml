@@ -5,7 +5,7 @@ plugins:
          
 provider:
   name: aws
-  region: us-west-2
+  region: us-east-1
 
 resources:
   Resources:
@@ -76,7 +76,6 @@ resources:
                 Days: 90
               - AccessTier: DEEP_ARCHIVE_ACCESS
                 Days: 180
-          
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose-#{AWS::AccountId}
       V4Firehose:
