@@ -14,9 +14,7 @@ from exceptions import EnvirontmentVariableError
 
 
 try:
-    # Absolute path towards the mounted EFS filesystem
-    PATH_TOWARDS_EFS = Path(os.environ['PATH_TOWARDS_EFS'])
-
+    
     # The length (in seconds) of the reward window
     REWARD_WINDOW = int(os.environ['DEFAULT_REWARD_WINDOW_IN_SECONDS'])
 
@@ -24,10 +22,7 @@ try:
     AWS_BATCH_JOB_ARRAY_INDEX = int(os.environ['AWS_BATCH_JOB_ARRAY_INDEX'])
 
     # The total number of jobs launched
-    JOIN_REWARDS_JOB_ARRAY_SIZE = int(os.environ['JOIN_REWARDS_JOB_ARRAY_SIZE'])
-
-    # Determines if all input files should be reprocessed (and outputs deleted)
-    JOIN_REWARDS_REPROCESS_ALL = os.environ['JOIN_REWARDS_REPROCESS_ALL'].lower()
+    REWARD_ASSIGNMENT_WORKER_COUNT = int(os.environ['REWARD_ASSIGNMENT_WORKER_COUNT'])
 
 except KeyError as e:
     raise EnvirontmentVariableError
@@ -40,10 +35,8 @@ LOGGING_LEVEL = logging.INFO
 LOGGING_FORMAT = '%(levelname)-5s: @%(funcName)-25s | %(message)s'
 
 # Absolute path towards the input folder
-PATH_INPUT_DIR = PATH_TOWARDS_EFS / 'histories'
-
-# Absolute path towards the output folder
-PATH_OUTPUT_DIR = PATH_TOWARDS_EFS / 'rewarded_decisions'
+INCOMING_PATH = Path('/mnt/efs/incoming')
+HISTORIES_PATH = Path('/mnt/efs/histories')
 
 # Output filename template of the gzipped results 
 OUTPUT_FILENAME = '{}.gz'

@@ -1,4 +1,4 @@
-service: improve-v5
+service: improve-v6
 
 plugins:
   - serverless-pseudo-parameters
@@ -9,6 +9,7 @@ custom:
   jobDefinitionName: '${self:service}-${self:custom.resource-identifier}-job-definition-${opt:stage, self:provider.stage}'
 
 provider:
+  lambdaHashingVersion: 20201221 # can be removed in serverless 3
   name: aws
   region: us-east-1
   runtime: nodejs12.x
@@ -20,15 +21,10 @@ provider:
     #
     TRAINING_JOB_SCHEDULE: rate(24 hours) # trades off between learning latency and cost
     REWARD_ASSIGNMENT_JOB_SCHEDULE: rate(4 hours) # trades off between learning latency and cost
-    FEATURE_TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
-    FEATURE_TRAINING_INSTANCE_TYPE: ml.m5.large
-    FEATURE_TRAINING_INSTANCE_COUNT: 1
-    FEATURE_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
-    XGBOOST_TRAINING_IMAGE: 246618743249.dkr.ecr.us-west-2.amazonaws.com/sagemaker-xgboost:0.90-2-cpu-py3 # XGBoost (0.90) do this after validating everything # 433757028032.dkr.ecr.us-west-2.amazonaws.com/xgboost:latest  #
-    XGBOOST_TRAINING_INSTANCE_TYPE: ml.m5.12xlarge
-    XGBOOST_TRAINING_INSTANCE_COUNT: 4
-    XGBOOST_TRAINING_VOLUME_SIZE_IN_GB: 10
-    XGBOOST_TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
+    TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
+    TRAINING_INSTANCE_TYPE: ml.m5.large
+    TRAINING_INSTANCE_COUNT: 3
+    TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
     FIREHOSE_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory. Buffer size is configured in resources/serverless.yml
     REWARD_ASSIGNMENT_WORKER_COUNT: 3
     DEFAULT_REWARD_WINDOW_IN_SECONDS: 172800 # 2 days
@@ -39,7 +35,6 @@ provider:
     FIREHOSE_DELIVERY_STREAM_NAME: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.V4Firehose}
     RECORDS_BUCKET: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.RecordsS3Bucket}
     MODELS_BUCKET: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.ModelsS3Bucket}
-    EFS_FILE_PATH: /mnt/efs
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
   ecr:
@@ -136,17 +131,6 @@ functions:
     handler: src/train/train.dispatchTrainingJobs
     events:
       - schedule: ${self:provider.environment.TRAINING_JOB_SCHEDULE}
-  featureModelCreated:
-    description: Dispatch Decision Model Training Jobs
-    handler: src/train/train.featureModelCreated
-    events:
-      - s3:
-          bucket: ${cf:${self:service}-${self:custom.resource-identifier}-${opt:stage, self:provider.stage}.RecordsS3Bucket}
-          existing: true # created in resources/serverless.yml
-          event: s3:ObjectCreated:*
-          rules:
-            - prefix: feature_models/
-            - suffix: model.tar.gz
   unpackModels:
     handler: src/train/unpack_models.unpack
     events:

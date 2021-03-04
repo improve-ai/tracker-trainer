@@ -5,7 +5,6 @@ Launch AWS Batch jobs (from a Lambda function).
 
 # Built-in imports
 import json
-import logging
 import os 
 
 # External imports
@@ -21,14 +20,13 @@ def lambda_handler(event, context):
     job_queue_name = os.environ['JOB_QUEUE_NAME']
     job_definition_name = os.environ['JOB_DEFINITION_NAME']
     node_count = os.environ['REWARD_ASSIGNMENT_WORKER_COUNT']
-    reward_window_seconds = os.environ['DEFAULT_REWARD_WINDOW_IN_SECONDS']
     stage = os.environ['STAGE']
     
     # Submit an AWS Batch job from a job definition.
     # Parameters specified during submitJob override parameters defined in the 
     # job definition.
     r = batch.submit_job(
-        jobName=f'improve-v5-assign-rewards-{stage}', 
+        jobName=f'improve-v6-assign-rewards-{stage}', 
         # Name or ARN of AWS Batch JobQueue
         jobQueue=job_queue_name, 
         # (name:revision) or ARN of the job definition to deregister
@@ -36,10 +34,7 @@ def lambda_handler(event, context):
         # Set some environment variables in Docker
         containerOverrides={
             "environment":[
-                {"name": "JOIN_REWARDS_JOB_ARRAY_SIZE", "value": node_count},
-                {"name": "DEFAULT_REWARD_WINDOW_IN_SECONDS", "value": reward_window_seconds},
-                {"name": "JOIN_REWARDS_REPROCESS_ALL", "value": "False"},
-                {"name": "PATH_TOWARDS_EFS", "value": "/mnt/efs"},
+                {"name": "REWARD_ASSIGNMENT_WORKER_COUNT", "value": node_count},
             ],
         },
         # Size of the collection of jobs to send
@@ -48,12 +43,4 @@ def lambda_handler(event, context):
         }
     )
 
-    try:
-        logging.info(
-            f"Sent a new AWS Batch job request,"
-            f"Job Name: '{r['jobName']}'"
-            f"Job ARN: '{r['jobArn']}'"
-            f"Job Id: '{r['jobId']}'"
-        )
-    except KeyError as e:
-        logging.exception("No job ARN found")
+    print(f"submitted batch job {r['jobName']} arn {r['jobArn']} id {r['jobId']}")

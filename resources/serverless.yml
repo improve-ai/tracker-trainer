@@ -1,4 +1,4 @@
-service: improve-v5-resources
+service: improve-v6-resources
 
 plugins:
   - serverless-pseudo-parameters
@@ -68,16 +68,16 @@ resources:
       FirehoseS3Bucket:
         Type: 'AWS::S3::Bucket'
         DeletionPolicy: Retain
-        IntelligentTieringConfigurations:
-          - Id: '${self:service}-intelligent-tiering-firehose-${opt:stage, self:provider.stage}'
-            Status: Enabled
-            Tierings: # After 30 days intelligent tiering automatically moves to infrequent access tier
-              - AccessTier: ARCHIVE_ACCESS
-                Days: 90
-              - AccessTier: DEEP_ARCHIVE_ACCESS
-                Days: 180
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose-#{AWS::AccountId}
+          IntelligentTieringConfigurations:
+            - Id: '${self:service}-intelligent-tiering-firehose-${opt:stage, self:provider.stage}'
+              Status: Enabled
+              Tierings: # After 30 days intelligent tiering automatically moves to infrequent access tier
+                - AccessTier: ARCHIVE_ACCESS
+                  Days: 90
+                - AccessTier: DEEP_ARCHIVE_ACCESS
+                  Days: 180
       V4Firehose:
         Type: AWS::KinesisFirehose::DeliveryStream
         Properties:
@@ -227,7 +227,7 @@ resources:
           Type: MANAGED
           ServiceRole: 
             Ref: BatchServiceRole
-          ComputeEnvironmentName: '${self:service}-compute-environment-${opt:stage, self:provider.stage}'
+          ComputeEnvironmentName: '${self:service}-assign-rewards-compute-${opt:stage, self:provider.stage}'
           ComputeResources:
             MaxvCpus: 128
             SecurityGroupIds:
@@ -245,7 +245,6 @@ resources:
               Ref: IamInstanceProfile
             InstanceTypes:
               - optimal
-            Tags: {"Name": "Batch Instance - ${self:service}"}
             DesiredvCpus: 0
             LaunchTemplate:
               LaunchTemplateId:
@@ -262,7 +261,7 @@ resources:
                 Ref: ComputeEnvironment
           State: ENABLED
           Priority: 1
-          JobQueueName: '${self:service}-job-queue-${opt:stage, self:provider.stage}'
+          JobQueueName: '${self:service}-assign-rewards-queue-${opt:stage, self:provider.stage}'
       JobDefinition:
         Type: "AWS::Batch::JobDefinition"
         Properties:
@@ -271,7 +270,7 @@ resources:
             Memory: 1024
             Vcpus: 1
             # '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/print-color:latest' --For Checking Tutorial Array Of Jobs Example
-            Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/serverless-improve-v5-${opt:stage, self:provider.stage}:assign_rewards'
+            Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/serverless-improve-v6-${opt:stage, self:provider.stage}:assign_rewards'
             MountPoints:
               - ReadOnly: false
                 SourceVolume: efs
@@ -280,14 +279,14 @@ resources:
               - Host:
                   SourcePath: /mnt/efs
                 Name: efs
-          JobDefinitionName: '${self:service}-job-definition-${opt:stage, self:provider.stage}'
+          JobDefinitionName: '${self:service}-assign-rewards-${opt:stage, self:provider.stage}'
           RetryStrategy: 
             Attempts: 2
       LaunchTemplateResourceForBatch:
         Type: AWS::EC2::LaunchTemplate
         DependsOn: FileSystemResource
         Properties:
-          LaunchTemplateName: 'launch_template_${opt:stage, self:provider.stage}'
+          LaunchTemplateName: '${self:service}-launch-template-${opt:stage, self:provider.stage}'
           LaunchTemplateData:
             UserData: 
               Fn::Base64: 
@@ -313,13 +312,13 @@ resources:
       FileSystemResource:
         Type: 'AWS::EFS::FileSystem'
         Properties:
-          PerformanceMode: generalPurpose
+          PerformanceMode: maxIO # higher max operations per second since we do many small reads/writes
           Encrypted: true
           LifecyclePolicies:
             - TransitionToIA: AFTER_14_DAYS # when events stop arriving for a history it will transition to infrequent access
           FileSystemTags:
             - Key: Name
-              Value: "${self:service}-file-system-${opt:stage, self:provider.stage}"
+              Value: "${self:service}-assign-rewards-efs-${opt:stage, self:provider.stage}"
           FileSystemPolicy:
             Version: "2012-10-17"
             Statement:

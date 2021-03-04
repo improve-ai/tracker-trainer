@@ -17,9 +17,6 @@ import sys
 import shutil
 import signal
 
-# External imports
-import mmh3
-
 # Local imports
 from utils import load_records
 from utils import name_no_ext
@@ -29,14 +26,13 @@ from config import DEFAULT_REWARD_KEY
 from config import DATETIME_FORMAT
 from config import DEFAULT_EVENTS_REWARD_VALUE
 from config import DEFAULT_REWARD_VALUE
-from config import PATH_INPUT_DIR
-from config import PATH_OUTPUT_DIR
+from config import INCOMING_PATH
+from config import HISTORIES_PATH
 from config import LOGGING_LEVEL
 from config import LOGGING_FORMAT
 from config import REWARD_WINDOW
 from config import AWS_BATCH_JOB_ARRAY_INDEX
-from config import JOIN_REWARDS_JOB_ARRAY_SIZE
-from config import JOIN_REWARDS_REPROCESS_ALL
+from config import REWARD_ASSIGNMENT_WORKER_COUNT
 from exceptions import InvalidTypeError
 from exceptions import UpdateListenersError
 
@@ -52,37 +48,26 @@ def worker():
     """
     Identify the relevant folders that this worker should process, identify 
     the files that need to be processed and write the gzipped results.
-    There are two modes:
-        - All output files and all input files reprocessed.
-        - Only input files with a last modification time newer than their 
-          counterpart in the output folder will be processed.
     """
 
-    logging.info(f"Starting AWS Batch Array job.")
+    print(f"Starting AWS Batch Array job.")
 
     node_id       = AWS_BATCH_JOB_ARRAY_INDEX
-    node_count    = JOIN_REWARDS_JOB_ARRAY_SIZE
-    reprocess_all = True if JOIN_REWARDS_REPROCESS_ALL == 'true' else False
+    node_count    = REWARD_ASSIGNMENT_WORKER_COUNT
 
-    dirs_to_process = identify_dirs_to_process(PATH_INPUT_DIR, node_id, node_count)
-    delete_output_files(delete_all=reprocess_all)
-    files_to_process = identify_files_to_process(dirs_to_process)
+    files_to_process = identify_files_to_process(INCOMING_PATH, node_id, node_count)
 
-    logging.debug(
-        f"This instance (node {node_id}) will process the folders: "
-        f"{', '.join([d.name for d in dirs_to_process])}")
-    
-    logging.debug(
+    print(
         f"This instance (node {node_id}) will process the files: "
         f"{', '.join([f.name for f in files_to_process])}")
 
-    for f in files_to_process:
-        handle_signals()
-        decision_records, reward_records, event_records = load_records(str(f))
-        rewarded_records = assign_rewards_to_decisions(decision_records, reward_records, event_records)
-        gzip_records(f, rewarded_records)
+    # for f in files_to_process:
+    #     handle_signals()
+    #     decision_records, reward_records, event_records = load_records(str(f))
+    #     rewarded_records = assign_rewards_to_decisions(decision_records, reward_records, event_records)
+    #     gzip_records(f, rewarded_records)
 
-    logging.info(f"AWS Batch Array (node {node_id}) finished.")
+    print(f"AWS Batch Array (node {node_id}) finished.")
 
 
 def update_listeners(listeners, record_timestamp, reward):
@@ -118,10 +103,10 @@ def update_listeners(listeners, record_timestamp, reward):
             listener = listeners[i]
             listener_timestamp = datetime.strptime(listener['timestamp'], DATETIME_FORMAT)
             if listener_timestamp + window < record_timestamp:
-                logging.debug(f'Deleting listener: {listener_timestamp}, Reward/event: {record_timestamp}')
+                print(f'Deleting listener: {listener_timestamp}, Reward/event: {record_timestamp}')
                 del listeners[i]
             else:
-                logging.debug(f'Adding reward of {float(reward)} to decision.')
+                print(f'Adding reward of {float(reward)} to decision.')
                 listener['reward'] = listener.get('reward', DEFAULT_REWARD_VALUE) + float(reward)
 
     except Exception as e:
@@ -198,16 +183,16 @@ def gzip_records(input_file, rewarded_records):
     output_subdir =  PATH_OUTPUT_DIR / input_file.parents[0].name
 
     if not output_subdir.exists():
-        logging.debug(f"Folder '{str(output_subdir)}' doesn't exist. Creating.")
+        print(f"Folder '{str(output_subdir)}' doesn't exist. Creating.")
         output_subdir.mkdir(parents=True, exist_ok=True)
     
     output_file = output_subdir / OUTPUT_FILENAME.format(input_file.name)
 
     try:
         if output_file.exists():
-            logging.debug(f"Overwriting output file '{output_file}'")
+            print(f"Overwriting output file '{output_file}'")
         else:
-            logging.debug(f"Writing new output file '{output_file.absolute()}'")
+            print(f"Writing new output file '{output_file.absolute()}'")
         
         with gzip.open(output_file.absolute(), mode='wt') as gzf:
             for record in rewarded_records:
@@ -220,10 +205,9 @@ def gzip_records(input_file, rewarded_records):
             f'{e}')
         raise e
 
-
-def identify_dirs_to_process(input_dir, node_id, node_count):
+def identify_files_to_process(input_dir, node_id, node_count):
     """
-    Identify which dirs should this worker process.
+    Return a list of Path objects representing files that need to be processed.
 
     Args:
         input_dir : Path object towards the input folder.
@@ -231,136 +215,30 @@ def identify_dirs_to_process(input_dir, node_id, node_count):
         node_count: int representing the number of total nodes of the cluster
     
     Returns:
-        List of Path objects representing folders
+        List of Path objects representing files
     """
-    
-    input_dir.mkdir(parents=True, exist_ok=True)
 
     files_to_process = []
-    for f in input_dir.iterdir():
-        if f.is_dir():
-            continue
-        
-        # TODO check if chars are hex string, accumulate errors if not.
-        # or use regular expression to filter....
-        
+    for f in input_dir.glob('*.jsonl.gz'):
         # convert first 16 hex chars (64 bit) to an int
         # the file name starts with a sha-256 hash so the bits will be random
         # check if int mod node_count matches our node
         if (int(f.name[:16], 16) % node_count) == node_id:
             files_to_process.append(f)
-    
-    return files_to_process
-
-
-def identify_files_to_process(dirs_to_process):
-    """
-    Return a list of Path objects representing files that need to be processed.
-
-    Args:
-        dirs_to_process: List of Path objects representing folders
-    
-    Returns:
-        List of Path objects representing files
-    """
-
-    files_to_process = []
-    for input_dir in dirs_to_process:
-        output_dir = PATH_OUTPUT_DIR / input_dir.name
-        
-        # If output dir doesn't exist, add all files to the to-process list
-        if not output_dir.exists():
-            for f_in in input_dir.glob('*.jsonl'):
-                files_to_process.append(f_in)
-            continue
-
-        output_files = {name_no_ext(f) : f for f in output_dir.glob('*.gz')}
-        
-        for f_in in input_dir.glob('*.jsonl'):
-            f_out = output_files.get(name_no_ext(f_in))
-            
-            # If no output file, add the input file to the to-process list
-            if not f_out:
-                files_to_process.append(f_in)
-                continue
-            
-            logging.debug(
-                f"{f_in.name}: {datetime.fromtimestamp(f_in.stat().st_mtime).strftime('%Y-%m-%d-%H:%M:%S')}; "
-                f"{f_out.name}: {datetime.fromtimestamp(f_out.stat().st_mtime).strftime('%Y-%m-%d-%H:%M:%S')}")
-            
-            if name_no_ext(f_in) == name_no_ext(f_out):
-                if f_in.stat().st_mtime > f_out.stat().st_mtime:
-                    logging.debug("Adding file to process")
-                    files_to_process.append(f_in)
 
     return files_to_process
-
-
-def delete_output_files(delete_all=False):
-    """
-    Delete files and/or directories from the output directory.
-
-    Args:
-        delete_all: boolean
-          - True : delete all output files
-          - False: delete output files without corresponding input file 
-    """
-
-    PATH_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    
-    if delete_all:
-        for output_dir in PATH_OUTPUT_DIR.iterdir():
-            if output_dir.is_dir():
-                try:
-                    shutil.rmtree(output_dir)
-                    logging.info(f"Deleting directory '{output_dir.name}'.")
-                except Exception as e:
-                    logging.exception(
-                        f"Error when trying to delete "
-                        f"the directory tree '{output_dir.name}'")
-    
-    else:
-        for output_dir in PATH_OUTPUT_DIR.iterdir():
-            if not output_dir.is_dir():
-                continue
-            
-            input_dir = PATH_INPUT_DIR / output_dir.name
-
-            # Delete a whole output subdir (e.g. "/aa") if the input version 
-            # doesn't exists
-            if not input_dir.exists():
-                try:
-                    shutil.rmtree(output_dir)
-                    logging.info(f"Deleting directory '{output_dir.name}'.")
-                except Exception as e:
-                    logging.exception(
-                        f"Error when trying to delete "
-                        f"the directory tree '{output_dir.name}'")
-                continue
-
-            input_files = {name_no_ext(f) : f for f in input_dir.glob('*.jsonl')}
-            for output_file in output_dir.glob('*.gz'):
-                if not input_files.get(name_no_ext(output_file)):
-                    try:
-                        output_file.unlink() # Delete file
-                        logging.info(f"Deleting file '{output_file.name}'.")
-                    except Exception as e:
-                        logging.exception(
-                            f"Error when trying to delete "
-                            f"file '{output_file.name}'")
-
 
 
 def handle_signals():
     if SIGTERM:
-        logging.info(f'Quitting due to SIGTERM signal (node {AWS_BATCH_JOB_ARRAY_INDEX}).')
+        print(f'Quitting due to SIGTERM signal (node {AWS_BATCH_JOB_ARRAY_INDEX}).')
         sys.exit()
 
 
 def signal_handler(signalNumber, frame):
     global SIGTERM
     SIGTERM = True
-    logging.info(f"SIGTERM received (node {AWS_BATCH_JOB_ARRAY_INDEX}).")
+    print(f"SIGTERM received (node {AWS_BATCH_JOB_ARRAY_INDEX}).")
     return
 
 
