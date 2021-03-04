@@ -17,8 +17,8 @@ def lambda_handler(event, context):
     """
     batch = boto3.client('batch')
 
-    job_queue_name = os.environ['JOB_QUEUE_NAME']
-    job_definition_name = os.environ['JOB_DEFINITION_NAME']
+    job_queue = os.environ['JOB_QUEUE']
+    job_definition = os.environ['JOB_DEFINITION']
     node_count = os.environ['REWARD_ASSIGNMENT_WORKER_COUNT']
     stage = os.environ['STAGE']
     
@@ -28,9 +28,9 @@ def lambda_handler(event, context):
     r = batch.submit_job(
         jobName=f'improve-v6-assign-rewards-{stage}', 
         # Name or ARN of AWS Batch JobQueue
-        jobQueue=job_queue_name, 
+        jobQueue=job_queue, 
         # (name:revision) or ARN of the job definition to deregister
-        jobDefinition=job_definition_name,
+        jobDefinition=job_definition,
         # Set some environment variables in Docker
         containerOverrides={
             "environment":[
