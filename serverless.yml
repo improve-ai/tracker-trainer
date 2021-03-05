@@ -7,15 +7,15 @@ provider:
     #
     # Customize your deployment here:
     #
-    TRAINING_JOB_SCHEDULE: rate(24 hours) # trades off between learning delay and cost
-    REWARD_ASSIGNMENT_JOB_SCHEDULE: rate(4 hours)
     TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
     TRAINING_INSTANCE_TYPE: ml.m5.large
     TRAINING_INSTANCE_COUNT: 3
     TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
+    TRAINING_JOB_SCHEDULE: rate(24 hours) # trades off between learning delay and cost
     FIREHOSE_BUFFER_SIZE_IN_MB: 128 # max value is 128
     FIREHOSE_BUFFER_INTERVAL_IN_SECONDS: 900 # max value is 900
     FIREHOSE_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory
+    REWARD_ASSIGNMENT_JOB_SCHEDULE: rate(4 hours)
     REWARD_ASSIGNMENT_WORKER_COUNT: 3
     DEFAULT_REWARD_WINDOW_IN_SECONDS: 172800 # 2 days
     # 
@@ -25,6 +25,7 @@ provider:
     MODELS_BUCKET: !Ref ModelsS3Bucket
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
+    
   lambdaHashingVersion: 20201221 # can be removed in serverless v3
   name: aws
   region: us-east-1
@@ -414,7 +415,7 @@ resources:
           ContainerProperties: 
             Memory: 1024
             Vcpus: 1
-            Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/serverless-improve-v6-${opt:stage, self:provider.stage}:assign-rewards'
+            Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-improve-v6-${opt:stage, self:provider.stage}:assign-rewards'
             MountPoints:
               - ReadOnly: false
                 SourceVolume: efs
