@@ -1,50 +1,53 @@
-service: improve-v6
-
-plugins:
-  - serverless-pseudo-parameters
+custom:
+  organization: acme # CHANGE ME BEFORE FIRST DEPLOYMENT
+  project: demo # CHANGE ME BEFORE FIRST DEPLOYMENT
 
 provider:
+  environment:
+    #
+    # Customize your deployment here:
+    #
+    TRAINING_JOB_SCHEDULE: rate(24 hours) # trades off between learning delay and cost
+    REWARD_ASSIGNMENT_JOB_SCHEDULE: rate(4 hours)
+    TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
+    TRAINING_INSTANCE_TYPE: ml.m5.large
+    TRAINING_INSTANCE_COUNT: 3
+    TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
+    FIREHOSE_BUFFER_SIZE_IN_MB: 128 # max value is 128
+    FIREHOSE_BUFFER_INTERVAL_IN_SECONDS: 900 # max value is 900
+    FIREHOSE_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory
+    REWARD_ASSIGNMENT_WORKER_COUNT: 3
+    DEFAULT_REWARD_WINDOW_IN_SECONDS: 172800 # 2 days
+    # 
+    # End customization
+    #
+    RECORDS_BUCKET: !Ref RecordsS3Bucket
+    MODELS_BUCKET: !Ref ModelsS3Bucket
+    SERVICE: ${self:service}
+    STAGE: ${opt:stage, self:provider.stage}
   lambdaHashingVersion: 20201221 # can be removed in serverless v3
   name: aws
   region: us-east-1
   runtime: nodejs12.x
   timeout: 900
   memorySize: 192
-  environment:
-    #
-    # Customize your deployment here:
-    #
-    TRAINING_JOB_SCHEDULE: rate(24 hours) # trades off between learning latency and cost
-    REWARD_ASSIGNMENT_JOB_SCHEDULE: rate(4 hours) # trades off between learning latency and cost
-    TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
-    TRAINING_INSTANCE_TYPE: ml.m5.large
-    TRAINING_INSTANCE_COUNT: 3
-    TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
-    FIREHOSE_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory. Buffer size is configured in resources/serverless.yml
-    REWARD_ASSIGNMENT_WORKER_COUNT: 3
-    DEFAULT_REWARD_WINDOW_IN_SECONDS: 172800 # 2 days
-    # 
-    # End customization
-    #
-    RECORDS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
-    MODELS_BUCKET: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.ModelsS3Bucket}
-    SERVICE: ${self:service}
-    STAGE: ${opt:stage, self:provider.stage}
   ecr:
     images:
-      assign_rewards:
+      assign-rewards:
         path: ./src/assign_rewards/
+  httpApi: # have to specify cors globally for httpApi as of 20210303
+    cors: true
   iam:
     role:
       statements: 
         - Effect: Allow
           Action:
             - "firehose:*"
-          Resource: "arn:aws:firehose:*:*:deliverystream/${cf:${self:service}-resources-${opt:stage, self:provider.stage}.Firehose}"
+          Resource: { Fn::GetAtt: [Firehose, Arn] }
         - Effect: Allow
           Action:
             - "s3:*"
-          Resource: 'arn:aws:s3:::${self:service}-resources-${opt:stage, self:provider.stage}-*'
+          Resource: 'arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-*'
         - Effect: Allow
           Action:
             - "sagemaker:*"
@@ -52,7 +55,7 @@ provider:
         - Effect: Allow
           Action:
             - "iam:PassRole"
-          Resource: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
+          Resource: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
         - Effect: Allow
           Action:
             - "lambda:InvokeFunction"
@@ -79,6 +82,8 @@ provider:
             - batch:SubmitJob
           Resource: "arn:aws:batch:*:*:*"
 
+service: improve-v6-${self:custom.organization}-${self:custom.project}
+
 package:
   exclude:
     - ./**
@@ -95,9 +100,8 @@ functions:
       - httpApi:
           method: POST
           path: /track
-          cors: true
     environment:
-      FIREHOSE_DELIVERY_STREAM_NAME: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.Firehose}
+      FIREHOSE_DELIVERY_STREAM_NAME: { Ref: Firehose }
 
   unpackFirehose:
     description: Ingest Records from S3 to EFS
@@ -105,16 +109,20 @@ functions:
     memorySize: ${self:provider.environment.FIREHOSE_WORKER_MEMORY_IN_MB} 
     events:
       - s3:
-          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.FirehoseS3Bucket}
-          existing: true # created in resources/serverless.yml
+          bucket: !Ref FirehoseS3Bucket
+          existing: true # retained resource
           event: s3:ObjectCreated:*
     fileSystemConfig:
       localMountPath: /mnt/efs
-      arn: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.AccessPointResourceArn}
+      arn: { Fn::GetAtt: [ AccessPointResource, Arn ] }
     vpc:
-      securityGroupIds: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SecurityGroup}
-      subnetIds: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.Subnet}
-      
+      securityGroupIds: 
+        - !Ref SecurityGroup
+      subnetIds:
+        - !Ref Subnet
+    environment:
+      EFS_FILE_PATH: /mnt/efs
+        
   dispatchRewardAssignmentJobs:
     description: Dispatch Reward Assignment Batch Jobs
     runtime: python3.8
@@ -122,8 +130,8 @@ functions:
     events:
       - schedule: ${self:provider.environment.REWARD_ASSIGNMENT_JOB_SCHEDULE}
     environment:
-      JOB_QUEUE: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RewardAssignmentJobQueue}
-      JOB_DEFINITION: ${cf:${self:service}-resources-${opt:stage, self:provider.stage.RewardAssignmentJobDefinition}
+      JOB_QUEUE: !Ref JobQueue
+      JOB_DEFINITION: !Ref JobDefinition
 
   dispatchTrainingJobs:
     description: Dispatch Decision Model Training Jobs
@@ -131,13 +139,13 @@ functions:
     events:
       - schedule: ${self:provider.environment.TRAINING_JOB_SCHEDULE}
     environment:
-      TRAINING_ROLE_ARN: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.SagemakerExecutionRoleArn}
+      TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
 
   unpackModels:
     handler: src/train/unpack_models.unpack
     events:
       - s3:
-          bucket: ${cf:${self:service}-resources-${opt:stage, self:provider.stage}.RecordsS3Bucket}
+          bucket: !Ref RecordsS3Bucket
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
           rules:
@@ -147,16 +155,9 @@ functions:
   forceDockerPush: # serverless actually wants the image to be used to deploy it
     description: Force Serverless to Push Docker Image to ECR
     image:
-      name: assign_rewards
+      name: assign-rewards
 
 resources:
-  Conditions:
-    # Only create the VPC setup in the dev account/stage
-    CreateRetainedResources:
-      Fn::Not:
-        Fn::Equals:
-          - ${opt:skipRetainedResources}
-          - "true"
   Resources:
       FirehoseToS3Role:
         Type: AWS::IAM::Role
@@ -213,13 +214,12 @@ resources:
                   - s3:DeleteObject
                   - s3:ListBucket
                   - s3:PutObject
-                  Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-*-#{AWS::AccountId}*"
+                  Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
       FirehoseS3Bucket:
         Type: 'AWS::S3::Bucket'
-        Condition: CreateRetainedResources
         DeletionPolicy: Retain
         Properties:
-          BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose-#{AWS::AccountId}
+          BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose
           IntelligentTieringConfigurations:
             - Id: '${self:service}-intelligent-tiering-firehose-${opt:stage, self:provider.stage}'
               Status: Enabled
@@ -239,22 +239,20 @@ resources:
               - - 'arn:aws:s3:::'
                 - Ref: FirehoseS3Bucket
             BufferingHints:
-              IntervalInSeconds: 900
-              SizeInMBs: 128
+              IntervalInSeconds: ${self:provider.environment.FIREHOSE_BUFFER_INTERVAL_IN_SECONDS} 
+              SizeInMBs: ${self:provider.environment.FIREHOSE_BUFFER_SIZE_IN_MB} 
             CompressionFormat: "GZIP"
             RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
       RecordsS3Bucket:
         Type: 'AWS::S3::Bucket'
-        Condition: CreateRetainedResources
         DeletionPolicy: Retain
         Properties:
-          BucketName: ${self:service}-${opt:stage, self:provider.stage}-records-#{AWS::AccountId}
+          BucketName: ${self:service}-${opt:stage, self:provider.stage}-records
       ModelsS3Bucket:
         Type: 'AWS::S3::Bucket'
-        Condition: CreateRetainedResources
         DeletionPolicy: Retain
         Properties:
-          BucketName: ${self:service}-${opt:stage, self:provider.stage}-models-#{AWS::AccountId}
+          BucketName: ${self:service}-${opt:stage, self:provider.stage}-models
       VPC:
         Type: AWS::EC2::VPC
         Properties:
@@ -416,8 +414,7 @@ resources:
           ContainerProperties: 
             Memory: 1024
             Vcpus: 1
-            # '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/print-color:latest' --For Checking Tutorial Array Of Jobs Example
-            Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/serverless-improve-v6-${opt:stage, self:provider.stage}:assign_rewards'
+            Image: '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/serverless-improve-v6-${opt:stage, self:provider.stage}:assign-rewards'
             MountPoints:
               - ReadOnly: false
                 SourceVolume: efs
@@ -498,27 +495,3 @@ resources:
               Permissions: "0777"
             Path: "/efs"
         DependsOn: MountTarget
-
-  Outputs:
-    Firehose:
-      Value:
-        Ref: Firehose
-    FirehoseS3Bucket:
-      Value: 
-        Ref: FirehoseS3Bucket
-    RecordsS3Bucket:
-      Value: 
-        Ref: RecordsS3Bucket
-    ModelsS3Bucket:
-      Value: 
-        Ref: ModelsS3Bucket
-    SagemakerExecutionRoleArn:
-      Value: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
-    AccessPointResourceArn:
-      Value: { Fn::GetAtt: [ AccessPointResource, Arn ] }
-    SecurityGroup:
-      Value:
-        Ref: SecurityGroup
-    Subnet:
-      Value:
-        Ref: Subnet
