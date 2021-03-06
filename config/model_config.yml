@@ -1,7 +1,9 @@
 ---
-rewardWindowInSeconds: 7200
-featureHyperparameters:
-#  maxAge: 7776000
+organization: acme # CHANGE ME BEFORE FIRST DEPLOYMENT
+project: demo # CHANGE ME BEFORE FIRST DEPLOYMENT
+
+rewardWindowInSeconds: 172800
+maxAge: 7776000
 xgboostHyperparameters:
   num_round: "300"
   early_stopping_rounds: "40"

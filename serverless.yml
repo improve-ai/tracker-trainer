@@ -1,3 +1,4 @@
+# !!! NOTICE: Modify config/config.yml to customize deployment
 custom:
   organization: acme # CHANGE ME BEFORE FIRST DEPLOYMENT
   project: demo # CHANGE ME BEFORE FIRST DEPLOYMENT
@@ -17,7 +18,6 @@ provider:
     FIREHOSE_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory
     REWARD_ASSIGNMENT_JOB_SCHEDULE: rate(4 hours)
     REWARD_ASSIGNMENT_WORKER_COUNT: 3
-    DEFAULT_REWARD_WINDOW_IN_SECONDS: 172800 # 2 days
     # 
     # End customization
     #
@@ -415,7 +415,7 @@ resources:
           ContainerProperties: 
             Memory: 1024
             Vcpus: 1
-            Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-improve-v6-${opt:stage, self:provider.stage}:assign-rewards'
+            Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-${self:service}-${opt:stage, self:provider.stage}:assign-rewards'
             MountPoints:
               - ReadOnly: false
                 SourceVolume: efs
@@ -424,6 +424,7 @@ resources:
               - Host:
                   SourcePath: /mnt/efs
                 Name: efs
+            # Privileged: true # didn't seem to help
           JobDefinitionName: '${self:service}-assign-rewards-${opt:stage, self:provider.stage}'
           RetryStrategy: 
             Attempts: 2

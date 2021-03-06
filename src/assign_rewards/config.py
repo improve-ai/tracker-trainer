@@ -16,7 +16,7 @@ from exceptions import EnvirontmentVariableError
 try:
     
     # The length (in seconds) of the reward window
-    REWARD_WINDOW = int(os.environ['DEFAULT_REWARD_WINDOW_IN_SECONDS'])
+    REWARD_WINDOW = 24 * 2 * 60 * 60
 
     # The worker number of this job
     AWS_BATCH_JOB_ARRAY_INDEX = int(os.environ['AWS_BATCH_JOB_ARRAY_INDEX'])

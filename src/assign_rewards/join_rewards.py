@@ -16,6 +16,7 @@ import gzip
 import sys
 import shutil
 import signal
+import subprocess
 
 # Local imports
 from utils import load_records
@@ -217,15 +218,24 @@ def identify_files_to_process(input_dir, node_id, node_count):
     Returns:
         List of Path objects representing files
     """
-
+    
+    print(subprocess.check_output(['df', '-h']))
+    print(subprocess.check_output(['ls', '-la', '/']))
+    print(subprocess.check_output(['ls', '-la', '/mnt']))
+    print(subprocess.check_output(['ls', '-la', '/mnt/efs']))
+    print(subprocess.check_output(['ls', '-la', '/mnt/efs/incoming']))
+    
     files_to_process = []
+    file_count = 0
     for f in input_dir.glob('*.jsonl.gz'):
+        file_count += 1
         # convert first 16 hex chars (64 bit) to an int
         # the file name starts with a sha-256 hash so the bits will be random
         # check if int mod node_count matches our node
         if (int(f.name[:16], 16) % node_count) == node_id:
             files_to_process.append(f)
 
+    print(f'selected {len(files_to_process)} of {file_count} .jsonl.gz files from {input_dir} to process')
     return files_to_process
 
 
