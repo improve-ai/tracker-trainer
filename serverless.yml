@@ -447,6 +447,7 @@ resources:
                     packages:
                     - amazon-efs-utils
 
+                    runcmd:
                     - mkdir -p ${EFSDirectory}
                     - echo "${EFSFileSystem}:/ ${EFSDirectory} efs tls,_netdev" >> /etc/fstab
                     - mount -a -t efs defaults
