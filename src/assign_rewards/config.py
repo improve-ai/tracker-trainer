@@ -35,8 +35,8 @@ LOGGING_LEVEL = logging.INFO
 LOGGING_FORMAT = '%(levelname)-5s: @%(funcName)-25s | %(message)s'
 
 # Absolute path towards the input folder
-INCOMING_PATH = Path('/mnt/efs/efs/incoming')
-HISTORIES_PATH = Path('/mnt/efs/efs/histories')
+INCOMING_PATH = Path('/mnt/efs/incoming')
+HISTORIES_PATH = Path('/mnt/efs/histories')
 
 # Output filename template of the gzipped results 
 OUTPUT_FILENAME = '{}.gz'

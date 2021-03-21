@@ -68,25 +68,11 @@ function writeRecords(buffersByHistoryId) {
     // create a new unique file.  It will be consolidated later into a single file per history during reward assignment
     const fileName = uniqueFileName(historyId)
 
-    const directoryBasePath = `${process.env.EFS_FILE_PATH}/incoming/`
-    const fullPath = `${directoryBasePath}${fileName}`
+    const fullPath = `${process.env.INCOMING_FILE_PATH}/${fileName}`
 
     const compressedData = zlib.gzipSync(Buffer.concat(buffers))
 
-    promises.push(limit(() => fs.writeFile(fullPath, compressedData).catch(err => {
-      if (err && err.code === 'ENOENT') {
-        // the parent dir probably doesn't exist, create it
-        return fs.mkdir(directoryBasePath).catch(err => { 
-          // mkdir may throw an EEXIST if two workers try to create it at the same time, swallow it
-          if (err.code != 'EEXIST') throw err;
-        }).then(() => {
-          // try the write again
-          fs.writeFile(fullPath, compressedData)
-        })
-      } else {
-        throw err
-      }
-    })));
+    promises.push(limit(() => fs.writeFile(fullPath, compressedData)));
   }
   
   console.log(`writing ${bufferCount} records for ${Object.keys(buffersByHistoryId).length} history ids`)

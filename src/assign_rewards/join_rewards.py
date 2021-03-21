@@ -223,8 +223,7 @@ def identify_files_to_process(input_dir, node_id, node_count):
     print(subprocess.check_output(['ls', '-la', '/']))
     print(subprocess.check_output(['ls', '-la', '/mnt']))
     print(subprocess.check_output(['ls', '-la', '/mnt/efs']))
-    print(subprocess.check_output(['ls', '-la', '/mnt/efs/efs']))
-    print(subprocess.check_output(['ls', '-la', '/mnt/efs/efs/incoming']))
+    print(subprocess.check_output(['ls', '-la', '/mnt/efs/incoming']))
     
     files_to_process = []
     file_count = 0
