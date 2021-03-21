@@ -115,7 +115,7 @@ functions:
           event: s3:ObjectCreated:*
     fileSystemConfig:
       localMountPath: /mnt/efs
-      arn: { Fn::GetAtt: [ AccessPointResource, Arn ] }
+      arn: { Fn::GetAtt: [ IncomingEFSAccessPoint, Arn ] }
     vpc:
       securityGroupIds: 
         - !Ref SecurityGroup
@@ -424,7 +424,6 @@ resources:
               - Host:
                   SourcePath: /mnt/efs
                 Name: efs
-            # Privileged: true # didn't seem to help
           JobDefinitionName: '${self:service}-assign-rewards-${opt:stage, self:provider.stage}'
           RetryStrategy: 
             Attempts: 2
@@ -448,14 +447,13 @@ resources:
                     - amazon-efs-utils
 
                     runcmd:
-                    - mkdir -p ${EFSDirectory}
-                    - echo "${EFSFileSystem}:/ ${EFSDirectory} efs tls,_netdev" >> /etc/fstab
+                    - mkdir -p /mnt/efs
+                    - echo "${EFSFileSystem}:/ /mnt/efs efs tls,_netdev" >> /etc/fstab
                     - mount -a -t efs defaults
 
                     --==MYBOUNDARY==--
                   - EFSFileSystem: 
                       Ref: FileSystemResource
-                    EFSDirectory: /mnt/efs
       FileSystemResource:
         Type: 'AWS::EFS::FileSystem'
         Properties:
@@ -483,7 +481,7 @@ resources:
           SubnetId: 
             Ref: Subnet
         DependsOn: Subnet
-      AccessPointResource:
+      IncomingEFSAccessPoint:
         Type: 'AWS::EFS::AccessPoint'
         Properties:
           FileSystemId: 
@@ -496,5 +494,5 @@ resources:
               OwnerGid: "1000"
               OwnerUid: "1000"
               Permissions: "0777"
-            Path: "/efs"
+            Path: "/incoming"
         DependsOn: MountTarget
