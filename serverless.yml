@@ -133,6 +133,7 @@ functions:
     environment:
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref JobDefinition
+      REWARDED_DECISIONS_S3_BUCKET: !Ref RecordsS3Bucket
 
   dispatchTrainingJobs:
     description: Dispatch Decision Model Training Jobs

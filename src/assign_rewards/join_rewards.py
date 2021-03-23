@@ -13,16 +13,21 @@ from datetime import datetime
 import logging
 import json
 import gzip
+import io
+import uuid
 import sys
 import shutil
 import signal
 import subprocess
+import concurrent.futures
+import boto3
+import botocore
+from itertools import groupby
 
 # Local imports
 from utils import load_records
 from utils import name_no_ext
 from utils import sort_records_by_timestamp
-from config import OUTPUT_FILENAME
 from config import DEFAULT_REWARD_KEY
 from config import DATETIME_FORMAT
 from config import DEFAULT_EVENTS_REWARD_VALUE
@@ -34,6 +39,7 @@ from config import LOGGING_FORMAT
 from config import REWARD_WINDOW
 from config import AWS_BATCH_JOB_ARRAY_INDEX
 from config import REWARD_ASSIGNMENT_WORKER_COUNT
+from config import REWARDED_DECISIONS_S3_BUCKET
 from exceptions import InvalidTypeError
 from exceptions import UpdateListenersError
 
@@ -44,6 +50,10 @@ logging.basicConfig(format=LOGGING_FORMAT, level=LOGGING_LEVEL)
 window = timedelta(seconds=REWARD_WINDOW)
 
 SIGTERM = False
+
+# boto3 client must be pre-initialized for multi-threaded (see: https://github.com/boto/botocore/issues/1246)
+worker_count = 50
+s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=worker_count))
 
 def worker():
     """
@@ -56,20 +66,44 @@ def worker():
     node_id       = AWS_BATCH_JOB_ARRAY_INDEX
     node_count    = REWARD_ASSIGNMENT_WORKER_COUNT
 
-    files_to_process = identify_files_to_process(INCOMING_PATH, node_id, node_count)
+    # identify the portion of incoming files to process in this node
+    files_to_process = identify_incoming_files_to_process(INCOMING_PATH, node_id, node_count)
+    
+    # group the files by the hashed history id
+    grouped_files = group_files_by_hashed_history_id(files_to_process)
 
-    print(
-        f"This instance (node {node_id}) will process the files: "
-        f"{', '.join([f.name for f in files_to_process])}")
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        executor.map(process_incoming_file_group, grouped_files)
 
-    # for f in files_to_process:
-    #     handle_signals()
+    print(f"AWS Batch Array node {node_id} finished.")
+
+def process_incoming_file_group(file_group):
+    handle_signals()
+
+    # get the hashed history id
+    hashed_history_id = hashed_history_id_from_file(file_group[0])
+    
+    # add any previously saved history files for this hashed history id
+    file_group.extend(history_files_for_hashed_history_id(hashed_history_id))
+    
+    # load and consolidate all records
+    records = load_history(hashed_history_id, file_group)
+
+    # write the consolidated records to a new file
+    save_history(hashed_history_id, records)
+    
+    rewarded_decisions_by_model = assign_rewards_to_decisions(decision_records, reward_records, event_records)
+    
+    for model, rewarded_decisions in rewarded_decisions_by_model.items():
+        upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions)
+    
+    delete_all(file_group)
+    
+    
+def load_history(hashed_history_id, file_group):
+    return
     #     decision_records, reward_records, event_records = load_records(str(f))
-    #     rewarded_records = assign_rewards_to_decisions(decision_records, reward_records, event_records)
-    #     gzip_records(f, rewarded_records)
-
-    print(f"AWS Batch Array (node {node_id}) finished.")
-
+    
 
 def update_listeners(listeners, record_timestamp, reward):
     """
@@ -168,45 +202,38 @@ def assign_rewards_to_decisions(decision_records, reward_records, event_records)
     
     return decision_records
 
+def save_history(hashed_history_id, history_records):
+    output_file = history_dir_for_hashed_history_id(hashed_history_id) / f'{hashed_history_id}-{uuid.uuid4()}.jsonl.gz'
 
-def gzip_records(input_file, rewarded_records):
-    """
-    Create a gzipped jsonlines file with the rewarded decision records.
-    Create a parent subdir if doesn't exist (e.g. dir "aa" in aa/file.jsonl.gz)
+    parent_dir = output_file.parent()
+    if not parent_dir.exists():
+        print(f'creating {str(parent_dir)}')
+        parent_dir.mkdir(parents=True, exist_ok=True)
     
-    Args:
-        input_file      : Path object towards the input jsonl file (only for 
-                          the purpose of extracting its name)
-        rewarded_records: A list of rewarded records
+    with gzip.open(output_file.absolute(), mode='w') as gzf:
+        for record in history_records:
+            gzf.write((json.dumps(record) + "\n"))
 
-    """
-
-    output_subdir =  PATH_OUTPUT_DIR / input_file.parents[0].name
-
-    if not output_subdir.exists():
-        print(f"Folder '{str(output_subdir)}' doesn't exist. Creating.")
-        output_subdir.mkdir(parents=True, exist_ok=True)
+def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):
+    # TODO double check model name and hashed_history_id to ensure valid characters
     
-    output_file = output_subdir / OUTPUT_FILENAME.format(input_file.name)
-
-    try:
-        if output_file.exists():
-            print(f"Overwriting output file '{output_file}'")
-        else:
-            print(f"Writing new output file '{output_file.absolute()}'")
-        
-        with gzip.open(output_file.absolute(), mode='wt') as gzf:
-            for record in rewarded_records:
-                gzf.write((json.dumps(record) + "\n"))
+    gzipped = io.BytesIO()
     
-    except Exception as e:
-        logging.error(
-            f'An error occurred while trying to write the gzipped file:'
-            f'{str(output_file)}'
-            f'{e}')
-        raise e
+    with gzip.open(gzipped, mode='w') as gzf:
+        for record in rewarded_decisions:
+            gzf.write((json.dumps(record) + "\n"))
+    
+    gzipped.seek(0)
+    
+    s3_key = rewarded_decisions_s3_key(model, hashed_history_id)
+    
+    s3client.put_object(Bucket=REWARDED_DECISIONS_S3_BUCKET, Body=gzipped, Key=s3_key)
 
-def identify_files_to_process(input_dir, node_id, node_count):
+def delete_all(paths):
+    for path in paths:
+        path.unlink(missing_ok=True)
+
+def identify_incoming_files_to_process(input_dir, node_id, node_count):
     """
     Return a list of Path objects representing files that need to be processed.
 
@@ -218,13 +245,7 @@ def identify_files_to_process(input_dir, node_id, node_count):
     Returns:
         List of Path objects representing files
     """
-    
-    print(subprocess.check_output(['df', '-h']))
-    print(subprocess.check_output(['ls', '-la', '/']))
-    print(subprocess.check_output(['ls', '-la', '/mnt']))
-    print(subprocess.check_output(['ls', '-la', '/mnt/efs']))
-    print(subprocess.check_output(['ls', '-la', '/mnt/efs/incoming']))
-    
+
     files_to_process = []
     file_count = 0
     for f in input_dir.glob('*.jsonl.gz'):
@@ -238,6 +259,23 @@ def identify_files_to_process(input_dir, node_id, node_count):
     print(f'selected {len(files_to_process)} of {file_count} .jsonl.gz files from {input_dir} to process')
     return files_to_process
 
+
+def rewarded_decisions_s3_key(model, hashed_history_id):
+    return f'rewarded_decisions/{model}/{hashed_history_id[0:2]}/{hashed_history_id[2:4]}/{hashed_history_id}.jsonl.gz'
+
+def hashed_history_id_from_file(file):
+    return file.name.split('-')[0]
+
+def history_dir_for_hashed_history_id(hashed_history_id):
+    # returns a path like /mnt/histories/1c/aa
+    return HISTORIES_PATH / hashed_history_id[0:2] / hashed_history_id[2:4]
+
+def history_files_for_hashed_history_id(hashed_history_id):
+    return history_dir_for_hashed_history_id(hashed_history_id).glob(f'{hashed_history_id}-*.jsonl.gz')
+        
+def group_files_by_hashed_history_id(files):
+    sorted_files = sorted(files, key=hashed_history_id_from_file)
+    return [list(it) for k, it in groupby(sorted_files, hashed_history_id_from_file)]    
 
 def handle_signals():
     if SIGTERM:

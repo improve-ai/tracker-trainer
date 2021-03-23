@@ -23,6 +23,8 @@ try:
 
     # The total number of jobs launched
     REWARD_ASSIGNMENT_WORKER_COUNT = int(os.environ['REWARD_ASSIGNMENT_WORKER_COUNT'])
+    
+    REWARDED_DECISIONS_S3_BUCKET = os.environ['REWARDED_DECISIONS_S3_BUCKET']
 
 except KeyError as e:
     raise EnvirontmentVariableError
@@ -34,12 +36,9 @@ LOGGING_LEVEL = logging.INFO
 # Logging format
 LOGGING_FORMAT = '%(levelname)-5s: @%(funcName)-25s | %(message)s'
 
-# Absolute path towards the input folder
 INCOMING_PATH = Path('/mnt/efs/incoming')
-HISTORIES_PATH = Path('/mnt/efs/histories')
 
-# Output filename template of the gzipped results 
-OUTPUT_FILENAME = '{}.gz'
+HISTORIES_PATH = Path('/mnt/efs/histories')
 
 DEFAULT_REWARD_KEY = 'default_reward'
 

@@ -17,9 +17,9 @@ def lambda_handler(event, context):
     """
     batch = boto3.client('batch')
 
-    job_queue = os.environ['JOB_QUEUE']
-    job_definition = os.environ['JOB_DEFINITION']
-    node_count = os.environ['REWARD_ASSIGNMENT_WORKER_COUNT']
+    jobQueue = os.environ['JOB_QUEUE']
+    jobDefinition = os.environ['JOB_DEFINITION']
+    nodeCount = os.environ['REWARD_ASSIGNMENT_WORKER_COUNT']
     service = os.environ['SERVICE']
     stage = os.environ['STAGE']
     
@@ -29,18 +29,19 @@ def lambda_handler(event, context):
     r = batch.submit_job(
         jobName=f'{service}-{stage}-assign-rewards', 
         # Name or ARN of AWS Batch JobQueue
-        jobQueue=job_queue, 
+        jobQueue=jobQueue, 
         # (name:revision) or ARN of the job definition to deregister
-        jobDefinition=job_definition,
+        jobDefinition=jobDefinition,
         # Set some environment variables in Docker
         containerOverrides={
             "environment":[
-                {"name": "REWARD_ASSIGNMENT_WORKER_COUNT", "value": node_count},
+                {"name": "REWARD_ASSIGNMENT_WORKER_COUNT", "value": nodeCount},
+                {"name": "REWARDED_DECISIONS_S3_BUCKET", "value": os.environ['REWARDED_DECISIONS_S3_BUCKET']}
             ],
         },
         # Size of the collection of jobs to send
         arrayProperties={
-            "size": int(node_count)
+            "size": int(nodeCount)
         }
     )
 
