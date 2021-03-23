@@ -36,7 +36,7 @@ def lambda_handler(event, context):
         containerOverrides={
             "environment":[
                 {"name": "REWARD_ASSIGNMENT_WORKER_COUNT", "value": nodeCount},
-                {"name": "REWARDED_DECISIONS_S3_BUCKET", "value": os.environ['REWARDED_DECISIONS_S3_BUCKET']}
+                {"name": "TRAIN_BUCKET", "value": os.environ['TRAIN_BUCKET']}
             ],
         },
         # Size of the collection of jobs to send

@@ -24,7 +24,7 @@ try:
     # The total number of jobs launched
     REWARD_ASSIGNMENT_WORKER_COUNT = int(os.environ['REWARD_ASSIGNMENT_WORKER_COUNT'])
     
-    REWARDED_DECISIONS_S3_BUCKET = os.environ['REWARDED_DECISIONS_S3_BUCKET']
+    TRAIN_BUCKET = os.environ['TRAIN_BUCKET']
 
 except KeyError as e:
     raise EnvirontmentVariableError

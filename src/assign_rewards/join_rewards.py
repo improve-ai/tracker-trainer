@@ -39,7 +39,7 @@ from config import LOGGING_FORMAT
 from config import REWARD_WINDOW
 from config import AWS_BATCH_JOB_ARRAY_INDEX
 from config import REWARD_ASSIGNMENT_WORKER_COUNT
-from config import REWARDED_DECISIONS_S3_BUCKET
+from config import TRAIN_BUCKET
 from exceptions import InvalidTypeError
 from exceptions import UpdateListenersError
 
@@ -227,7 +227,7 @@ def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):
     
     s3_key = rewarded_decisions_s3_key(model, hashed_history_id)
     
-    s3client.put_object(Bucket=REWARDED_DECISIONS_S3_BUCKET, Body=gzipped, Key=s3_key)
+    s3client.put_object(Bucket=TRAIN_BUCKET, Body=gzipped, Key=s3_key)
 
 def delete_all(paths):
     for path in paths:

@@ -21,7 +21,7 @@ provider:
     # 
     # End customization
     #
-    RECORDS_BUCKET: !Ref RecordsS3Bucket
+    TRAIN_BUCKET: !Ref TrainS3Bucket
     MODELS_BUCKET: !Ref ModelsS3Bucket
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
@@ -133,7 +133,6 @@ functions:
     environment:
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref JobDefinition
-      REWARDED_DECISIONS_S3_BUCKET: !Ref RecordsS3Bucket
 
   dispatchTrainingJobs:
     description: Dispatch Decision Model Training Jobs
@@ -147,7 +146,7 @@ functions:
     handler: src/train/unpack_models.unpack
     events:
       - s3:
-          bucket: !Ref RecordsS3Bucket
+          bucket: !Ref TrainS3Bucket
           existing: true # created in resources/serverless.yml
           event: s3:ObjectCreated:*
           rules:
@@ -245,11 +244,11 @@ resources:
               SizeInMBs: ${self:provider.environment.FIREHOSE_BUFFER_SIZE_IN_MB} 
             CompressionFormat: "GZIP"
             RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
-      RecordsS3Bucket:
+      TrainS3Bucket:
         Type: 'AWS::S3::Bucket'
         DeletionPolicy: Retain
         Properties:
-          BucketName: ${self:service}-${opt:stage, self:provider.stage}-records
+          BucketName: ${self:service}-${opt:stage, self:provider.stage}-train
       ModelsS3Bucket:
         Type: 'AWS::S3::Bucket'
         DeletionPolicy: Retain
