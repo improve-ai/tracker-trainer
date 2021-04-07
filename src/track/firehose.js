@@ -81,5 +81,6 @@ function writeRecords(buffersByHistoryId) {
 }
 
 function uniqueFileName(historyId) {
+  // TODO unit test
   return `${shajs('sha256').update(historyId).digest('hex')}-${uuidv4()}.jsonl.gz`
 }

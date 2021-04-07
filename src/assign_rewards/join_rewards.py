@@ -25,9 +25,10 @@ import botocore
 from itertools import groupby
 
 # Local imports
-from utils import load_records
+from utils import load_history
 from utils import name_no_ext
 from utils import sort_records_by_timestamp
+from utils import ensure_parent_dir
 from config import DEFAULT_REWARD_KEY
 from config import DATETIME_FORMAT
 from config import DEFAULT_EVENTS_REWARD_VALUE
@@ -51,31 +52,24 @@ window = timedelta(seconds=REWARD_WINDOW)
 
 SIGTERM = False
 
-# boto3 client must be pre-initialized for multi-threaded (see: https://github.com/boto/botocore/issues/1246)
+# boto3 client must be pre-initialized for multi-threaded (https://github.com/boto/botocore/issues/1246)
 worker_count = 50
 s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=worker_count))
 
 def worker():
-    """
-    Identify the relevant folders that this worker should process, identify 
-    the files that need to be processed and write the gzipped results.
-    """
-
     print(f"Starting AWS Batch Array job.")
 
-    node_id       = AWS_BATCH_JOB_ARRAY_INDEX
-    node_count    = REWARD_ASSIGNMENT_WORKER_COUNT
-
     # identify the portion of incoming files to process in this node
-    files_to_process = identify_incoming_files_to_process(INCOMING_PATH, node_id, node_count)
+    files_to_process = identify_incoming_files_to_process(INCOMING_PATH, AWS_BATCH_JOB_ARRAY_INDEX, REWARD_ASSIGNMENT_WORKER_COUNT)
     
-    # group the files by the hashed history id
+    # group the incoming files by their hashed history ids
     grouped_files = group_files_by_hashed_history_id(files_to_process)
 
+    # process each group
     with concurrent.futures.ThreadPoolExecutor() as executor:
         executor.map(process_incoming_file_group, grouped_files)
 
-    print(f"AWS Batch Array node {node_id} finished.")
+    print(f"batch array node {AWS_BATCH_JOB_ARRAY_INDEX} finished.")
 
 def process_incoming_file_group(file_group):
     handle_signals()
@@ -86,23 +80,24 @@ def process_incoming_file_group(file_group):
     # add any previously saved history files for this hashed history id
     file_group.extend(history_files_for_hashed_history_id(hashed_history_id))
     
-    # load and consolidate all records
+    # load all records
     records = load_history(hashed_history_id, file_group)
 
-    # write the consolidated records to a new file
+    # write the consolidated records to a new history file
     save_history(hashed_history_id, records)
     
-    rewarded_decisions_by_model = assign_rewards_to_decisions(decision_records, reward_records, event_records)
+    # TODO, should probably perform a seperate validation phase after load/conslidate to avoid deleting records that don't pass validation
     
+    # assign rewards to decision records.
+    rewarded_decisions_by_model = assign_rewards_to_decisions(records)
+    
+    # upload the updated rewarded decision records to S3
     for model, rewarded_decisions in rewarded_decisions_by_model.items():
         upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions)
     
+    # delete the incoming and history files that were processed
     delete_all(file_group)
     
-    
-def load_history(hashed_history_id, file_group):
-    return
-    #     decision_records, reward_records, event_records = load_records(str(f))
     
 
 def update_listeners(listeners, record_timestamp, reward):
@@ -138,17 +133,15 @@ def update_listeners(listeners, record_timestamp, reward):
             listener = listeners[i]
             listener_timestamp = datetime.strptime(listener['timestamp'], DATETIME_FORMAT)
             if listener_timestamp + window < record_timestamp:
-                print(f'Deleting listener: {listener_timestamp}, Reward/event: {record_timestamp}')
                 del listeners[i]
             else:
-                print(f'Adding reward of {float(reward)} to decision.')
                 listener['reward'] = listener.get('reward', DEFAULT_REWARD_VALUE) + float(reward)
 
     except Exception as e:
         raise UpdateListenersError
 
 
-def assign_rewards_to_decisions(decision_records, reward_records, event_records):
+def assign_rewards_to_decisions(records):
     """
     1) Collect all records of type "decision" in a dictionary.
     2) Assign the rewards of records of type "rewards" to all the "decision" 
@@ -159,29 +152,35 @@ def assign_rewards_to_decisions(decision_records, reward_records, event_records)
     within a time window.
 
     Args:
-        records: a list of records (dicts) sorted by their "timestamp" property.
+        records: a list of records (dicts)
 
-    Returns:
-        dict whose keys are 'reward_key's and its values are lists of records.
-    
-    Raises:
-        InvalidTypeError: If a record has an invalid type attribute.
     """
-
-    records = []
-    records.extend(decision_records)
-    records.extend(reward_records)
-    records.extend(event_records)
+    rewarded_decisions_by_model = {}
     
-    sort_records_by_timestamp(records)
+    # In the event of a timestamp tie between a decision record and another record, the decision record will be sorted earlier
+    # It is possible that a record 1 microsecond prior to a decision could be sorted after, so double check timestamp ranges for reward assignment
+    def sort_key(x):
+        timestamp = x['timestamp']     
+        if x['type'] == 'decision':
+            timestamp -= timedelta(microseconds=1)
+        return timestamp
+
+    records.sort(key=sort_key)
 
     decision_records_by_reward_key = {}
     for record in records:
         if record.get('type') == 'decision':
+            rewarded_decision = record.copy()
+            
+            model = record['model']
+            if not model in decision_records_by_reward_key:
+                decision_records_by_reward_key[model] = []
+            decision_records_by_reward_key[model].append(rewarded_decision)
+
             reward_key = record.get('reward_key', DEFAULT_REWARD_KEY)
             listeners = decision_records_by_reward_key.get(reward_key, [])
             decision_records_by_reward_key[reward_key] = listeners
-            listeners.append(record)
+            listeners.append(rewarded_decision)
         
         elif record.get('type') == 'rewards':
             record_timestamp = datetime.strptime(record['timestamp'], DATETIME_FORMAT)
@@ -191,28 +190,24 @@ def assign_rewards_to_decisions(decision_records, reward_records, event_records)
         
         # Event type records get summed to all decisions within the time window regardless of reward_key
         elif record.get('type') == 'event':
-            reward = record.get('properties', { 'properties': {} }) \
+            reward = record.get('properties', {}) \
                            .get('value', DEFAULT_EVENTS_REWARD_VALUE)
             record_timestamp = datetime.strptime(record['timestamp'], DATETIME_FORMAT)
             for reward_key, listeners in decision_records_by_reward_key.items():
                 update_listeners(listeners, record_timestamp, reward)
             
-        else:
-            raise InvalidTypeError
-    
-    return decision_records
+
+    return rewarded_decisions_by_model
 
 def save_history(hashed_history_id, history_records):
+    
     output_file = history_dir_for_hashed_history_id(hashed_history_id) / f'{hashed_history_id}-{uuid.uuid4()}.jsonl.gz'
 
-    parent_dir = output_file.parent()
-    if not parent_dir.exists():
-        print(f'creating {str(parent_dir)}')
-        parent_dir.mkdir(parents=True, exist_ok=True)
-    
+    ensure_parent_dir(output_file)
+
     with gzip.open(output_file.absolute(), mode='w') as gzf:
         for record in history_records:
-            gzf.write((json.dumps(record) + "\n"))
+            gzf.write((json.dumps(record, default=serialize_datetime) + "\n"))
 
 def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):
     # TODO double check model name and hashed_history_id to ensure valid characters
@@ -221,7 +216,7 @@ def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):
     
     with gzip.open(gzipped, mode='w') as gzf:
         for record in rewarded_decisions:
-            gzf.write((json.dumps(record) + "\n"))
+            gzf.write((json.dumps(record, default=serialize_datetime) + "\n"))
     
     gzipped.seek(0)
     
@@ -249,6 +244,8 @@ def identify_incoming_files_to_process(input_dir, node_id, node_count):
     files_to_process = []
     file_count = 0
     for f in input_dir.glob('*.jsonl.gz'):
+        # TODO check valid file name & hashed history id chars
+        
         file_count += 1
         # convert first 16 hex chars (64 bit) to an int
         # the file name starts with a sha-256 hash so the bits will be random
@@ -277,8 +274,14 @@ def group_files_by_hashed_history_id(files):
     sorted_files = sorted(files, key=hashed_history_id_from_file)
     return [list(it) for k, it in groupby(sorted_files, hashed_history_id_from_file)]    
 
+def serialize_datetime(obj):
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError (f'{type(obj)} not serializable')
+
 def handle_signals():
     if SIGTERM:
+        # TODO throw exception instead of sys.exit() so that already active workers can finish
         print(f'Quitting due to SIGTERM signal (node {AWS_BATCH_JOB_ARRAY_INDEX}).')
         sys.exit()
 

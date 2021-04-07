@@ -40,13 +40,12 @@ INCOMING_PATH = Path('/mnt/efs/incoming')
 
 HISTORIES_PATH = Path('/mnt/efs/histories')
 
+UNRECOVERABLE_PATH = Path('/mnt/efs/unrecoverable')
+
 DEFAULT_REWARD_KEY = 'default_reward'
 
 # Starting reward value for a decision record if it doesn't have one
 DEFAULT_REWARD_VALUE = 0
-
-# The timestamp format of the records
-DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 
 # The default reward value of a record of type 'event'
 DEFAULT_EVENTS_REWARD_VALUE = 0.001
