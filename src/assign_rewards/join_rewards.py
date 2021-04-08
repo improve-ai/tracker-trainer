@@ -27,10 +27,9 @@ from itertools import groupby
 # Local imports
 from utils import load_history
 from utils import name_no_ext
-from utils import sort_records_by_timestamp
+from utils import filter_valid_records
 from utils import ensure_parent_dir
 from config import DEFAULT_REWARD_KEY
-from config import DATETIME_FORMAT
 from config import DEFAULT_EVENTS_REWARD_VALUE
 from config import DEFAULT_REWARD_VALUE
 from config import INCOMING_PATH
@@ -57,7 +56,7 @@ worker_count = 50
 s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=worker_count))
 
 def worker():
-    print(f"Starting AWS Batch Array job.")
+    print(f"starting AWS Batch array job on node {AWS_BATCH_JOB_ARRAY_INDEX}")
 
     # identify the portion of incoming files to process in this node
     files_to_process = identify_incoming_files_to_process(INCOMING_PATH, AWS_BATCH_JOB_ARRAY_INDEX, REWARD_ASSIGNMENT_WORKER_COUNT)
@@ -86,8 +85,10 @@ def process_incoming_file_group(file_group):
     # write the consolidated records to a new history file
     save_history(hashed_history_id, records)
     
-    # TODO, should probably perform a seperate validation phase after load/conslidate to avoid deleting records that don't pass validation
-    
+    # perform validation after consolidation so that invalid records are retained
+    # this ensures that any bugs in user-supplied validation code doesn't cause records to be lost
+    records = filter_valid_records(hashed_history_id, records)
+
     # assign rewards to decision records.
     rewarded_decisions_by_model = assign_rewards_to_decisions(records)
     
@@ -131,7 +132,7 @@ def update_listeners(listeners, record_timestamp, reward):
         # Loop backwards to be able to remove an item in place
         for i in range(len(listeners)-1, -1, -1):
             listener = listeners[i]
-            listener_timestamp = datetime.strptime(listener['timestamp'], DATETIME_FORMAT)
+            listener_timestamp = listener['timestamp']
             if listener_timestamp + window < record_timestamp:
                 del listeners[i]
             else:
@@ -157,8 +158,9 @@ def assign_rewards_to_decisions(records):
     """
     rewarded_decisions_by_model = {}
     
-    # In the event of a timestamp tie between a decision record and another record, the decision record will be sorted earlier
-    # It is possible that a record 1 microsecond prior to a decision could be sorted after, so double check timestamp ranges for reward assignment
+    # In the event of a timestamp tie between a decision record and another record, ensure the decision record will be sorted earlier
+    # sorting it as if it were 1 microsecond earlier. It is possible that a record 1 microsecond prior to a decision could be sorted after, 
+    # so double check timestamp ranges for reward assignment
     def sort_key(x):
         timestamp = x['timestamp']     
         if x['type'] == 'decision':
@@ -173,9 +175,9 @@ def assign_rewards_to_decisions(records):
             rewarded_decision = record.copy()
             
             model = record['model']
-            if not model in decision_records_by_reward_key:
-                decision_records_by_reward_key[model] = []
-            decision_records_by_reward_key[model].append(rewarded_decision)
+            if not model in rewarded_decisions_by_model:
+                rewarded_decisions_by_model[model] = []
+            rewarded_decisions_by_model[model].append(rewarded_decision)
 
             reward_key = record.get('reward_key', DEFAULT_REWARD_KEY)
             listeners = decision_records_by_reward_key.get(reward_key, [])
@@ -183,18 +185,16 @@ def assign_rewards_to_decisions(records):
             listeners.append(rewarded_decision)
         
         elif record.get('type') == 'rewards':
-            record_timestamp = datetime.strptime(record['timestamp'], DATETIME_FORMAT)
             for reward_key, reward in record['rewards'].items():
                 listeners = decision_records_by_reward_key.get(reward_key, [])
-                update_listeners(listeners, record_timestamp, reward)
+                update_listeners(listeners, record['timestamp'], reward)
         
         # Event type records get summed to all decisions within the time window regardless of reward_key
         elif record.get('type') == 'event':
             reward = record.get('properties', {}) \
                            .get('value', DEFAULT_EVENTS_REWARD_VALUE)
-            record_timestamp = datetime.strptime(record['timestamp'], DATETIME_FORMAT)
             for reward_key, listeners in decision_records_by_reward_key.items():
-                update_listeners(listeners, record_timestamp, reward)
+                update_listeners(listeners, record['timestamp'], reward)
             
 
     return rewarded_decisions_by_model
