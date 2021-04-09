@@ -65,7 +65,7 @@ def worker():
     grouped_files = group_files_by_hashed_history_id(files_to_process)
 
     # process each group
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
         executor.map(process_incoming_file_group, grouped_files)
 
     print(f"batch array node {AWS_BATCH_JOB_ARRAY_INDEX} finished.")
