@@ -3,43 +3,38 @@
 const AWS = require('aws-sdk');
 const firehose = new AWS.Firehose();
 
-const LOG_PROBABILITY = .1;
+const LOG_PROBABILITY = .01;
 
 module.exports.track = async function(event, context) {
-  let receivedAt = new Date()
+  const receivedAt = new Date()
   
   if (checkShouldLog()) {
     console.log(JSON.stringify(event))
   }
 
-  let record = JSON.parse(event.body)
+  const record = JSON.parse(event.body)
 
-  if (!record || !record.history_id || !record.message_id) {
-    return errorResponse("history_id and message_id fields are required")
+  const historyId = record.history_id
+  
+  if (!historyId || typeof historyId !== "string") {
+    return errorResponse("history_id field is required")
+  }
+  
+  const messageId = record.message_id
+  
+  if (!messageId || typeof messageId !== "string") {
+    return errorResponse("message_id field is required")
+  }
+  
+  const timestamp = record.timestamp
+  
+  if (!timestamp || typeof timestamp !== "string" || !isValidDate(timestamp)) {
+    return errorResponse("timestamp field is required")
   }
   
   record["received_at"] = receivedAt.toISOString()
-  // FIX timestamp must never be in the future
-  if (!record.timestamp) {
-    record["timestamp"] = record["received_at"]
-  }
   
-/*      if (!record.timestamp || !isValidDate(record.timestamp)) {
-      console.log(`WARN: skipping record - invalid timestamp in ${JSON.stringify(record)}`)
-      return;
-    }
-
-    const timestamp = new Date(record.timestamp)
-    // client reporting of timestamps in the future are handled in sendToFireHose. This should only happen with some clock skew.
-    if (timestamp > Date.now()) {
-      console.log(`WARN: timestamp in the future ${JSON.stringify(record)}`)
-    }
-    
-    // ensure everything in history is UTC
-    record.timestamp = timestamp.toISOString()*/
-
-  
-  let firehoseRecord = {
+  const firehoseRecord = {
     DeliveryStreamName: process.env.FIREHOSE_DELIVERY_STREAM_NAME,
     Record: { 
         Data: Buffer.from(JSON.stringify(record)+'\n')
