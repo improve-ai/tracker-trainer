@@ -324,16 +324,16 @@ resources:
             Ref: VPC
           RouteTableIds:
             - Ref: RouteTable
-      IamInstanceProfile:
+      BatchInstanceProfile:
         Type: AWS::IAM::InstanceProfile
         Properties:
           Roles:
-          - Ref: EcsInstanceRole
-      EcsInstanceRole:
+          - Ref: BatchInstanceRole
+      BatchInstanceRole:
         Type: AWS::IAM::Role
         Properties:
           AssumeRolePolicyDocument:
-            Version: '2008-10-17'
+            Version: '2012-10-17'
             Statement:
                 Effect: Allow
                 Principal:
@@ -342,6 +342,14 @@ resources:
                 Action: sts:AssumeRole
           ManagedPolicyArns:
             - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+          Policies:
+          - PolicyName: BatchInstancePolicy
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Action:
+                  - s3:PutObject
+                  Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
       BatchServiceRole:
         Type: AWS::IAM::Role
         Properties:
@@ -389,7 +397,7 @@ resources:
               - Ref: Subnet
             MinvCpus: 0
             InstanceRole:  
-              Ref: IamInstanceProfile
+              Ref: BatchInstanceProfile
             InstanceTypes:
               - optimal
 #            DesiredvCpus: 0
