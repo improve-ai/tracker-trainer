@@ -40,8 +40,6 @@ from config import REWARD_WINDOW
 from config import AWS_BATCH_JOB_ARRAY_INDEX
 from config import REWARD_ASSIGNMENT_WORKER_COUNT
 from config import TRAIN_BUCKET
-from exceptions import InvalidTypeError
-from exceptions import UpdateListenersError
 
 # Setup logging
 logging.basicConfig(format=LOGGING_FORMAT, level=LOGGING_LEVEL)
@@ -52,8 +50,8 @@ window = timedelta(seconds=REWARD_WINDOW)
 SIGTERM = False
 
 # boto3 client must be pre-initialized for multi-threaded (https://github.com/boto/botocore/issues/1246)
-worker_count = 50
-s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=worker_count))
+THREAD_WORKER_COUNT = 50
+s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=THREAD_WORKER_COUNT))
 
 def worker():
     print(f"starting AWS Batch array job on node {AWS_BATCH_JOB_ARRAY_INDEX}")
@@ -65,8 +63,9 @@ def worker():
     grouped_files = group_files_by_hashed_history_id(files_to_process)
 
     # process each group
-    with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
-        executor.map(process_incoming_file_group, grouped_files)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=THREAD_WORKER_COUNT) as executor:
+        for result in executor.map(process_incoming_file_group, grouped_files):
+            pass
 
     print(f"batch array node {AWS_BATCH_JOB_ARRAY_INDEX} finished.")
 
@@ -127,19 +126,15 @@ def update_listeners(listeners, record_timestamp, reward):
     if not (isinstance(reward, int) or isinstance(reward, float)):
         raise TypeError("Expecting int, float or bool.")
 
-    try:
 
-        # Loop backwards to be able to remove an item in place
-        for i in range(len(listeners)-1, -1, -1):
-            listener = listeners[i]
-            listener_timestamp = listener['timestamp']
-            if listener_timestamp + window < record_timestamp:
-                del listeners[i]
-            else:
-                listener['reward'] = listener.get('reward', DEFAULT_REWARD_VALUE) + float(reward)
-
-    except Exception as e:
-        raise UpdateListenersError
+    # Loop backwards to be able to remove an item in place
+    for i in range(len(listeners)-1, -1, -1):
+        listener = listeners[i]
+        listener_timestamp = listener['timestamp']
+        if listener_timestamp + window < record_timestamp:
+            del listeners[i]
+        else:
+            listener['reward'] = listener.get('reward', DEFAULT_REWARD_VALUE) + float(reward)
 
 
 def assign_rewards_to_decisions(records):
@@ -207,7 +202,7 @@ def save_history(hashed_history_id, history_records):
 
     with gzip.open(output_file.absolute(), mode='w') as gzf:
         for record in history_records:
-            gzf.write((json.dumps(record, default=serialize_datetime) + "\n"))
+            gzf.write((json.dumps(record, default=serialize_datetime) + "\n").encode())
 
 def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):
     # TODO double check model name and hashed_history_id to ensure valid characters
@@ -216,7 +211,7 @@ def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):
     
     with gzip.open(gzipped, mode='w') as gzf:
         for record in rewarded_decisions:
-            gzf.write((json.dumps(record, default=serialize_datetime) + "\n"))
+            gzf.write((json.dumps(record, default=serialize_datetime) + "\n").encode())
     
     gzipped.seek(0)
     

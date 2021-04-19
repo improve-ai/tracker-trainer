@@ -33,7 +33,7 @@ def copy_to_unrecoverable(file):
     shutil.copy(file.absolute(), dest.absolute())
     
 def ensure_parent_dir(file):
-    parent_dir = file.parent()
+    parent_dir = file.parent
     if not parent_dir.exists():
         print(f'creating {str(parent_dir)}')
         parent_dir.mkdir(parents=True, exist_ok=True)
@@ -53,7 +53,7 @@ def load_records(hashed_history_id, file):
     error = None
 
     try:
-        with gzip.open(file.absolute(), encoding="utf8") as gzf:
+        with gzip.open(file.absolute(), mode="rt", encoding="utf8") as gzf:
             for line in gzf.readlines():
                 # Do a inner try/except to try to recover as many records as possible
                 try: 

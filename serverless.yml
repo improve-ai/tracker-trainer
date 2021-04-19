@@ -8,6 +8,7 @@ provider:
     #
     # Customize your deployment here:
     #
+    BATCH_SPOT_BID_PERCENTAGE: 100
     TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
     TRAINING_INSTANCE_TYPE: ml.m5.large
     TRAINING_INSTANCE_COUNT: 3
@@ -373,14 +374,14 @@ resources:
           Type: MANAGED
           ServiceRole: 
             Ref: BatchServiceRole
-          ComputeEnvironmentName: '${self:service}-assign-rewards-compute-${opt:stage, self:provider.stage}'
+          ComputeEnvironmentName: '${self:service}-assign-rewards-compute-bid${self:provider.environment.BATCH_SPOT_BID_PERCENTAGE}-${opt:stage, self:provider.stage}' # include bid percentage since a name change is required on update
           ComputeResources:
             MaxvCpus: 128
             SecurityGroupIds:
               - Ref: SecurityGroup
             Type: SPOT
             AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
-            BidPercentage: 50
+            BidPercentage: ${self:provider.environment.BATCH_SPOT_BID_PERCENTAGE} 
             SpotIamFleetRole: 
               Ref: AmazonEC2SpotFleetRole
             # aws-ec2-spot-fleet-tagging-role
@@ -391,7 +392,7 @@ resources:
               Ref: IamInstanceProfile
             InstanceTypes:
               - optimal
-            DesiredvCpus: 0
+#            DesiredvCpus: 0
             LaunchTemplate:
               LaunchTemplateId:
                 Ref: LaunchTemplateResourceForBatch
