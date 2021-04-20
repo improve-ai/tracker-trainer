@@ -50,7 +50,7 @@ window = timedelta(seconds=REWARD_WINDOW)
 SIGTERM = False
 
 # boto3 client must be pre-initialized for multi-threaded (https://github.com/boto/botocore/issues/1246)
-THREAD_WORKER_COUNT = 50
+THREAD_WORKER_COUNT = 1
 s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=THREAD_WORKER_COUNT))
 
 def worker():
@@ -79,7 +79,7 @@ def process_incoming_file_group(file_group):
     file_group.extend(history_files_for_hashed_history_id(hashed_history_id))
     
     # load all records
-    records = load_history(hashed_history_id, file_group)
+    records = load_history(file_group)
 
     # write the consolidated records to a new history file
     save_history(hashed_history_id, records)

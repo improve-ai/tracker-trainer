@@ -19,11 +19,11 @@ DECISION_KEY = 'decision'
 MODEL_KEY = 'model'
 TIMESTAMP_KEY = 'timestamp'
 
-def load_history(hashed_history_id, file_group):
+def load_history(file_group):
     records = []
 
     for file in file_group:
-        records.extend(load_records(hashed_history_id, file))
+        records.extend(load_records(file))
             
     return records
 
@@ -38,7 +38,7 @@ def ensure_parent_dir(file):
         print(f'creating {str(parent_dir)}')
         parent_dir.mkdir(parents=True, exist_ok=True)
 
-def load_records(hashed_history_id, file):
+def load_records(file):
     """
     Load a gzipped jsonlines file
     

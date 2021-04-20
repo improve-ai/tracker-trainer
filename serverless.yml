@@ -391,7 +391,6 @@ resources:
           Type: MANAGED
           ServiceRole: 
             Ref: BatchServiceRole
-          ComputeEnvironmentName: '${self:service}-assign-rewards-compute-bid${self:provider.environment.BATCH_SPOT_BID_PERCENTAGE}-${opt:stage, self:provider.stage}' # include bid percentage since a name change is required on update
           ComputeResources:
             MaxvCpus: 128
             SecurityGroupIds:
