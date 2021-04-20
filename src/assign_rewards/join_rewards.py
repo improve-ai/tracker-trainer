@@ -216,7 +216,7 @@ def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):
     gzipped.seek(0)
     
     s3_key = rewarded_decisions_s3_key(model, hashed_history_id)
-    
+    print(f'writing to {TRAIN_BUCKET} {s3_key}')
     s3client.put_object(Bucket=TRAIN_BUCKET, Body=gzipped, Key=s3_key)
 
 def delete_all(paths):
@@ -248,7 +248,7 @@ def identify_incoming_files_to_process(input_dir, node_id, node_count):
         if (int(f.name[:16], 16) % node_count) == node_id:
             files_to_process.append(f)
 
-    print(f'selected {len(files_to_process)} of {file_count} .jsonl.gz files from {input_dir} to process')
+    print(f'selected {len(files_to_process)} of {file_count} files from {input_dir}/*.jsonl.gz  to process')
     return files_to_process
 
 
