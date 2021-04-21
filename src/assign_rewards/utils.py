@@ -14,6 +14,7 @@ import shutil
 # stats keys
 DUPLICATE_MESSAGE_ID_COUNT = "Duplicate Records"
 RECORD_COUNT = "Unique Records"
+UNRECOVERABLE_PARSE_ERROR_COUNT = "Unrecoverable Record Parse Errors"
 
 HISTORY_ID_KEY = 'history_id'
 TYPE_KEY = 'type'

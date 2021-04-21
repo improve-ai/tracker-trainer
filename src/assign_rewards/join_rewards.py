@@ -56,7 +56,7 @@ THREAD_WORKER_COUNT = 20
 s3client = boto3.client("s3") #, config=botocore.config.Config(max_pool_connections=THREAD_WORKER_COUNT))
 
 def worker():
-    print(f"starting AWS Batch array job on node {AWS_BATCH_JOB_ARRAY_INDEX}", flush=True)
+    print(f"starting AWS Batch array job on node {AWS_BATCH_JOB_ARRAY_INDEX}")
 
     job_stats = defaultdict(int) # calls int() to set the default value of 0 on missing key
 
@@ -256,7 +256,7 @@ def identify_incoming_files_to_process(input_dir, node_id, node_count, stats):
         if (int(f.name[:16], 16) % node_count) == node_id:
             files_to_process.append(f)
 
-    print(f'selected {len(files_to_process)} of {file_count} files from {input_dir}/*.jsonl.gz to process', flush=True)
+    print(f'selected {len(files_to_process)} of {file_count} files from {input_dir}/*.jsonl.gz to process')
     
     stats[TOTAL_INCOMING_FILE_COUNT] += file_count
     stats[PROCESSED_INCOMING_FILE_COUNT] += len(files_to_process)

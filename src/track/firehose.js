@@ -9,6 +9,8 @@ const pLimit = require('p-limit')
 const uuidv4 = require('uuid/v4')
 const zlib = require('zlib')
 
+process.env.UV_THREADPOOL_SIZE = 128; // parallel gzip and writeFile
+
 /*
 When a new file is written to the Firehose S3 bucket, unpack the file and write out seperate files for each history_id to the EFS 'incoming' directory.
 */
@@ -70,12 +72,10 @@ function writeRecords(buffersByHistoryId) {
 
     const fullPath = `${process.env.INCOMING_FILE_PATH}/${fileName}`
 
-    const compressedData = zlib.gzipSync(Buffer.concat(buffers))
-
-    promises.push(limit(() => fs.writeFile(fullPath, compressedData)));
+    promises.push(limit(() => fs.writeFile(fullPath, zlib.gzipSync(Buffer.concat(buffers)))));
   }
   
-  console.log(`writing ${bufferCount} records for ${Object.keys(buffersByHistoryId).length} history ids`)
+  console.log(`writing ${bufferCount} records to ${Object.keys(buffersByHistoryId).length} incoming history files`)
 
   return Promise.all(promises)
 }

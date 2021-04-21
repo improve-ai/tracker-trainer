@@ -30,7 +30,7 @@ provider:
   lambdaHashingVersion: 20201221 # can be removed in serverless v3
   name: aws
   region: us-east-1
-  runtime: nodejs12.x
+  runtime: nodejs14.x
   timeout: 900
   memorySize: 192
   ecr:
@@ -124,7 +124,7 @@ functions:
         - !Ref Subnet
     environment:
       INCOMING_FILE_PATH: /mnt/incoming
-        
+
   dispatchRewardAssignmentJobs:
     description: Dispatch Reward Assignment Batch Jobs
     runtime: python3.8
