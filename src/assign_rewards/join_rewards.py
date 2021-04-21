@@ -23,10 +23,10 @@ import concurrent.futures
 import boto3
 import botocore
 from itertools import groupby
+from collections import defaultdict
 
 # Local imports
 from utils import load_history
-from utils import name_no_ext
 from utils import filter_valid_records
 from utils import ensure_parent_dir
 from config import DEFAULT_REWARD_KEY
@@ -41,8 +41,10 @@ from config import AWS_BATCH_JOB_ARRAY_INDEX
 from config import REWARD_ASSIGNMENT_WORKER_COUNT
 from config import TRAIN_BUCKET
 
-# Setup logging
-logging.basicConfig(format=LOGGING_FORMAT, level=LOGGING_LEVEL)
+# stats constants
+TOTAL_INCOMING_FILE_COUNT = "Incoming Files (Total)"
+PROCESSED_INCOMING_FILE_COUNT = "Incoming Files Processed"
+PROCESSED_HISTORY_FILE_COUNT = "History Files Processed"
 
 # Time window to add to a timestamp
 window = timedelta(seconds=REWARD_WINDOW)
@@ -56,30 +58,37 @@ s3client = boto3.client("s3") #, config=botocore.config.Config(max_pool_connecti
 def worker():
     print(f"starting AWS Batch array job on node {AWS_BATCH_JOB_ARRAY_INDEX}", flush=True)
 
+    job_stats = defaultdict(int) # calls int() to set the default value of 0 on missing key
+
     # identify the portion of incoming files to process in this node
-    files_to_process = identify_incoming_files_to_process(INCOMING_PATH, AWS_BATCH_JOB_ARRAY_INDEX, REWARD_ASSIGNMENT_WORKER_COUNT)
+    files_to_process = identify_incoming_files_to_process(INCOMING_PATH, AWS_BATCH_JOB_ARRAY_INDEX, REWARD_ASSIGNMENT_WORKER_COUNT, job_stats)
     
     # group the incoming files by their hashed history ids
     grouped_files = group_files_by_hashed_history_id(files_to_process)
 
     # process each group
     with concurrent.futures.ThreadPoolExecutor(max_workers=THREAD_WORKER_COUNT) as executor:
-        for result in executor.map(process_incoming_file_group, grouped_files):
-            pass
+        for group_stats in executor.map(process_incoming_file_group, grouped_files):
+            # accumulate the stats
+            for key, value in group_stats.items():
+                job_stats[key] += value
 
+    print(job_stats)
     print(f"batch array node {AWS_BATCH_JOB_ARRAY_INDEX} finished.")
 
 def process_incoming_file_group(file_group):
     handle_signals()
 
+    stats = defaultdict(int) # calls int() to set the default value of 0 on missing key
+
     # get the hashed history id
     hashed_history_id = hashed_history_id_from_file(file_group[0])
     
     # add any previously saved history files for this hashed history id
-    file_group.extend(history_files_for_hashed_history_id(hashed_history_id))
-    
+    file_group.extend(history_files_for_hashed_history_id(hashed_history_id, stats))
+
     # load all records
-    records = load_history(file_group)
+    records = load_history(file_group, stats)
 
     # write the consolidated records to a new history file
     save_history(hashed_history_id, records)
@@ -98,7 +107,7 @@ def process_incoming_file_group(file_group):
     # delete the incoming and history files that were processed
     delete_all(file_group)
     
-    
+    return stats
 
 def update_listeners(listeners, record_timestamp, reward):
     """
@@ -216,14 +225,13 @@ def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):
     gzipped.seek(0)
     
     s3_key = rewarded_decisions_s3_key(model, hashed_history_id)
-    print(f'writing to {TRAIN_BUCKET} {s3_key}')
     s3client.put_object(Bucket=TRAIN_BUCKET, Body=gzipped, Key=s3_key)
 
 def delete_all(paths):
     for path in paths:
         path.unlink(missing_ok=True)
 
-def identify_incoming_files_to_process(input_dir, node_id, node_count):
+def identify_incoming_files_to_process(input_dir, node_id, node_count, stats):
     """
     Return a list of Path objects representing files that need to be processed.
 
@@ -249,6 +257,10 @@ def identify_incoming_files_to_process(input_dir, node_id, node_count):
             files_to_process.append(f)
 
     print(f'selected {len(files_to_process)} of {file_count} files from {input_dir}/*.jsonl.gz to process', flush=True)
+    
+    stats[TOTAL_INCOMING_FILE_COUNT] += file_count
+    stats[PROCESSED_INCOMING_FILE_COUNT] += len(files_to_process)
+    
     return files_to_process
 
 
@@ -262,9 +274,11 @@ def history_dir_for_hashed_history_id(hashed_history_id):
     # returns a path like /mnt/histories/1c/aa
     return HISTORIES_PATH / hashed_history_id[0:2] / hashed_history_id[2:4]
 
-def history_files_for_hashed_history_id(hashed_history_id):
-    return history_dir_for_hashed_history_id(hashed_history_id).glob(f'{hashed_history_id}-*.jsonl.gz')
-        
+def history_files_for_hashed_history_id(hashed_history_id, stats):
+    results = history_dir_for_hashed_history_id(hashed_history_id).glob(f'{hashed_history_id}-*.jsonl.gz')
+    stats[PROCESSED_HISTORY_FILE_COUNT] += len(results)
+    return results
+
 def group_files_by_hashed_history_id(files):
     sorted_files = sorted(files, key=hashed_history_id_from_file)
     return [list(it) for k, it in groupby(sorted_files, hashed_history_id_from_file)]    

@@ -11,6 +11,10 @@ import zlib
 from config import UNRECOVERABLE_PATH
 import shutil
 
+# stats keys
+DUPLICATE_MESSAGE_ID_COUNT = "Duplicate Records"
+RECORD_COUNT = "Unique Records"
+
 HISTORY_ID_KEY = 'history_id'
 TYPE_KEY = 'type'
 DECISION_KEY = 'decision'
@@ -18,12 +22,12 @@ MODEL_KEY = 'model'
 TIMESTAMP_KEY = 'timestamp'
 MESSAGE_ID_KEY = 'message_id'
 
-def load_history(file_group):
+def load_history(file_group, stats):
     records = []
     message_ids = set()
     
     for file in file_group:
-        records.extend(load_records(file, message_ids))
+        records.extend(load_records(file, message_ids, stats))
             
     return records
 
@@ -38,7 +42,7 @@ def ensure_parent_dir(file):
         print(f'creating {str(parent_dir)}')
         parent_dir.mkdir(parents=True, exist_ok=True)
 
-def load_records(file, message_ids):
+def load_records(file, message_ids, stats):
     """
     Load a gzipped jsonlines file
     
@@ -65,7 +69,8 @@ def load_records(file, message_ids):
                     if not message_id in message_ids:
                         message_ids.add(message_id)
                         records.append(record)
-                        
+                    else:
+                        stats[DUPLICATE_MESSAGE_ID_COUNT] += 1
                 except (json.decoder.JSONDecodeError, ValueError) as e:
                     error = e
     except (zlib.error, EOFError, gzip.BadGzipFile) as e:
@@ -75,7 +80,11 @@ def load_records(file, message_ids):
     if error:
         # Unrecoverable parse error, copy file to /unrecoverable
         print(f'unrecoverable parse error {error}, copying {file.absolute()} to {UNRECOVERABLE_PATH.absolute()}')
+        stats[UNRECOVERABLE_PARSE_ERROR_COUNT] += 1
         copy_to_unrecoverable(file)
+    
+    
+    stats[RECORD_COUNT] += len(records)
 
     return records
 
@@ -121,14 +130,3 @@ def validate_record(record, history_id, hashed_history_id):
     elif not hashlib.sha256(record[HISTORY_ID_KEY].encode()).hexdigest() == hashed_history_id:
         raise ValueError('history_id hash mismatch')
 
-# TODO REMOVE?
-def name_no_ext(p):
-    """Given a Path object or a str, return a filename without extensions"""
-    if isinstance(p, Path):
-        return p.stem.split('.')[0]
-    if isinstance(p, str):
-        return p.split(".")[0]
-
-# TODO REMOVE?
-def deepcopy(o):
-    return json.loads(json.dumps(o))
