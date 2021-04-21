@@ -11,8 +11,6 @@ import zlib
 from config import UNRECOVERABLE_PATH
 import shutil
 
-# The timestamp format of the records
-DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 HISTORY_ID_KEY = 'history_id'
 TYPE_KEY = 'type'
 DECISION_KEY = 'decision'
@@ -61,7 +59,7 @@ def load_records(file, message_ids):
                 try: 
                     record = json.loads(line)
                     # parse the timestamp into a datetime since it will be used often
-                    record[TIMESTAMP_KEY] = datetime.strptime(record[TIMESTAMP_KEY], DATETIME_FORMAT)
+                    record[TIMESTAMP_KEY] = datetime.fromisoformat(record[TIMESTAMP_KEY])
                     
                     message_id = record[MESSAGE_ID_KEY]
                     if not message_id in message_ids:
