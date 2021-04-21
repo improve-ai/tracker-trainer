@@ -1,6 +1,7 @@
 # Built-in imports
 from datetime import datetime
 from datetime import timedelta
+import dateutil
 from pathlib import Path
 import logging
 import json
@@ -40,7 +41,6 @@ def copy_to_unrecoverable(file):
 def ensure_parent_dir(file):
     parent_dir = file.parent
     if not parent_dir.exists():
-        print(f'creating {str(parent_dir)}')
         parent_dir.mkdir(parents=True, exist_ok=True)
 
 def load_records(file, message_ids, stats):
@@ -64,7 +64,7 @@ def load_records(file, message_ids, stats):
                 try: 
                     record = json.loads(line)
                     # parse the timestamp into a datetime since it will be used often
-                    record[TIMESTAMP_KEY] = datetime.fromisoformat(record[TIMESTAMP_KEY])
+                    record[TIMESTAMP_KEY] = dateutil.parser.parse(record[TIMESTAMP_KEY])
                     
                     message_id = record[MESSAGE_ID_KEY]
                     if not message_id in message_ids:
@@ -80,7 +80,7 @@ def load_records(file, message_ids, stats):
         
     if error:
         # Unrecoverable parse error, copy file to /unrecoverable
-        print(f'unrecoverable parse error {error}, copying {file.absolute()} to {UNRECOVERABLE_PATH.absolute()}')
+        print(f'unrecoverable parse error "{error}", copying {file.absolute()} to {UNRECOVERABLE_PATH.absolute()}')
         stats[UNRECOVERABLE_PARSE_ERROR_COUNT] += 1
         copy_to_unrecoverable(file)
     

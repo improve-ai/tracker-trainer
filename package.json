@@ -11,12 +11,9 @@
   },
   "dependencies": {
     "date-format": "^3.0.0",
-    "event-stream": "^4.0.1",
     "js-yaml": "^3.13.0",
     "lodash": "^4.0.0",
-    "p-limit": "^3.1.0",
     "sha.js": "^2.4.0",
-    "shelljs": "^0.8.4",
     "tar-stream": "^2.1.0",
     "uuid": "^3.2.1"
   }

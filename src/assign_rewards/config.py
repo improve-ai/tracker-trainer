@@ -26,11 +26,15 @@ LOGGING_LEVEL = logging.INFO
 # Logging format
 LOGGING_FORMAT = '%(levelname)-5s: @%(funcName)-25s | %(message)s'
 
-INCOMING_PATH = Path('/mnt/efs/incoming')
+EFS_PATH = Path('/mnt/efs')
 
-HISTORIES_PATH = Path('/mnt/efs/histories')
+FIREHOSE_INCOMING_PATH = EFS_PATH / 'firehose_incoming'
 
-UNRECOVERABLE_PATH = Path('/mnt/efs/unrecoverable')
+HISTORIES_INCOMING_PATH = EFS_PATH / 'histories_incoming'
+
+HISTORIES_PATH = EFS_PATH / 'histories'
+
+UNRECOVERABLE_PATH = EFS_PATH / 'histories_unrecoverable'
 
 DEFAULT_REWARD_KEY = 'reward'
 

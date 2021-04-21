@@ -105,7 +105,7 @@ functions:
     environment:
       FIREHOSE_DELIVERY_STREAM_NAME: { Ref: Firehose }
 
-  unpackFirehose:
+  markFirehoseIncoming:
     description: Ingest Records from S3 to EFS
     handler: src/track/firehose.unpackFirehose
     memorySize: ${self:provider.environment.FIREHOSE_WORKER_MEMORY_IN_MB} 
@@ -115,15 +115,15 @@ functions:
           existing: true # retained resource
           event: s3:ObjectCreated:*
     fileSystemConfig:
-      localMountPath: /mnt/incoming
-      arn: { Fn::GetAtt: [ IncomingEFSAccessPoint, Arn ] }
+      localMountPath: /mnt/firehose_incoming
+      arn: { Fn::GetAtt: [ FirehoseIncomingEFSAccessPoint, Arn ] }
     vpc:
       securityGroupIds: 
         - !Ref SecurityGroup
       subnetIds:
         - !Ref Subnet
     environment:
-      INCOMING_FILE_PATH: /mnt/incoming
+      FIREHOSE_INCOMING_FILE_PATH: /mnt/firehose_incoming
 
   dispatchRewardAssignmentJobs:
     description: Dispatch Reward Assignment Batch Jobs
@@ -498,7 +498,7 @@ resources:
           SubnetId: 
             Ref: Subnet
         DependsOn: Subnet
-      IncomingEFSAccessPoint:
+      FirehoseIncomingEFSAccessPoint:
         Type: 'AWS::EFS::AccessPoint'
         Properties:
           FileSystemId: 
@@ -511,5 +511,5 @@ resources:
               OwnerGid: "1000"
               OwnerUid: "1000"
               Permissions: "0777"
-            Path: "/incoming"
+            Path: "/firehose_incoming"
         DependsOn: MountTarget
