@@ -79,7 +79,7 @@ def worker():
 def process_incoming_file_group(file_group):
     handle_signals()
 
-    stats = defaultdict(int) # calls int() to set the default value of 0 on missing key
+    stats = defaultdict(int) # allows simple += increment. calls int() to set the default value of 0 on missing key
 
     # get the hashed history id
     hashed_history_id = hashed_history_id_from_file(file_group[0])
@@ -275,7 +275,7 @@ def history_dir_for_hashed_history_id(hashed_history_id):
     return HISTORIES_PATH / hashed_history_id[0:2] / hashed_history_id[2:4]
 
 def history_files_for_hashed_history_id(hashed_history_id, stats):
-    results = history_dir_for_hashed_history_id(hashed_history_id).glob(f'{hashed_history_id}-*.jsonl.gz')
+    results = list(history_dir_for_hashed_history_id(hashed_history_id).glob(f'{hashed_history_id}-*.jsonl.gz'))
     stats[PROCESSED_HISTORY_FILE_COUNT] += len(results)
     return results
 
