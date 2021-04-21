@@ -18,12 +18,14 @@ TYPE_KEY = 'type'
 DECISION_KEY = 'decision'
 MODEL_KEY = 'model'
 TIMESTAMP_KEY = 'timestamp'
+MESSAGE_ID_KEY = 'message_id'
 
 def load_history(file_group):
     records = []
-
+    message_ids = set()
+    
     for file in file_group:
-        records.extend(load_records(file))
+        records.extend(load_records(file, message_ids))
             
     return records
 
@@ -38,7 +40,7 @@ def ensure_parent_dir(file):
         print(f'creating {str(parent_dir)}')
         parent_dir.mkdir(parents=True, exist_ok=True)
 
-def load_records(file):
+def load_records(file, message_ids):
     """
     Load a gzipped jsonlines file
     
@@ -60,16 +62,21 @@ def load_records(file):
                     record = json.loads(line)
                     # parse the timestamp into a datetime since it will be used often
                     record[TIMESTAMP_KEY] = datetime.strptime(record[TIMESTAMP_KEY], DATETIME_FORMAT)
-                    records.append(record)
+                    
+                    message_id = record[MESSAGE_ID_KEY]
+                    if not message_id in message_ids:
+                        message_ids.add(message_id)
+                        records.append(record)
+                        
                 except (json.decoder.JSONDecodeError, ValueError) as e:
                     error = e
-    except (zlib.error, EOFError) as e: #TODO add gzip.BadGzipFile for Python 3.8
+    except (zlib.error, EOFError, gzip.BadGzipFile) as e:
         # gzip can throw zlib.error, EOFError, or gzip.BadGZipFile on corrupt file
         error = e
         
     if error:
         # Unrecoverable parse error, copy file to /unrecoverable
-        print(f'unrecoverable parse error {e}, copying {file.absolute()} to {UNRECOVERABLE_PATH.absolute()}')
+        print(f'unrecoverable parse error {error}, copying {file.absolute()} to {UNRECOVERABLE_PATH.absolute()}')
         copy_to_unrecoverable(file)
 
     return records

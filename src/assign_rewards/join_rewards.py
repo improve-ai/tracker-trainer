@@ -50,8 +50,8 @@ window = timedelta(seconds=REWARD_WINDOW)
 SIGTERM = False
 
 # boto3 client must be pre-initialized for multi-threaded (https://github.com/boto/botocore/issues/1246)
-THREAD_WORKER_COUNT = 1
-s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=THREAD_WORKER_COUNT))
+THREAD_WORKER_COUNT = 20
+s3client = boto3.client("s3") #, config=botocore.config.Config(max_pool_connections=THREAD_WORKER_COUNT))
 
 def worker():
     print(f"starting AWS Batch array job on node {AWS_BATCH_JOB_ARRAY_INDEX}", flush=True)

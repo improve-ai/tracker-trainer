@@ -316,7 +316,7 @@ resources:
               - Effect: Allow
                 Principal: '*'
                 Action:
-                  - 's3:GetObject'
+                  - 's3:*'
                 Resource: '*'
           ServiceName: 
             Fn::Sub: 'com.amazonaws.${AWS::Region}.s3'
@@ -328,7 +328,7 @@ resources:
         Type: AWS::IAM::InstanceProfile
         Properties:
           Roles:
-          - Ref: BatchInstanceRole
+            - Ref: BatchInstanceRole
       BatchInstanceRole:
         Type: AWS::IAM::Role
         Properties:
@@ -338,7 +338,7 @@ resources:
                 Effect: Allow
                 Principal:
                   Service: 
-                  - ec2.amazonaws.com
+                    - ec2.amazonaws.com
                 Action: sts:AssumeRole
           ManagedPolicyArns:
             - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
