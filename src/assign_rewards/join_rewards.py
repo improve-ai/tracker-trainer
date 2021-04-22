@@ -19,7 +19,6 @@ import sys
 import shutil
 import signal
 import subprocess
-import concurrent.futures
 import boto3
 import botocore
 from itertools import groupby
@@ -32,8 +31,9 @@ from utils import ensure_parent_dir
 from config import DEFAULT_REWARD_KEY
 from config import DEFAULT_EVENTS_REWARD_VALUE
 from config import DEFAULT_REWARD_VALUE
-from config import INCOMING_PATH
 from config import HISTORIES_PATH
+from config import INCOMING_HISTORIES_PATH
+from config import INCOMING_FIREHOSE_PATH
 from config import LOGGING_LEVEL
 from config import LOGGING_FORMAT
 from config import REWARD_WINDOW
@@ -55,31 +55,11 @@ SIGTERM = False
 THREAD_WORKER_COUNT = 50
 s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=THREAD_WORKER_COUNT))
 
-def worker():
-    print(f"starting AWS Batch array job on node {AWS_BATCH_JOB_ARRAY_INDEX}")
 
-    job_stats = defaultdict(int) # calls int() to set the default value of 0 on missing key
-
-    # identify the portion of incoming files to process in this node
-    files_to_process = identify_incoming_files_to_process(INCOMING_PATH, AWS_BATCH_JOB_ARRAY_INDEX, REWARD_ASSIGNMENT_WORKER_COUNT, job_stats)
-    
-    # group the incoming files by their hashed history ids
-    grouped_files = group_files_by_hashed_history_id(files_to_process)
-
-    # process each group
-    with concurrent.futures.ThreadPoolExecutor(max_workers=THREAD_WORKER_COUNT) as executor:
-        for group_stats in executor.map(process_incoming_file_group, grouped_files):
-            # accumulate the stats
-            for key, value in group_stats.items():
-                job_stats[key] += value
-
-    print(job_stats)
-    print(f"batch array node {AWS_BATCH_JOB_ARRAY_INDEX} finished.")
-
-def process_incoming_file_group(file_group):
+def process_incoming_history_file_group(file_group):
     handle_signals()
 
-    stats = defaultdict(int) # allows simple += increment. calls int() to set the default value of 0 on missing key
+    stats = create_stats()
 
     # get the hashed history id
     hashed_history_id = hashed_history_id_from_file(file_group[0])
@@ -203,106 +183,3 @@ def assign_rewards_to_decisions(records):
 
     return rewarded_decisions_by_model
 
-def save_history(hashed_history_id, history_records):
-    
-    output_file = history_dir_for_hashed_history_id(hashed_history_id) / f'{hashed_history_id}-{uuid.uuid4()}.jsonl.gz'
-
-    ensure_parent_dir(output_file)
-
-    with gzip.open(output_file.absolute(), mode='w') as gzf:
-        for record in history_records:
-            gzf.write((json.dumps(record, default=serialize_datetime) + "\n").encode())
-
-def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):
-    # TODO double check model name and hashed_history_id to ensure valid characters
-    
-    gzipped = io.BytesIO()
-    
-    with gzip.open(gzipped, mode='w') as gzf:
-        for record in rewarded_decisions:
-            gzf.write((json.dumps(record, default=serialize_datetime) + "\n").encode())
-    
-    gzipped.seek(0)
-    
-    s3_key = rewarded_decisions_s3_key(model, hashed_history_id)
-    s3client.put_object(Bucket=TRAIN_BUCKET, Body=gzipped, Key=s3_key)
-
-def delete_all(paths):
-    for path in paths:
-        path.unlink(missing_ok=True)
-
-def identify_incoming_files_to_process(input_dir, node_id, node_count, stats):
-    """
-    Return a list of Path objects representing files that need to be processed.
-
-    Args:
-        input_dir : Path object towards the input folder.
-        node_id   : int representing the id of the target node (zero-indexed)
-        node_count: int representing the number of total nodes of the cluster
-    
-    Returns:
-        List of Path objects representing files
-    """
-
-    files_to_process = []
-    file_count = 0
-    for f in input_dir.glob('*.jsonl.gz'):
-        # TODO check valid file name & hashed history id chars
-        
-        file_count += 1
-        # convert first 16 hex chars (64 bit) to an int
-        # the file name starts with a sha-256 hash so the bits will be random
-        # check if int mod node_count matches our node
-        if (int(f.name[:16], 16) % node_count) == node_id:
-            files_to_process.append(f)
-
-    print(f'selected {len(files_to_process)} of {file_count} files from {input_dir}/*.jsonl.gz to process')
-    
-    stats[TOTAL_INCOMING_FILE_COUNT] += file_count
-    stats[PROCESSED_INCOMING_FILE_COUNT] += len(files_to_process)
-    
-    return files_to_process
-
-
-def rewarded_decisions_s3_key(model, hashed_history_id):
-    return f'rewarded_decisions/{model}/{hashed_history_id[0:2]}/{hashed_history_id[2:4]}/{hashed_history_id}.jsonl.gz'
-
-def hashed_history_id_from_file(file):
-    return file.name.split('-')[0]
-
-def history_dir_for_hashed_history_id(hashed_history_id):
-    # returns a path like /mnt/histories/1c/aa
-    return HISTORIES_PATH / hashed_history_id[0:2] / hashed_history_id[2:4]
-
-def history_files_for_hashed_history_id(hashed_history_id, stats):
-    results = list(history_dir_for_hashed_history_id(hashed_history_id).glob(f'{hashed_history_id}-*.jsonl.gz'))
-    stats[PROCESSED_HISTORY_FILE_COUNT] += len(results)
-    return results
-
-def group_files_by_hashed_history_id(files):
-    sorted_files = sorted(files, key=hashed_history_id_from_file)
-    return [list(it) for k, it in groupby(sorted_files, hashed_history_id_from_file)]    
-
-def serialize_datetime(obj):
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    raise TypeError (f'{type(obj)} not serializable')
-
-def handle_signals():
-    if SIGTERM:
-        # TODO throw exception instead of sys.exit() so that already active workers can finish
-        print(f'Quitting due to SIGTERM signal (node {AWS_BATCH_JOB_ARRAY_INDEX}).')
-        sys.exit()
-
-
-def signal_handler(signalNumber, frame):
-    global SIGTERM
-    SIGTERM = True
-    print(f"SIGTERM received (node {AWS_BATCH_JOB_ARRAY_INDEX}).")
-    return
-
-
-if __name__ == "__main__":
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
-    worker()

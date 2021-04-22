@@ -28,18 +28,21 @@ LOGGING_FORMAT = '%(levelname)-5s: @%(funcName)-25s | %(message)s'
 
 EFS_PATH = Path('/mnt/efs')
 
-FIREHOSE_INCOMING_PATH = EFS_PATH / 'firehose_incoming'
+INCOMING_FIREHOSE_PATH = EFS_PATH / 'firehose_incoming'
 
-HISTORIES_INCOMING_PATH = EFS_PATH / 'histories_incoming'
+INCOMING_HISTORIES_PATH = EFS_PATH / 'histories_incoming'
 
 HISTORIES_PATH = EFS_PATH / 'histories'
 
-UNRECOVERABLE_PATH = EFS_PATH / 'histories_unrecoverable'
+UNRECOVERABLE_PATH = EFS_PATH / 'unrecoverable'
 
 DEFAULT_REWARD_KEY = 'reward'
 
 # Starting reward value for a decision record if it doesn't have one
 DEFAULT_REWARD_VALUE = 0
+
+# The number of threads in this node's threadpool
+THREAD_WORKER_COUNT = 50
 
 # The default reward value of a record of type 'event'
 DEFAULT_EVENTS_REWARD_VALUE = 0.001

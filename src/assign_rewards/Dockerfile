@@ -8,4 +8,4 @@ RUN python -m pip install --no-cache-dir -r requirements.txt
 ENV PYTHONPATH=/code
 ENV PYTHONUNBUFFERED=TRUE
 
-CMD [ "python", "./join_rewards.py" ] 
+CMD [ "python", "./worker.py" ] 

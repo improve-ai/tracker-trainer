@@ -8,7 +8,6 @@ provider:
     #
     # Customize your deployment here:
     #
-    BATCH_SPOT_BID_PERCENTAGE: 100
     TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
     TRAINING_INSTANCE_TYPE: ml.m5.large
     TRAINING_INSTANCE_COUNT: 3
@@ -16,9 +15,9 @@ provider:
     TRAINING_JOB_SCHEDULE: rate(24 hours) # trades off between learning delay and cost
     FIREHOSE_BUFFER_SIZE_IN_MB: 128 # max value is 128
     FIREHOSE_BUFFER_INTERVAL_IN_SECONDS: 900 # max value is 900
-    FIREHOSE_WORKER_MEMORY_IN_MB: 1024 # must be large enough to unpack the entire firehose buffer into memory
     REWARD_ASSIGNMENT_JOB_SCHEDULE: rate(4 hours)
     REWARD_ASSIGNMENT_WORKER_COUNT: 3
+    BATCH_SPOT_BID_PERCENTAGE: 100
     # 
     # End customization
     #
@@ -103,12 +102,11 @@ functions:
           method: POST
           path: /track
     environment:
-      FIREHOSE_DELIVERY_STREAM_NAME: { Ref: Firehose }
+      FIREHOSE_DELIVERY_STREAM_NAME: !Ref Firehose
 
   markFirehoseIncoming:
-    description: Ingest Records from S3 to EFS
-    handler: src/track/firehose.unpackFirehose
-    memorySize: ${self:provider.environment.FIREHOSE_WORKER_MEMORY_IN_MB} 
+    description: Mark Firehose S3 Files as Incoming in EFS
+    handler: src/track/firehose.markFirehoseIncoming
     events:
       - s3:
           bucket: !Ref FirehoseS3Bucket
@@ -154,7 +152,7 @@ functions:
             - prefix: models/
             - suffix: model.tar.gz
             
-  forceDockerPush: # serverless actually wants the image to be used to deploy it
+  forceDockerPush: # Serverless wants the image to be used to deploy it
     description: Force Serverless to Push Docker Image to ECR
     image:
       name: assign-rewards
