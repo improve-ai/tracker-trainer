@@ -13,10 +13,10 @@ import os
 REWARD_WINDOW = 24 * 2 * 60 * 60
 
 # The worker number of this job
-AWS_BATCH_JOB_ARRAY_INDEX = int(os.environ['AWS_BATCH_JOB_ARRAY_INDEX'])
+NODE_ID = int(os.environ['AWS_BATCH_JOB_ARRAY_INDEX'])
 
 # The total number of jobs launched
-REWARD_ASSIGNMENT_WORKER_COUNT = int(os.environ['REWARD_ASSIGNMENT_WORKER_COUNT'])
+NODE_COUNT = int(os.environ['REWARD_ASSIGNMENT_WORKER_COUNT'])
 
 TRAIN_BUCKET = os.environ['TRAIN_BUCKET']
 

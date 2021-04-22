@@ -10,8 +10,6 @@ import config
 import utils
 import stats
 
-NODE_ID = config.AWS_BATCH_JOB_ARRAY_INDEX
-NODE_COUNT = config.REWARD_ASSIGNMENT_WORKER_COUNT
 
 SIGTERM = False
 
@@ -23,7 +21,7 @@ s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections
 # execute the core worker loop of processing incoming firehose files then 
 # processing incoming history files
 def worker():
-    print(f"starting AWS Batch array job on node {NODE_ID} ({NODE_COUNT} nodes total)")
+    print(f"starting AWS Batch array job on node {config.NODE_ID} ({config.NODE_COUNT} nodes total)")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=config.THREAD_WORKER_COUNT) as executor:
         while True:
@@ -33,7 +31,7 @@ def worker():
             print(f'processing {len(incoming_firehose_files)} incoming firehose files')
 
             # process each incoming firehose marker file
-            for results in executor.map(firehose.process_incoming_firehose_file, incoming_firehose_files):
+            for results in executor.map(process_incoming_firehose_file, incoming_firehose_files):
                 pass
     
             # identify the portion of incoming history files to process in this node
@@ -49,24 +47,29 @@ def worker():
             grouped_incoming_history_files = histories.group_files_by_hashed_history_id(incoming_history_files)
         
             # process each group, perform reward assignment, and upload rewarded decisions to s3
-            for results in executor.map(histories.process_incoming_history_file_group, grouped_incoming_history_files):
+            for results in executor.map(process_incoming_history_file_group, grouped_incoming_history_files):
                 pass
 
     print(stats)
-    print(f"batch array node {NODE_ID} finished.")
+    print(f"batch array node {config.NODE_ID} finished.")
 
+def process_incoming_firehose_file(file):
+    handle_signals()
+    firehose.process_incoming_firehose_file(file)
+
+def process_incoming_history_file_group(file_group):
+    handle_signals()
+    histories.process_incoming_history_file_group(file_group)
 
 def handle_signals():
     if SIGTERM:
-        # TODO throw exception instead of sys.exit() so that already active workers can finish
-        print(f'Quitting due to SIGTERM signal (node {NODE_ID}).')
-        sys.exit()
-
+        print(f'Quitting due to SIGTERM signal (node {config.NODE_ID}).')
+        sys.exit() # raises SystemExit, so worker threads should have a chance to finish up
 
 def signal_handler(signalNumber, frame):
     global SIGTERM
     SIGTERM = True
-    print(f"SIGTERM received (node {NODE_ID}).")
+    print(f"SIGTERM received (node {config.NODE_ID}).")
     return
 
 

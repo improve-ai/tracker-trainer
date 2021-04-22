@@ -1,7 +1,6 @@
 
 
 def process_incoming_history_file_group(file_group):
-    handle_signals()
 
     stats = utils.create_stats()
 
