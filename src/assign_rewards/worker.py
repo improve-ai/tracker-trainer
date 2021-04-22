@@ -1,5 +1,6 @@
 import sys
 import signal
+import time
 import concurrent.futures
 import boto3
 import botocore
@@ -36,10 +37,15 @@ def worker():
     
             # identify the portion of incoming history files to process in this node
             incoming_history_files = histories.select_incoming_history_files()
-            
+
             if not len(incoming_history_files):
-                # nothing more to process, break
-                break
+                print(f'waiting 30 seconds to see if new incoming history files appear')
+                time.sleep(30)
+                incoming_history_files = histories.select_incoming_history_files()
+
+                if not len(incoming_history_files):
+                    # nothing more to process, break
+                    break
 
             print(f'processing {len(incoming_history_files)} incoming history files')
             
