@@ -13,7 +13,6 @@ from datetime import datetime
 import logging
 import json
 import gzip
-import io
 import uuid
 import sys
 import shutil
@@ -22,24 +21,7 @@ import subprocess
 import boto3
 import botocore
 from itertools import groupby
-from collections import defaultdict
 
-# Local imports
-from utils import load_history
-from utils import filter_valid_records
-from utils import ensure_parent_dir
-from config import DEFAULT_REWARD_KEY
-from config import DEFAULT_EVENTS_REWARD_VALUE
-from config import DEFAULT_REWARD_VALUE
-from config import HISTORIES_PATH
-from config import INCOMING_HISTORIES_PATH
-from config import INCOMING_FIREHOSE_PATH
-from config import LOGGING_LEVEL
-from config import LOGGING_FORMAT
-from config import REWARD_WINDOW
-from config import AWS_BATCH_JOB_ARRAY_INDEX
-from config import REWARD_ASSIGNMENT_WORKER_COUNT
-from config import TRAIN_BUCKET
 
 # stats constants
 TOTAL_INCOMING_FILE_COUNT = "Incoming Files (Total)"
@@ -52,42 +34,9 @@ window = timedelta(seconds=REWARD_WINDOW)
 SIGTERM = False
 
 # boto3 client must be pre-initialized for multi-threaded (https://github.com/boto/botocore/issues/1246)
-THREAD_WORKER_COUNT = 50
 s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=THREAD_WORKER_COUNT))
 
 
-def process_incoming_history_file_group(file_group):
-    handle_signals()
-
-    stats = create_stats()
-
-    # get the hashed history id
-    hashed_history_id = hashed_history_id_from_file(file_group[0])
-    
-    # add any previously saved history files for this hashed history id
-    file_group.extend(history_files_for_hashed_history_id(hashed_history_id, stats))
-
-    # load all records
-    records = load_history(file_group, stats)
-
-    # write the consolidated records to a new history file
-    save_history(hashed_history_id, records)
-    
-    # perform validation after consolidation so that invalid records are retained
-    # this ensures that any bugs in user-supplied validation code doesn't cause records to be lost
-    records = filter_valid_records(hashed_history_id, records)
-
-    # assign rewards to decision records.
-    rewarded_decisions_by_model = assign_rewards_to_decisions(records)
-    
-    # upload the updated rewarded decision records to S3
-    for model, rewarded_decisions in rewarded_decisions_by_model.items():
-        upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions)
-    
-    # delete the incoming and history files that were processed
-    delete_all(file_group)
-    
-    return stats
 
 def update_listeners(listeners, record_timestamp, reward):
     """
@@ -183,3 +132,44 @@ def assign_rewards_to_decisions(records):
 
     return rewarded_decisions_by_model
 
+
+def filter_valid_records(hashed_history_id, records):
+
+    results = []
+    
+    history_id = None
+    skipped_record_count = 0
+
+    for record in records:
+        try:
+            validate_record(record, history_id, hashed_history_id)
+
+            if not history_id:
+                # history_id has been validated to hash to the hashed_history_id
+                history_id = record[HISTORY_ID_KEY]
+
+            results.append(record)
+        except Exception as e:
+            skipped_record_count += 1
+        
+    if skipped_record_count:
+        print(f'skipped {skipped_record_count} invalid records for hashed history_id {hashed_history_id}')
+        
+    return results 
+
+def validate_record(record, history_id, hashed_history_id):
+    if not TIMESTAMP_KEY in record or not TYPE_KEY in record or not HISTORY_ID_KEY in record:
+        raise ValueError('invalid record')
+
+    # 'decision' type requires a 'model'
+    if record[TYPE_KEY] == DECISION_KEY and not MODEL_KEY in record:
+        raise ValueError('invalid record')
+        
+    # TODO check valid model name characters
+    
+    if history_id:
+        # history id provided, see if they match
+        if history_id != record[HISTORY_ID_KEY]:
+            raise ValueError('history_id hash mismatch')
+    elif not hash_history_id(record[HISTORY_ID_KEY]) == hashed_history_id:
+        raise ValueError('history_id hash mismatch')

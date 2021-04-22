@@ -60,12 +60,12 @@ def process_incoming_firehose_file(file):
     for history_id, records in records_by_history_id.items():
         hashed_history_id = utils.hash_history_id(history_id)
         output_file = utils.incoming_history_dir_for_hashed_history_id(hashed_history_id) / utils.unique_file_name_for_hashed_history_id(hashed_history_id)
-        utils.save_gzipped_jsonlines(output_file, records)
+        utils.save_gzipped_jsonlines(output_file.absolute(), records)
         stats[INCOMING_HISTORY_FILES_WRITTEN] += 1
 
     return stats
 
 
-def select_incoming_firehose_files(stats):
+def select_incoming_firehose_files():
     # the file name begins with uuidv4, so the hash is the first 8 hex characters
-    return utils.select_files_for_node(config.INCOMING_FIREHOSE_PATH, '*.json', stats)
+    return utils.select_files_for_node(config.INCOMING_FIREHOSE_PATH, '*.json')
