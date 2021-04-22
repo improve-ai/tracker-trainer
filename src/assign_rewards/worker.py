@@ -32,14 +32,14 @@ def worker():
             print(f'processing {len(incoming_firehose_files)} incoming firehose files')
 
             # process each incoming firehose marker file
-            for results in executor.map(process_incoming_firehose_file, incoming_firehose_files):
-                pass
-    
+            list(executor.map(process_incoming_firehose_file, incoming_firehose_files)) # list() forces evaluation of generator
+
             # identify the portion of incoming history files to process in this node
             incoming_history_files = histories.select_incoming_history_files()
 
             if not len(incoming_history_files):
-                print(f'waiting 30 seconds to see if new incoming history files appear')
+                # another node might be processing an incoming firehose file, wait a bit
+                print(f'waiting to see if new incoming history files appear')
                 time.sleep(30)
                 incoming_history_files = histories.select_incoming_history_files()
 
@@ -53,8 +53,7 @@ def worker():
             grouped_incoming_history_files = histories.group_files_by_hashed_history_id(incoming_history_files)
         
             # process each group, perform reward assignment, and upload rewarded decisions to s3
-            for results in executor.map(process_incoming_history_file_group, grouped_incoming_history_files):
-                pass
+            list(executor.map(process_incoming_history_file_group, grouped_incoming_history_files)) # list() forces evaluation of generator
 
     print(stats)
     print(f"batch array node {config.NODE_ID} finished.")
