@@ -3,12 +3,12 @@
 const AWS = require('aws-sdk');
 const firehose = new AWS.Firehose();
 
-const LOG_PROBABILITY = .01;
+const DEBUG = process.env.DEBUG
 
 module.exports.track = async function(event, context) {
   const receivedAt = new Date()
   
-  if (checkShouldLog()) {
+  if (DEBUG) {
     console.log(JSON.stringify(event))
   }
 
@@ -65,10 +65,6 @@ function errorResponse(message) {
     body: JSON.stringify({ error: { message: message}})
   }
   return response
-}
-
-function checkShouldLog() {
-  return Math.random() < LOG_PROBABILITY;
 }
 
 // from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
