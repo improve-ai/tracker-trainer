@@ -3,6 +3,8 @@
 const AWS = require('aws-sdk');
 const firehose = new AWS.Firehose();
 
+const MAX_ID_LENGTH = 256
+
 const DEBUG = process.env.DEBUG
 
 module.exports.track = async function(event, context) {
@@ -16,13 +18,13 @@ module.exports.track = async function(event, context) {
 
   const historyId = record.history_id
   
-  if (!historyId || typeof historyId !== "string") {
+  if (!historyId || typeof historyId !== "string" || historyId.length > MAX_ID_LENGTH) {
     return errorResponse("history_id field is required")
   }
   
   const messageId = record.message_id
   
-  if (!messageId || typeof messageId !== "string") {
+  if (!messageId || typeof messageId !== "string" || messageId.length > MAX_ID_LENGTH) {
     return errorResponse("message_id field is required")
   }
   

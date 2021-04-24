@@ -15,8 +15,7 @@ provider:
     TRAINING_JOB_SCHEDULE: rate(24 hours) # trades off between learning delay and cost
     FIREHOSE_BUFFER_SIZE_IN_MB: 128 # max value is 128
     FIREHOSE_BUFFER_INTERVAL_IN_SECONDS: 900 # max value is 900
-    REWARD_ASSIGNMENT_JOB_SCHEDULE: rate(4 hours)
-    REWARD_ASSIGNMENT_WORKER_COUNT: 3
+    REWARD_ASSIGNMENT_MAX_CONCURRENT_JOBS_COUNT: 10 # limit concurrency to avoid swamping EFS
     BATCH_SPOT_BID_PERCENTAGE: 100
     # 
     # End customization
@@ -390,7 +389,7 @@ resources:
           ServiceRole: 
             Ref: BatchServiceRole
           ComputeResources:
-            MaxvCpus: 128
+            MaxvCpus: ${self:provider.environment.REWARD_ASSIGNMENT_MAX_CONCURRENT_WORKER_COUNT} 
             SecurityGroupIds:
               - Ref: SecurityGroup
             Type: SPOT
