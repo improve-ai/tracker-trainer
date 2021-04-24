@@ -3,10 +3,19 @@ import time
 
 class Stats():
     def __init__(self):
-        # RawValue because we don't need it to create a Lock:
-        self.val = RawValue('i', value)
         self._lock = threading.Lock()
+        self.bad_firehose_record_count = 0
+        self.uncrecoverable_file_count = 0
+        self.incoming_history_files_written_count = 0
 
-    def increment(self):
+    def incrementBadFirehoseRecordCount(self, increment=1):
         with self._lock:
-            self.val.value += 1
+            self.bad_firehose_record_count += increment
+
+    def incrementUnrecoverableFileCount(self, increment=1):
+        with self._lock:
+            self.uncrecoverable_file_count += increment
+
+    def incrementIncomingHistoryFilesWrittenCount(self, increment=1):
+        with self._lock:
+            self.incoming_history_files_written_count += increment

@@ -1,25 +1,25 @@
 import boto3
 import gzip
 import json
+import shutil
 
 import utils
 import config
+import worker
 
-s3 = boto3.resource("s3")
+s3 = boto3.resource("s3") # TODO replace with worker.s3client
 
 # load an incoming firehose marker file, fetch the S3 target file, parse it and
 # save the resulting incoming history files
 def process_incoming_firehose_file(file):
 
-    stats = utils.create_stats()
-
     records_by_history_id = {}
     error = None
 
+    s3_bucket = None
+    s3_key = None
+
     try:
-        s3_bucket = None
-        s3_key = None
-        
         # parse the marker file and extract the s3 bucket and key
         with open(file) as f:
             data = json.load(f)
@@ -36,7 +36,7 @@ def process_incoming_firehose_file(file):
                     
                     history_id = record.get('history_id', None)
                     if not history_id or isinstance(history_id, str) or not len(history_id):
-                        stats[BAD_FIREHOSE_RECORD_HISTORY_ID_COUNT] += 1
+                        worker.stats.incrementBadFirehoseRecordCount()
                         
                     if not history_id in records_by_history_id:
                         records_by_history_id[history_id] = []
@@ -51,19 +51,19 @@ def process_incoming_firehose_file(file):
         error = e
         
     if error:
-        # Unrecoverable parse error, copy file to /unrecoverable
-        print(f'unrecoverable parse error "{error}", copying {file.absolute()} to {UNRECOVERABLE_PATH.absolute()}')
-        stats[UNRECOVERABLE_PARSE_ERROR_COUNT] += 1
-        copy_to_unrecoverable(file)
+        # Unrecoverable parse error, copy the marker file to /unrecoverable
+        dest = config.UNRECOVERABLE_INCOMING_FIREHOSE_PATH / file.name
+        print(f'unrecoverable parse error "{error}" for s3 bucket {s3_bucket} s3 key {s3_key}, copying {file.absolute()} to {dest.absolute()}')
+        utils.ensure_parent_dir(dest)
+        shutil.copy(file.absolute(), dest.absolute())
+        worker.stats.incrementUnrecoverableFileCount()
         
     # save each set of records to an incoming history file
     for history_id, records in records_by_history_id.items():
         hashed_history_id = utils.hash_history_id(history_id)
         output_file = utils.incoming_history_dir_for_hashed_history_id(hashed_history_id) / utils.unique_file_name_for_hashed_history_id(hashed_history_id)
         utils.save_gzipped_jsonlines(output_file.absolute(), records)
-        stats[INCOMING_HISTORY_FILES_WRITTEN] += 1
-
-    return stats
+        worker.stats.incrementIncomingHistoryFilesWrittenCount()
 
 
 def select_incoming_firehose_files():

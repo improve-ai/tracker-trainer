@@ -12,11 +12,7 @@ import zlib
 import shutil
 
 import config
-
-# stats keys
-DUPLICATE_MESSAGE_ID_COUNT = "Duplicate Records"
-RECORD_COUNT = "Unique Records"
-UNRECOVERABLE_PARSE_ERROR_COUNT = "Unrecoverable Record Parse Errors"
+import worker
 
 HISTORY_ID_KEY = 'history_id'
 TYPE_KEY = 'type'
@@ -36,10 +32,7 @@ def ensure_parent_dir(file):
     if not parent_dir.exists():
         parent_dir.mkdir(parents=True, exist_ok=True)
 
-
-
-
-def select_files_for_node(input_dir, glob, stats):
+def select_files_for_node(input_dir, glob):
 
     files_to_process = []
     file_count = 0
@@ -49,14 +42,10 @@ def select_files_for_node(input_dir, glob, stats):
         # convert first 8 hex chars (32 bit) to an int
         # the file name starts with a uuidv4
         # check if int mod node_count matches our node
-        if (int(f.name[:8], 16) % config.REWARD_ASSIGNMENT_WORKER_COUNT) == config.AWS_BATCH_JOB_ARRAY_INDEX:
+        if (int(f.name[:8], 16) % config.NODE_COUNT) == config.NODE_ID:
             files_to_process.append(f)
 
-    print(f'selected {len(files_to_process)} of {file_count} files from {input_dir}/*.jsonl.gz to process')
-    
-    # TODO fix these stats
-    stats[TOTAL_INCOMING_FILE_COUNT] += file_count
-    stats[PROCESSED_INCOMING_FILE_COUNT] += len(files_to_process)
+    print(f'selected {len(files_to_process)} of {file_count} files from {input_dir}/{glob} to process')
     
     return files_to_process
 
@@ -78,7 +67,7 @@ def upload_gzipped_jsonlines(s3_bucket, s3_key, records):
 
     gzipped.seek(0)
     
-    s3client.put_object(Bucket=s3_bucket, Body=gzipped, Key=s3_key)
+    worker.s3client.put_object(Bucket=s3_bucket, Body=gzipped, Key=s3_key)
 
 
 def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):

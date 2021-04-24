@@ -113,7 +113,7 @@ functions:
           existing: true # retained resource
           event: s3:ObjectCreated:*
     fileSystemConfig:
-      localMountPath: /mnt/firehose_incoming
+      localMountPath: /mnt/incoming_firehose
       arn: { Fn::GetAtt: [ FirehoseIncomingEFSAccessPoint, Arn ] }
     vpc:
       securityGroupIds: 
@@ -121,7 +121,7 @@ functions:
       subnetIds:
         - !Ref Subnet
     environment:
-      FIREHOSE_INCOMING_FILE_PATH: /mnt/firehose_incoming
+      FIREHOSE_INCOMING_FILE_PATH: /mnt/incoming_firehose
 
   dispatchRewardAssignmentJobs:
     description: Dispatch Reward Assignment Batch Jobs
@@ -509,5 +509,5 @@ resources:
               OwnerGid: "1000"
               OwnerUid: "1000"
               Permissions: "0777"
-            Path: "/firehose_incoming"
+            Path: "/incoming_firehose"
         DependsOn: MountTarget
