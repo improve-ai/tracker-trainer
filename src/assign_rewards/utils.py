@@ -1,7 +1,6 @@
 # Built-in imports
 from datetime import datetime
 from datetime import timedelta
-import dateutil
 from pathlib import Path
 import io
 import json
@@ -14,23 +13,15 @@ import shutil
 import config
 import worker
 
-HISTORY_ID_KEY = 'history_id'
-TYPE_KEY = 'type'
-DECISION_KEY = 'decision'
-MODEL_KEY = 'model'
-TIMESTAMP_KEY = 'timestamp'
-MESSAGE_ID_KEY = 'message_id'
-
-
-def copy_to_unrecoverable(file):
-    dest = config.UNRECOVERABLE_PATH / file.name
-    ensure_parent_dir(dest)
-    shutil.copy(file.absolute(), dest.absolute())
     
 def ensure_parent_dir(file):
     parent_dir = file.parent
     if not parent_dir.exists():
         parent_dir.mkdir(parents=True, exist_ok=True)
+        
+def copy_file(src, dest):
+    ensure_parent_dir(dest)
+    shutil.copy(src.absolute(), dest.absolute())
 
 def select_files_for_node(input_dir, glob):
 

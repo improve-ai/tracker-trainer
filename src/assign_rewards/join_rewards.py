@@ -11,16 +11,9 @@ Usage:
 from datetime import timedelta
 from datetime import datetime
 import logging
-import json
-import gzip
-import uuid
 import sys
-import shutil
 import signal
 import subprocess
-import boto3
-import botocore
-from itertools import groupby
 
 
 # stats constants
@@ -30,12 +23,6 @@ PROCESSED_HISTORY_FILE_COUNT = "History Files Processed"
 
 # Time window to add to a timestamp
 window = timedelta(seconds=REWARD_WINDOW)
-
-SIGTERM = False
-
-# boto3 client must be pre-initialized for multi-threaded (https://github.com/boto/botocore/issues/1246)
-s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=THREAD_WORKER_COUNT))
-
 
 
 def update_listeners(listeners, record_timestamp, reward):

@@ -6,6 +6,7 @@ import shutil
 import utils
 import config
 import worker
+import histories
 
 s3 = boto3.resource("s3") # TODO replace with worker.s3client
 
@@ -61,9 +62,12 @@ def process_incoming_firehose_file(file):
     # save each set of records to an incoming history file
     for history_id, records in records_by_history_id.items():
         hashed_history_id = utils.hash_history_id(history_id)
-        output_file = utils.incoming_history_dir_for_hashed_history_id(hashed_history_id) / utils.unique_file_name_for_hashed_history_id(hashed_history_id)
+        output_file = histories.incoming_history_dir_for_hashed_history_id(hashed_history_id) / histories.unique_hashed_history_file_name(hashed_history_id)
         utils.save_gzipped_jsonlines(output_file.absolute(), records)
         worker.stats.incrementIncomingHistoryFilesWrittenCount()
+        
+    # delete the marker file
+    file.unlink(missing_ok=True)
 
 
 def select_incoming_firehose_files():
