@@ -15,14 +15,12 @@ import sys
 import signal
 import subprocess
 
-
-# stats constants
-TOTAL_INCOMING_FILE_COUNT = "Incoming Files (Total)"
-PROCESSED_INCOMING_FILE_COUNT = "Incoming Files Processed"
-PROCESSED_HISTORY_FILE_COUNT = "History Files Processed"
+import constants
+import config
+import utils
 
 # Time window to add to a timestamp
-window = timedelta(seconds=REWARD_WINDOW)
+window = timedelta(seconds=config.REWARD_WINDOW)
 
 
 def update_listeners(listeners, record_timestamp, reward):
@@ -59,7 +57,7 @@ def update_listeners(listeners, record_timestamp, reward):
         if listener_timestamp + window < record_timestamp:
             del listeners[i]
         else:
-            listener['reward'] = listener.get('reward', DEFAULT_REWARD_VALUE) + float(reward)
+            listener['reward'] = listener.get('reward', config.DEFAULT_REWARD_VALUE) + float(reward)
 
 
 def assign_rewards_to_decisions(records):
@@ -99,7 +97,7 @@ def assign_rewards_to_decisions(records):
                 rewarded_decisions_by_model[model] = []
             rewarded_decisions_by_model[model].append(rewarded_decision)
 
-            reward_key = record.get('reward_key', DEFAULT_REWARD_KEY)
+            reward_key = record.get('reward_key', config.DEFAULT_REWARD_KEY)
             listeners = decision_records_by_reward_key.get(reward_key, [])
             decision_records_by_reward_key[reward_key] = listeners
             listeners.append(rewarded_decision)
@@ -112,7 +110,7 @@ def assign_rewards_to_decisions(records):
         # Event type records get summed to all decisions within the time window regardless of reward_key
         elif record.get('type') == 'event':
             reward = record.get('properties', {}) \
-                           .get('value', DEFAULT_EVENTS_REWARD_VALUE)
+                           .get('value', config.DEFAULT_EVENTS_REWARD_VALUE)
             for reward_key, listeners in decision_records_by_reward_key.items():
                 update_listeners(listeners, record['timestamp'], reward)
             
@@ -133,7 +131,7 @@ def filter_valid_records(hashed_history_id, records):
 
             if not history_id:
                 # history_id has been validated to hash to the hashed_history_id
-                history_id = record[HISTORY_ID_KEY]
+                history_id = record[constants.HISTORY_ID_KEY]
 
             results.append(record)
         except Exception as e:
@@ -145,18 +143,18 @@ def filter_valid_records(hashed_history_id, records):
     return results 
 
 def validate_record(record, history_id, hashed_history_id):
-    if not TIMESTAMP_KEY in record or not TYPE_KEY in record or not HISTORY_ID_KEY in record:
+    if not constants.TIMESTAMP_KEY in record or not constants.TYPE_KEY in record or not constants.HISTORY_ID_KEY in record:
         raise ValueError('invalid record')
 
     # 'decision' type requires a 'model'
-    if record[TYPE_KEY] == DECISION_KEY and not MODEL_KEY in record:
+    if record[constants.TYPE_KEY] == constants.DECISION_KEY and not constants.MODEL_KEY in record:
         raise ValueError('invalid record')
         
     # TODO check valid model name characters
     
     if history_id:
         # history id provided, see if they match
-        if history_id != record[HISTORY_ID_KEY]:
+        if history_id != record[constants.HISTORY_ID_KEY]:
             raise ValueError('history_id hash mismatch')
-    elif not hash_history_id(record[HISTORY_ID_KEY]) == hashed_history_id:
+    elif not utils.hash_history_id(record[constants.HISTORY_ID_KEY]) == hashed_history_id:
         raise ValueError('history_id hash mismatch')

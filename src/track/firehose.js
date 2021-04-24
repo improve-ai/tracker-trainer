@@ -22,6 +22,8 @@ module.exports.markFirehoseIncoming = async function(event, context) {
     
     const buffer = Buffer.from(JSON.stringify({ "s3_bucket": s3EventRecord.s3.bucket.name, "s3_key": s3EventRecord.s3.object.key }))
     
+    console.log(`writing ${fullPath}`)
+    
     return fs.writeFile(fullPath, buffer)
 
   }))

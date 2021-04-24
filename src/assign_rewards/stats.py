@@ -24,3 +24,10 @@ class Stats():
     def incrementDuplicateMessageIdCount(self, increment=1):
         with self._lock:
             self.duplicate_message_id_count += increment
+
+    def __str__(self):
+        with self._lock:
+            return (f'Bad Firehose Records: {self.bad_firehose_record_count}\n'+
+            f'Unrecoverable Files: {self.uncrecoverable_file_count}\n'+
+            f'Incoming History Files Written: {self.incoming_history_files_written_count}\n'
+            f'Duplicate Message Ids: {self.duplicate_message_id_count}\n')
