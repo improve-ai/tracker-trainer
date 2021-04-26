@@ -40,7 +40,7 @@ def lambda_handler(event, context):
     stage = os.environ['STAGE']
     
     r = batch.submit_job(
-        jobName=f'{service}-{stage}-ingest-firehose-file', 
+        jobName=f'{service}-{stage}-ingest-firehose', 
         jobQueue=jobQueue, 
         jobDefinition=jobDefinition,
         containerOverrides={

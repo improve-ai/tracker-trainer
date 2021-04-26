@@ -106,7 +106,7 @@ functions:
     environment:
       FIREHOSE_DELIVERY_STREAM_NAME: !Ref Firehose
 
-  dispatchIngestFirehoseFile:
+  dispatchIngestFirehoseFile: # FIX change to dispatchIngestFirehoseJob
     description: Dispatch Ingest Firehose Batch Job
     handler: src/ingest_firehose/dispatch_job.lambda_handler
     events:
@@ -428,7 +428,7 @@ resources:
         Properties:
           Type: Container
           ContainerProperties: 
-            Memory: 1024
+            Memory: 1024 # enough memory to hold an entire firehose file
             Vcpus: 1
             Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-${self:service}-${opt:stage, self:provider.stage}:ingest-firehose'
             MountPoints:
@@ -441,7 +441,7 @@ resources:
                 Name: efs
           JobDefinitionName: '${self:service}-ingest-firehose-${opt:stage, self:provider.stage}'
           RetryStrategy: 
-            Attempts: 2
+            Attempts: 5
       AssignRewardsJobDefinition:
         Type: "AWS::Batch::JobDefinition"
         Properties:

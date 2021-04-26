@@ -30,7 +30,7 @@ def worker():
             record = json.loads(line)
             
             history_id = record.get('history_id', None)
-            if not history_id or isinstance(history_id, str) or not len(history_id):
+            if not history_id or not isinstance(history_id, str) or not len(history_id):
                 bad_history_id_count += 1
                 continue
                 
@@ -38,6 +38,9 @@ def worker():
                 records_by_history_id[history_id] = []
                 
             records_by_history_id[history_id].append(record)
+            
+    if bad_history_id_count:
+        print(f'skipped {bad_history_id_count} records with bad history_id fields')
 
     file_count = 0
     record_count = 0
@@ -47,6 +50,8 @@ def worker():
         hashed_history_id = hashlib.sha256(history_id.encode()).hexdigest()
         file = INCOMING_PATH / f'{hashed_history_id}-{uuid.uuid4()}.jsonl.gz'
         
+        ensure_parent_dir(file)
+        
         with gzip.open(file, mode='w') as gzf:
             for record in records:
                 gzf.write((json.dumps(record) + "\n").encode())
@@ -54,8 +59,13 @@ def worker():
         file_count += 1
         record_count += len(records)
         
-    print(f'wrote {record_count} records to {file_count} files')
+    print(f'wrote {record_count} records to {file_count} files incoming history files')
     print('finished firehose ingest job')
+
+def ensure_parent_dir(file):
+    parent_dir = file.parent
+    if not parent_dir.exists():
+        parent_dir.mkdir(parents=True, exist_ok=True)
 
 
 def signal_handler(signalNumber, frame):
