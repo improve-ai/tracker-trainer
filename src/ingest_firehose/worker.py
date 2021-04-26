@@ -59,7 +59,7 @@ def worker():
         file_count += 1
         record_count += len(records)
         
-    print(f'wrote {record_count} records to {file_count} files incoming history files')
+    print(f'wrote {record_count} records to {file_count} incoming history files')
     print('finished firehose ingest job')
 
 def ensure_parent_dir(file):

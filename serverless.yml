@@ -496,9 +496,6 @@ resources:
           Encrypted: true
           LifecyclePolicies:
             - TransitionToIA: AFTER_14_DAYS # when events stop arriving for a history it will transition to infrequent access
-          FileSystemTags:
-            - Key: Name
-              Value: "${self:service}-assign-rewards-efs-${opt:stage, self:provider.stage}"
           FileSystemPolicy:
             Version: "2012-10-17"
             Statement:
