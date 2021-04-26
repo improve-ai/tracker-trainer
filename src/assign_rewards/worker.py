@@ -20,7 +20,7 @@ s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections
 # execute the core worker loop of processing incoming firehose files then 
 # processing incoming history files
 def worker():
-    print(f"starting AWS Batch array job on node {config.NODE_ID} ({config.NODE_COUNT} nodes total)")
+    print(f'starting AWS Batch array job on node {config.NODE_ID} ({config.NODE_COUNT} nodes total)')
 
     # identify the portion of incoming history files to process in this node
     incoming_history_files = utils.select_incoming_history_files()
@@ -35,7 +35,7 @@ def worker():
         list(executor.map(process_incoming_history_file_group, grouped_incoming_history_files)) # list() forces evaluation of generator
 
     print(stats)
-    print(f"batch array node {config.NODE_ID} finished.")
+    print(f'batch array node {config.NODE_ID} finished.')
 
 
 def process_incoming_history_file_group(file_group):
@@ -70,7 +70,6 @@ def process_incoming_history_file_group(file_group):
     
     # delete the incoming and history files that were processed
     utils.delete_all(file_group)
-
 
 def handle_signals():
     if SIGTERM:

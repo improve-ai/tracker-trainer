@@ -1,13 +1,3 @@
-"""
-AWS Batch worker
-This script is intended to be used from inside a Docker container to process
-jsonl files.
--------------------------------------------------------------------------------
-Usage:
-    python join_rewards.py
-"""
-
-# Built-in imports
 from datetime import timedelta
 from datetime import datetime
 import logging
@@ -24,21 +14,6 @@ window = timedelta(seconds=config.REWARD_WINDOW)
 
 
 def update_listeners(listeners, record_timestamp, reward):
-    """
-    Update the reward property value of each of the given list of records, 
-    in place.
-    
-    Args:
-        listeners        : list of dicts
-        record_timestamp : A datetime.datetime object
-        reward           : int or float
-    
-    Returns:
-        None
-    
-    Raises:
-        TypeError if an unexpected type is received
-    """
 
     if not isinstance(listeners, list):
         raise TypeError("Expecting a list for the 'listeners' arg.")
@@ -110,7 +85,7 @@ def assign_rewards_to_decisions(records):
         # Event type records get summed to all decisions within the time window regardless of reward_key
         elif record.get('type') == 'event':
             reward = record.get('properties', {}) \
-                           .get('value', config.DEFAULT_EVENTS_REWARD_VALUE)
+                           .get('value', config.DEFAULT_EVENT_REWARD_VALUE)
             for reward_key, listeners in decision_records_by_reward_key.items():
                 update_listeners(listeners, record['timestamp'], reward)
             

@@ -34,15 +34,10 @@ def lambda_handler(event, context):
         
     batch = boto3.client('batch')
 
-    jobQueue = os.environ['JOB_QUEUE']
-    jobDefinition = os.environ['JOB_DEFINITION']
-    service = os.environ['SERVICE']
-    stage = os.environ['STAGE']
-    
     r = batch.submit_job(
-        jobName=f'{service}-{stage}-ingest-firehose', 
-        jobQueue=jobQueue, 
-        jobDefinition=jobDefinition,
+        jobName=f"{os.environ['SERVICE']}-{os.environ['STAGE']}-ingest-firehose", 
+        jobQueue=os.environ['JOB_QUEUE'], 
+        jobDefinition=os.environ['JOB_DEFINITION'],
         containerOverrides={
             "environment":[
                 {"name": "S3_BUCKET", "value": s3_bucket},
