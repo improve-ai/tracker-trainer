@@ -87,7 +87,7 @@ def load_records(file, message_ids):
         
     if error:
         # Unrecoverable parse error, copy the file to /unrecoverable
-        dest = config.UNRECOVERABLE_HISTORIES_PATH / file.name
+        dest = config.UNRECOVERABLE_PATH / file.name
         print(f'unrecoverable parse error "{error}", copying {file.absolute()} to {dest.absolute()}')
         utils.copy_file(file, dest)
         worker.stats.incrementUnrecoverableFileCount()
@@ -97,7 +97,7 @@ def load_records(file, message_ids):
 
 def select_incoming_history_files():
     # hash based on the first 8 characters of the hashed history id
-    return utils.select_files_for_node(config.INCOMING_HISTORIES_PATH, '*.jsonl.gz')
+    return utils.select_files_for_node(config.INCOMING_PATH, '*.jsonl.gz')
     # TODO check valid file name & hashed history id chars
     
 def save_history(hashed_history_id, history_records):
@@ -114,10 +114,6 @@ def hashed_history_id_from_file(file):
 def history_dir_for_hashed_history_id(hashed_history_id):
     # returns a path like /mnt/histories/1c/aa
     return config.HISTORIES_PATH / sub_dir_for_hashed_history_id(hashed_history_id)
-
-def incoming_history_dir_for_hashed_history_id(hashed_history_id):
-    # returns a path like /mnt/incoming_histories/1c/aa
-    return config.INCOMING_HISTORIES_PATH / sub_dir_for_hashed_history_id(hashed_history_id)
 
 def sub_dir_for_hashed_history_id(hashed_history_id):
     # returns a path like /mnt/histories/1c/aa
