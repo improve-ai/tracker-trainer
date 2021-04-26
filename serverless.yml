@@ -15,7 +15,8 @@ provider:
     TRAINING_JOB_SCHEDULE: rate(24 hours) # trades off between learning delay and cost
     FIREHOSE_BUFFER_SIZE_IN_MB: 128 # max value is 128
     FIREHOSE_BUFFER_INTERVAL_IN_SECONDS: 900 # max value is 900
-    REWARD_ASSIGNMENT_MAX_CONCURRENT_JOBS_COUNT: 10 # limit concurrency to avoid swamping EFS
+    REWARD_ASSIGNMENT_JOB_SCHEDULE: rate(4 hours)
+    REWARD_ASSIGNMENT_WORKER_COUNT: 3
     BATCH_SPOT_BID_PERCENTAGE: 100
     # 
     # End customization
@@ -28,11 +29,13 @@ provider:
   lambdaHashingVersion: 20201221 # can be removed in serverless v3
   name: aws
   region: us-east-1
-  runtime: nodejs14.x
-  timeout: 900
+  runtime: python3.8
+  timeout: 6
   memorySize: 192
   ecr:
     images:
+      ingest-firehose:
+        path: ./src/ingest_firehose/
       assign-rewards:
         path: ./src/assign_rewards/
   httpApi: # have to specify cors globally for httpApi as of 20210303
@@ -95,7 +98,7 @@ functions:
   track:
     description: Event Tracker HTTP API
     handler: src/track/http_api.track
-    timeout: 6
+    runtime: nodejs14.x
     events:
       - httpApi:
           method: POST
@@ -103,34 +106,26 @@ functions:
     environment:
       FIREHOSE_DELIVERY_STREAM_NAME: !Ref Firehose
 
-  markFirehoseIncoming:
-    description: Mark Firehose S3 Files as Incoming in EFS
-    handler: src/track/firehose.markFirehoseIncoming
+  dispatchIngestFirehoseFile:
+    description: Dispatch Ingest Firehose Batch Job
+    handler: src/ingest_firehose/dispatch_job.lambda_handler
     events:
       - s3:
           bucket: !Ref FirehoseS3Bucket
           existing: true # retained resource
           event: s3:ObjectCreated:*
-    fileSystemConfig:
-      localMountPath: /mnt/incoming_firehose
-      arn: { Fn::GetAtt: [ FirehoseIncomingEFSAccessPoint, Arn ] }
-    vpc:
-      securityGroupIds: 
-        - !Ref SecurityGroup
-      subnetIds:
-        - !Ref Subnet
     environment:
-      FIREHOSE_INCOMING_FILE_PATH: /mnt/incoming_firehose
+      JOB_QUEUE: !Ref JobQueue
+      JOB_DEFINITION: !Ref IngestFirehoseJobDefinition
 
   dispatchRewardAssignmentJobs:
     description: Dispatch Reward Assignment Batch Jobs
-    runtime: python3.8
     handler: src/assign_rewards/dispatch_job.lambda_handler
     events:
       - schedule: ${self:provider.environment.REWARD_ASSIGNMENT_JOB_SCHEDULE}
     environment:
       JOB_QUEUE: !Ref JobQueue
-      JOB_DEFINITION: !Ref JobDefinition
+      JOB_DEFINITION: !Ref AssignRewardsJobDefinition
 
   dispatchTrainingJobs:
     description: Dispatch Decision Model Training Jobs
@@ -145,13 +140,18 @@ functions:
     events:
       - s3:
           bucket: !Ref TrainS3Bucket
-          existing: true # created in resources/serverless.yml
+          existing: true # created in resources
           event: s3:ObjectCreated:*
           rules:
             - prefix: models/
             - suffix: model.tar.gz
             
-  forceDockerPush: # Serverless wants the image to be used to deploy it
+  forceDockerPushIngestFirehose: # Serverless wants the image to be used to deploy it
+    description: Force Serverless to Push Docker Image to ECR
+    image:
+      name: ingest-firehose
+
+  forceDockerPushAssignRewards: # Serverless wants the image to be used to deploy it
     description: Force Serverless to Push Docker Image to ECR
     image:
       name: assign-rewards
@@ -289,6 +289,7 @@ resources:
           VpcId:
             Ref: VPC
           MapPublicIpOnLaunch: 'True'
+          AvailabilityZone: ${self:provider.region}a # match availability zone for EFS One Zone
       Route:
         Type: AWS::EC2::Route
         Properties:
@@ -389,7 +390,7 @@ resources:
           ServiceRole: 
             Ref: BatchServiceRole
           ComputeResources:
-            MaxvCpus: ${self:provider.environment.REWARD_ASSIGNMENT_MAX_CONCURRENT_WORKER_COUNT} 
+            MaxvCpus: 128
             SecurityGroupIds:
               - Ref: SecurityGroup
             Type: SPOT
@@ -421,8 +422,27 @@ resources:
                 Ref: ComputeEnvironment
           State: ENABLED
           Priority: 1
-          JobQueueName: '${self:service}-assign-rewards-queue-${opt:stage, self:provider.stage}'
-      JobDefinition:
+          JobQueueName: '${self:service}-job-queue-${opt:stage, self:provider.stage}'
+      IngestFirehoseJobDefinition:
+        Type: "AWS::Batch::JobDefinition"
+        Properties:
+          Type: Container
+          ContainerProperties: 
+            Memory: 1024
+            Vcpus: 1
+            Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-${self:service}-${opt:stage, self:provider.stage}:ingest-firehose'
+            MountPoints:
+              - ReadOnly: false
+                SourceVolume: efs
+                ContainerPath: /mnt/efs
+            Volumes:
+              - Host:
+                  SourcePath: /mnt/efs
+                Name: efs
+          JobDefinitionName: '${self:service}-ingest-firehose-${opt:stage, self:provider.stage}'
+          RetryStrategy: 
+            Attempts: 2
+      AssignRewardsJobDefinition:
         Type: "AWS::Batch::JobDefinition"
         Properties:
           Type: Container
@@ -471,7 +491,8 @@ resources:
       FileSystemResource:
         Type: 'AWS::EFS::FileSystem'
         Properties:
-          PerformanceMode: maxIO # higher max operations per second since we do many small reads/writes
+          AvailabilityZoneName: ${self:provider.region}a # One Zone for lower cost
+          #PerformanceMode: maxIO # higher max operations per second since we do many small reads/writes
           Encrypted: true
           LifecyclePolicies:
             - TransitionToIA: AFTER_14_DAYS # when events stop arriving for a history it will transition to infrequent access
