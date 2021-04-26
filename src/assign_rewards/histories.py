@@ -103,6 +103,9 @@ def select_incoming_history_files():
 def save_history(hashed_history_id, history_records):
     
     output_file = history_dir_for_hashed_history_id(hashed_history_id) / f'{hashed_history_id}-{uuid.uuid4()}.jsonl.gz'
+    
+    utils.ensure_parent_dir(output_file)
+
     utils.save_gzipped_jsonlines(output_file.absolute(), history_records)
 
 def unique_hashed_history_file_name(hashed_history_id):
@@ -113,11 +116,7 @@ def hashed_history_id_from_file(file):
 
 def history_dir_for_hashed_history_id(hashed_history_id):
     # returns a path like /mnt/histories/1c/aa
-    return config.HISTORIES_PATH / sub_dir_for_hashed_history_id(hashed_history_id)
-
-def sub_dir_for_hashed_history_id(hashed_history_id):
-    # returns a path like /mnt/histories/1c/aa
-    return Path(hashed_history_id[0:2]) / hashed_history_id[2:4]
+    return config.HISTORIES_PATH / hashed_history_id[0:2] / hashed_history_id[2:4]
 
 def history_files_for_hashed_history_id(hashed_history_id):
     results = list(history_dir_for_hashed_history_id(hashed_history_id).glob(f'{hashed_history_id}-*.jsonl.gz'))

@@ -406,7 +406,6 @@ resources:
               Ref: BatchInstanceProfile
             InstanceTypes:
               - optimal
-#            DesiredvCpus: 0
             LaunchTemplate:
               LaunchTemplateId:
                 Ref: LaunchTemplateResourceForBatch
@@ -492,7 +491,8 @@ resources:
         Type: 'AWS::EFS::FileSystem'
         Properties:
           AvailabilityZoneName: ${self:provider.region}a # One Zone for lower cost
-          #PerformanceMode: maxIO # higher max operations per second since we do many small reads/writes
+          BackupPolicy:
+            Status: DISABLED # data can be re-ingested from Firehose
           Encrypted: true
           LifecyclePolicies:
             - TransitionToIA: AFTER_14_DAYS # when events stop arriving for a history it will transition to infrequent access

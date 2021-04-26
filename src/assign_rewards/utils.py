@@ -43,8 +43,6 @@ def select_files_for_node(input_dir, glob):
             
 def save_gzipped_jsonlines(file, records):
 
-    ensure_parent_dir(file)
-
     with gzip.open(file, mode='w') as gzf:
         for record in records:
             gzf.write((json.dumps(record, default=serialize_datetime) + "\n").encode())

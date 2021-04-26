@@ -29,4 +29,4 @@ def lambda_handler(event, context):
         }
     )
 
-    print(f"submitted batch job {r['jobName']} arn {r['jobArn']}")
+    print(f"submitted batch job {r['jobArn']}")
