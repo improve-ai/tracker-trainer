@@ -49,37 +49,21 @@ provider:
           Resource: { Fn::GetAtt: [Firehose, Arn] }
         - Effect: Allow
           Action:
-            - "s3:*"
-          Resource: 'arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-*'
-        - Effect: Allow
-          Action:
             - "sagemaker:*"
           Resource: '*'
         - Effect: Allow
           Action:
             - "iam:PassRole"
           Resource: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
-        - Effect: Allow
-          Action:
-            - "lambda:InvokeFunction"
-            - "lambda:InvokeAsync"
-          Resource: "arn:aws:lambda:${self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-*"
-        - Effect: Allow
-          Action:
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - ec2:CreateNetworkInterface
-            - ec2:DescribeNetworkInterfaces
-            - ec2:DeleteNetworkInterface
-          Resource: "*"
-        - Effect: Allow
-          Action:
-            - elasticfilesystem:ClientMount
-            - elasticfilesystem:ClientRootAccess
-            - elasticfilesystem:ClientWrite
-            - elasticfilesystem:DescribeMountTargets
-          Resource: "*"
+        # - Effect: Allow
+        #   Action:
+        #     - logs:CreateLogGroup
+        #     - logs:CreateLogStream
+        #     - logs:PutLogEvents
+        #     - ec2:CreateNetworkInterface
+        #     - ec2:DescribeNetworkInterfaces
+        #     - ec2:DeleteNetworkInterface
+        #   Resource: "*"
         - Effect: Allow
           Action:
             - batch:SubmitJob
@@ -182,7 +166,7 @@ resources:
                   - s3:ListBucket
                   - s3:ListBucketMultipartUploads
                   - s3:PutObject
-                  Resource: '*'
+                  Resource: '*' # FIX scope to firehose bucket when testing track()
       SagemakerExecutionRole:
         Type: AWS::IAM::Role
         Properties:
@@ -262,21 +246,17 @@ resources:
       RouteTable:
         Type: AWS::EC2::RouteTable
         Properties:
-          VpcId:
-            Ref: VPC
+          VpcId: !Ref VPC
       VPCGatewayAttachment:
         Type: AWS::EC2::VPCGatewayAttachment
         Properties:
-          VpcId:
-            Ref: VPC
-          InternetGatewayId:
-            Ref: InternetGateway
+          VpcId: !Ref VPC
+          InternetGatewayId: !Ref InternetGateway
       SecurityGroup:
         Type: AWS::EC2::SecurityGroup
         Properties:
           GroupDescription: EC2 Security Group for instances launched in the VPC by Batch
-          VpcId:
-            Ref: VPC
+          VpcId: !Ref VPC
           SecurityGroupIngress:
             - IpProtocol: tcp
               FromPort: 2049 # Allows Batch to connect to EFS
@@ -286,42 +266,20 @@ resources:
         Type: AWS::EC2::Subnet
         Properties:
           CidrBlock: 10.0.0.0/24
-          VpcId:
-            Ref: VPC
+          VpcId: !Ref VPC
           MapPublicIpOnLaunch: 'True'
           AvailabilityZone: ${self:provider.region}a # match availability zone for EFS One Zone
       Route:
         Type: AWS::EC2::Route
         Properties:
-          RouteTableId:
-            Ref: RouteTable
+          RouteTableId: !Ref RouteTable
           DestinationCidrBlock: 0.0.0.0/0
-          GatewayId:
-            Ref: InternetGateway
+          GatewayId: !Ref InternetGateway
       SubnetRouteTableAssociation:
         Type: AWS::EC2::SubnetRouteTableAssociation
         Properties:
-          RouteTableId:
-            Ref: RouteTable
-          SubnetId:
-            Ref: Subnet
-      S3VpcEndPoint:
-        Type: 'AWS::EC2::VPCEndpoint'
-        Properties:
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Principal: '*'
-                Action:
-                  - 's3:*'
-                Resource: '*'
-          ServiceName: 
-            Fn::Sub: 'com.amazonaws.${AWS::Region}.s3'
-          VpcId: 
-            Ref: VPC
-          RouteTableIds:
-            - Ref: RouteTable
+          RouteTableId: !Ref RouteTable
+          SubnetId: !Ref Subnet
       BatchInstanceProfile:
         Type: AWS::IAM::InstanceProfile
         Properties:
@@ -346,17 +304,8 @@ resources:
               Statement:
                 - Effect: Allow
                   Action:
-                  - s3:AbortMultipartUpload
-                  - s3:GetBucketLocation
-                  - s3:GetObject
-                  - s3:ListBucket
-                  - s3:ListBucketMultipartUploads
-                  - s3:PutObject
-                  Resource: '*'
-                # - Effect: Allow
-                #   Action:
-                #   - s3:PutObject
-                #   Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
+                  - 's3:*'
+                  Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
       BatchServiceRole:
         Type: AWS::IAM::Role
         Properties:
@@ -397,10 +346,8 @@ resources:
               - optimal
             MinvCpus: 0
             MaxvCpus: 128
-            SpotIamFleetRole: 
-              Ref: AmazonEC2SpotFleetRole
-            InstanceRole:  
-              Ref: BatchInstanceProfile
+            SpotIamFleetRole: !Ref AmazonEC2SpotFleetRole
+            InstanceRole: !Ref BatchInstanceProfile
             SecurityGroupIds:
               - Ref: SecurityGroup
             Subnets:
@@ -414,7 +361,7 @@ resources:
               ComputeEnvironment: 
                 Ref: ComputeEnvironment
           State: ENABLED
-          Priority: 1
+          Priority: 2 # 2nd lowest priority
           JobQueueName: '${self:service}-job-queue-${opt:stage, self:provider.stage}'
       IngestFirehoseJobDefinition:
         Type: "AWS::Batch::JobDefinition"
@@ -471,10 +418,8 @@ resources:
       MountTarget:
         Type: AWS::EFS::MountTarget
         Properties:
-          FileSystemId: 
-            Ref: FileSystemResource
+          FileSystemId: !Ref FileSystemResource
           SecurityGroups:
             - Ref: SecurityGroup
-          SubnetId: 
-            Ref: Subnet
+          SubnetId: !Ref Subnet
         DependsOn: Subnet

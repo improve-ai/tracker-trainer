@@ -1,12 +1,16 @@
-"""
-Configuration file.
-Store any constant or configuration variable of interest here.
--------------------------------------------------------------------------------
-"""
-
-# Built-in imports
 from pathlib import Path
+import boto3
+import botocore
 import os
+import stats
+
+stats = stats.Stats()
+
+# The number of threads in this node's threadpool. Must have enough memory for each thread to load a full history
+THREAD_WORKER_COUNT = 20
+
+# boto3 client must be pre-initialized for multi-threaded (https://github.com/boto/botocore/issues/1246)
+s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=THREAD_WORKER_COUNT))
 
 # The length (in seconds) of the reward window
 REWARD_WINDOW = 24 * 2 * 60 * 60
@@ -31,9 +35,6 @@ DEFAULT_REWARD_KEY = 'reward'
 
 # Starting reward value for a decision record if it doesn't have one
 DEFAULT_REWARD_VALUE = 0
-
-# The number of threads in this node's threadpool. Must have enough memory for each thread to load a full history
-THREAD_WORKER_COUNT = 20
 
 # The default reward value of a record of type 'event'
 DEFAULT_EVENT_REWARD_VALUE = 0.001

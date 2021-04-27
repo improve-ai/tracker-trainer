@@ -14,7 +14,6 @@ from pathlib import Path
 from itertools import groupby
 
 import config
-import worker
 import constants
 
 def load_history(file_group):
@@ -32,7 +31,7 @@ def load_records(file, message_ids):
     Load a gzipped jsonlines file
     
     Args:
-        filename: name of the input gzipped jsonlines file to load
+        file: Path of the input gzipped jsonlines file to load
     
     Returns:
         A list of records
@@ -55,7 +54,7 @@ def load_records(file, message_ids):
                         message_ids.add(message_id)
                         records.append(record)
                     else:
-                        worker.stats.incrementDuplicateMessageIdCount()
+                        config.stats.incrementDuplicateMessageIdCount()
                 except (json.decoder.JSONDecodeError, ValueError) as e:
                     error = e
     except (zlib.error, EOFError, gzip.BadGzipFile) as e:
@@ -67,7 +66,7 @@ def load_records(file, message_ids):
         dest = config.UNRECOVERABLE_PATH / file.name
         print(f'unrecoverable parse error "{error}", copying {file.absolute()} to {dest.absolute()}')
         copy_file(file, dest)
-        worker.stats.incrementUnrecoverableFileCount()
+        config.stats.incrementUnrecoverableFileCount()
     
     return records
 
@@ -145,7 +144,7 @@ def upload_gzipped_jsonlines(s3_bucket, s3_key, records):
 
     gzipped.seek(0)
     
-    worker.s3client.put_object(Bucket=s3_bucket, Body=gzipped, Key=s3_key)
+    config.s3client.put_object(Bucket=s3_bucket, Body=gzipped, Key=s3_key)
 
 
 def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):

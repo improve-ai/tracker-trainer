@@ -15,7 +15,7 @@ S3_KEY = os.environ['S3_KEY']
 INCOMING_PATH = Path('/mnt/efs/incoming')
 
 def worker():
-    print(f"starting firehose ingest for bucket {S3_BUCKET} key {S3_KEY}")
+    print(f'starting firehose ingest for s3://{S3_BUCKET}/{S3_KEY}')
 
     records_by_history_id = {}
     

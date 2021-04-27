@@ -1,21 +1,12 @@
 import sys
 import signal
-import time
 import concurrent.futures
-import boto3
-import botocore
 
 import join_rewards
 import config
 import utils
-import stats
 
 SIGTERM = False
-
-stats = stats.Stats()
-
-# boto3 client must be pre-initialized for multi-threaded (https://github.com/boto/botocore/issues/1246)
-s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=config.THREAD_WORKER_COUNT))
 
 # execute the core worker loop of processing incoming firehose files then 
 # processing incoming history files
@@ -25,16 +16,16 @@ def worker():
     # identify the portion of incoming history files to process in this node
     incoming_history_files = utils.select_incoming_history_files()
 
-    print(f'processing {len(incoming_history_files)} incoming history files')
-            
     # group the incoming files by their hashed history ids
     grouped_incoming_history_files = utils.group_files_by_hashed_history_id(incoming_history_files)
+
+    print(f'processing {len(grouped_incoming_history_files)} histories across {len(incoming_history_files)} incoming history files')
 
     # process each group, perform reward assignment, and upload rewarded decisions to s3
     with concurrent.futures.ThreadPoolExecutor(max_workers=config.THREAD_WORKER_COUNT) as executor:
         list(executor.map(process_incoming_history_file_group, grouped_incoming_history_files)) # list() forces evaluation of generator
 
-    print(stats)
+    print(config.stats)
     print(f'finished reward assignment job node {config.NODE_ID}')
 
 
@@ -57,7 +48,7 @@ def process_incoming_history_file_group(file_group):
     # this ensures that any bugs in custom validation code doesn't cause records to be lost
     records = join_rewards.filter_valid_records(hashed_history_id, records)
     
-    stats.incrementHistoryRecordCount(len(records))
+    config.stats.incrementHistoryRecordCount(len(records))
 
     # assign rewards to decision records.
     rewarded_decisions_by_model = join_rewards.assign_rewards_to_decisions(records)
@@ -65,8 +56,8 @@ def process_incoming_history_file_group(file_group):
     # upload the updated rewarded decision records to S3
     for model, rewarded_decisions in rewarded_decisions_by_model.items():
         utils.upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions)
-        stats.addModel(model)
-        stats.incrementRewardedDecisionCount(len(rewarded_decisions))
+        config.stats.addModel(model)
+        config.stats.incrementRewardedDecisionCount(len(rewarded_decisions))
     
     # delete the incoming and history files that were processed
     utils.delete_all(file_group)
