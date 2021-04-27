@@ -164,7 +164,7 @@ resources:
                   - s3:ListBucket
                   - s3:ListBucketMultipartUploads
                   - s3:PutObject
-                  Resource: '*' # FIX scope to firehose bucket when testing track()
+                  Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-firehose"
       SagemakerExecutionRole:
         Type: AWS::IAM::Role
         Properties:
@@ -234,6 +234,30 @@ resources:
         DeletionPolicy: Retain
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-models
+      FileSystemResource:
+        Type: 'AWS::EFS::FileSystem'
+        Properties:
+          AvailabilityZoneName: ${self:provider.region}a # EFS One Zone for lower cost
+          BackupPolicy:
+            Status: DISABLED # data can be re-ingested from Firehose by doing a nop "Edit Metadata" in S3
+          Encrypted: true
+          LifecyclePolicies:
+            - TransitionToIA: AFTER_14_DAYS # when events stop arriving for a history it will transition to infrequent access
+          FileSystemPolicy:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "elasticfilesystem:Client*"
+                Principal:
+                  AWS: "*"
+      MountTarget:
+        Type: AWS::EFS::MountTarget
+        Properties:
+          FileSystemId: !Ref FileSystemResource
+          SecurityGroups:
+            - Ref: SecurityGroup
+          SubnetId: !Ref Subnet
+        DependsOn: Subnet
       VPC:
         Type: AWS::EC2::VPC
         Properties:
@@ -397,27 +421,3 @@ resources:
           JobDefinitionName: '${self:service}-${opt:stage, self:provider.stage}-assign-rewards'
           RetryStrategy: 
             Attempts: 2 # if the job fails, it will pick up where it left off on the next scheduled execution
-      FileSystemResource:
-        Type: 'AWS::EFS::FileSystem'
-        Properties:
-          AvailabilityZoneName: ${self:provider.region}a # EFS One Zone for lower cost
-          BackupPolicy:
-            Status: DISABLED # data can be re-ingested from Firehose by doing a nop "Edit Metadata" in S3
-          Encrypted: true
-          LifecyclePolicies:
-            - TransitionToIA: AFTER_14_DAYS # when events stop arriving for a history it will transition to infrequent access
-          FileSystemPolicy:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action: "elasticfilesystem:Client*"
-                Principal:
-                  AWS: "*"
-      MountTarget:
-        Type: AWS::EFS::MountTarget
-        Properties:
-          FileSystemId: !Ref FileSystemResource
-          SecurityGroups:
-            - Ref: SecurityGroup
-          SubnetId: !Ref Subnet
-        DependsOn: Subnet
