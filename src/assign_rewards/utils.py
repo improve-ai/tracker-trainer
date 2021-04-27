@@ -37,12 +37,15 @@ def load_records(file, message_ids):
         A list of records
     """
 
+    line_count = 0
+    
     records = []
     error = None
 
     try:
         with gzip.open(file.absolute(), mode="rt", encoding="utf8") as gzf:
             for line in gzf.readlines():
+                line_count += 1 # count every line as a record whether it's parseable or not
                 # Do a inner try/except to try to recover as many records as possible
                 try: 
                     record = json.loads(line)
@@ -67,6 +70,8 @@ def load_records(file, message_ids):
         print(f'unrecoverable parse error "{error}", copying {file.absolute()} to {dest.absolute()}')
         copy_file(file, dest)
         config.stats.incrementUnrecoverableFileCount()
+    
+    config.stats.incrementHistoryRecordCount(line_count)
     
     return records
 

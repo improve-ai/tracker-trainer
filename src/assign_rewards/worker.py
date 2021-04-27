@@ -25,6 +25,7 @@ def worker():
     with concurrent.futures.ThreadPoolExecutor(max_workers=config.THREAD_WORKER_COUNT) as executor:
         list(executor.map(process_incoming_history_file_group, grouped_incoming_history_files)) # list() forces evaluation of generator
 
+    print(f'uploaded {config.stats.rewarded_decision_count} rewarded decision records to {config.TRAIN_BUCKET}')
     print(config.stats)
     print(f'finished reward assignment job node {config.NODE_ID}')
 
@@ -48,7 +49,7 @@ def process_incoming_history_file_group(file_group):
     # this ensures that any bugs in custom validation code doesn't cause records to be lost
     records = join_rewards.filter_valid_records(hashed_history_id, records)
     
-    config.stats.incrementHistoryRecordCount(len(records))
+    config.stats.incrementValidatedRecordCount(len(records))
 
     # assign rewards to decision records.
     rewarded_decisions_by_model = join_rewards.assign_rewards_to_decisions(records)
