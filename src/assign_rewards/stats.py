@@ -32,8 +32,8 @@ class Stats():
 
     def __str__(self):
         with self._lock:
-            return (f'Loaded History Records: {self.history_record_count}\n'+
-            f'Uploaded Rewarded Decisions: {self.rewarded_decision_count}\n'
-            f'Unrecoverable Files: {self.uncrecoverable_file_count}\n'+
-            f'Duplicate Message Ids: {self.duplicate_message_id_count}\n'+
-            f'Models: {self.models}\n')
+            return (f'history records loaded: {self.history_record_count}\n'+
+            f'rewarded decisions uploaded: {self.rewarded_decision_count}\n'
+            f'unrecoverable files: {self.uncrecoverable_file_count}\n'+
+            f'duplicate message ids: {self.duplicate_message_id_count}\n'+
+            f'models: {self.models}\n')

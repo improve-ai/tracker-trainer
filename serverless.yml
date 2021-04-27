@@ -390,27 +390,21 @@ resources:
           ServiceRole: 
             Ref: BatchServiceRole
           ComputeResources:
-            MaxvCpus: 128
-            SecurityGroupIds:
-              - Ref: SecurityGroup
             Type: SPOT
             AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
             BidPercentage: ${self:provider.environment.BATCH_SPOT_BID_PERCENTAGE} 
-            SpotIamFleetRole: 
-              Ref: AmazonEC2SpotFleetRole
-            # aws-ec2-spot-fleet-tagging-role
-            Subnets:
-              - Ref: Subnet
-            MinvCpus: 0
-            InstanceRole:  
-              Ref: BatchInstanceProfile
             InstanceTypes:
               - optimal
-            LaunchTemplate:
-              LaunchTemplateId:
-                Ref: LaunchTemplateResourceForBatch
-              Version: 
-                Fn::GetAtt: [LaunchTemplateResourceForBatch, LatestVersionNumber]
+            MinvCpus: 0
+            MaxvCpus: 128
+            SpotIamFleetRole: 
+              Ref: AmazonEC2SpotFleetRole
+            InstanceRole:  
+              Ref: BatchInstanceProfile
+            SecurityGroupIds:
+              - Ref: SecurityGroup
+            Subnets:
+              - Ref: Subnet
           State: ENABLED
       JobQueue:
         Type: AWS::Batch::JobQueue
@@ -427,17 +421,16 @@ resources:
         Properties:
           Type: Container
           ContainerProperties: 
-            Memory: 1024 # enough memory to hold an entire firehose file
+            Memory: 1024 # enough memory to hold a max size (128MB) firehose file
             Vcpus: 1
             Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-${self:service}-${opt:stage, self:provider.stage}:ingest-firehose'
             MountPoints:
-              - ReadOnly: false
-                SourceVolume: efs
+              - SourceVolume: efs
                 ContainerPath: /mnt/efs
             Volumes:
-              - Host:
-                  SourcePath: /mnt/efs
-                Name: efs
+              - Name: efs
+                EfsVolumeConfiguration:
+                  FileSystemId: !Ref FileSystemResource
           JobDefinitionName: '${self:service}-ingest-firehose-${opt:stage, self:provider.stage}'
           RetryStrategy: 
             Attempts: 5
@@ -446,53 +439,25 @@ resources:
         Properties:
           Type: Container
           ContainerProperties: 
-            Memory: 1024
+            Memory: 2048
             Vcpus: 1
             Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-${self:service}-${opt:stage, self:provider.stage}:assign-rewards'
             MountPoints:
-              - ReadOnly: false
-                SourceVolume: efs
+              - SourceVolume: efs
                 ContainerPath: /mnt/efs
             Volumes:
-              - Host:
-                  SourcePath: /mnt/efs
-                Name: efs
+              - Name: efs
+                EfsVolumeConfiguration:
+                  FileSystemId: !Ref FileSystemResource
           JobDefinitionName: '${self:service}-assign-rewards-${opt:stage, self:provider.stage}'
           RetryStrategy: 
-            Attempts: 2
-      LaunchTemplateResourceForBatch:
-        Type: AWS::EC2::LaunchTemplate
-        DependsOn: FileSystemResource
-        Properties:
-          LaunchTemplateName: '${self:service}-launch-template-${opt:stage, self:provider.stage}'
-          LaunchTemplateData:
-            UserData: 
-              Fn::Base64: 
-                Fn::Sub:
-                  - |
-                    MIME-Version: 1.0
-                    Content-Type: multipart/mixed; boundary="==MYBOUNDARY=="
-
-                    --==MYBOUNDARY==
-                    Content-Type: text/cloud-config; charset="us-ascii"
-
-                    packages:
-                    - amazon-efs-utils
-
-                    runcmd:
-                    - mkdir -p /mnt/efs
-                    - echo "${EFSFileSystem}:/ /mnt/efs efs tls,_netdev" >> /etc/fstab
-                    - mount -a -t efs defaults
-
-                    --==MYBOUNDARY==--
-                  - EFSFileSystem: 
-                      Ref: FileSystemResource
+            Attempts: 2 # if the job fails, it will pick up where it left off on the next scheduled execution
       FileSystemResource:
         Type: 'AWS::EFS::FileSystem'
         Properties:
-          AvailabilityZoneName: ${self:provider.region}a # One Zone for lower cost
+          AvailabilityZoneName: ${self:provider.region}a # EFS One Zone for lower cost
           BackupPolicy:
-            Status: DISABLED # data can be re-ingested from Firehose
+            Status: DISABLED # data can be re-ingested from Firehose by doing a nop "Edit Metadata" in S3
           Encrypted: true
           LifecyclePolicies:
             - TransitionToIA: AFTER_14_DAYS # when events stop arriving for a history it will transition to infrequent access
@@ -503,28 +468,3 @@ resources:
                 Action: "elasticfilesystem:Client*"
                 Principal:
                   AWS: "*"
-      MountTarget:
-        Type: AWS::EFS::MountTarget
-        Properties:
-          FileSystemId: 
-            Ref: FileSystemResource
-          SecurityGroups:
-            - Ref: SecurityGroup
-          SubnetId: 
-            Ref: Subnet
-        DependsOn: Subnet
-      FirehoseIncomingEFSAccessPoint:
-        Type: 'AWS::EFS::AccessPoint'
-        Properties:
-          FileSystemId: 
-            Ref: FileSystemResource
-          PosixUser:
-            Uid: "1000"
-            Gid: "1000"
-          RootDirectory:
-            CreationInfo:
-              OwnerGid: "1000"
-              OwnerUid: "1000"
-              Permissions: "0777"
-            Path: "/incoming_firehose"
-        DependsOn: MountTarget
