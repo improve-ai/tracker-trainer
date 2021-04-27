@@ -98,7 +98,6 @@ def filter_valid_records(hashed_history_id, records):
     results = []
     
     history_id = None
-    skipped_record_count = 0
 
     for record in records:
         try:
@@ -110,12 +109,9 @@ def filter_valid_records(hashed_history_id, records):
 
             results.append(record)
         except Exception as e:
-            skipped_record_count += 1
+            pass
         
-    if skipped_record_count:
-        print(f'skipped {skipped_record_count} invalid records for hashed history_id {hashed_history_id}')
-        
-    return results 
+    return results
 
 def validate_record(record, history_id, hashed_history_id):
     if not constants.TIMESTAMP_KEY in record or not constants.TYPE_KEY in record or not constants.HISTORY_ID_KEY in record:
