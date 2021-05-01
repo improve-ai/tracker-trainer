@@ -6,7 +6,7 @@ npm install -g serverless
 # Install the dependencies from package.json
 npm install
 
-# Deploy the service to a new dev stage in us-west-2
+# Deploy the service to a new dev stage in us-east-1
 serverless deploy --stage dev
 
 The output of the deployment will list the HTTP URL for the Decision Tracker endpoint.
