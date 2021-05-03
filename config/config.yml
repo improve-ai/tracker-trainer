@@ -1,0 +1,35 @@
+---
+organization: acme # CHANGE ME BEFORE FIRST DEPLOYMENT
+project: demo # CHANGE ME BEFORE FIRST DEPLOYMENT
+
+models:
+  # changeme: Plural nouns of the variant type are recommended for model names, such as "themes", "prices", or "songs"
+  messages-2.0:
+  themes-2.0:
+    size: medium
+  songs-2.0:
+  stories-2.0:
+
+defaults:
+  training:
+    image: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
+    instance_type: ml.m5.large
+    instance_count: 3
+    schedule: rate(24 hours) # trades off between learning delay and cost
+    max_runtime_in_seconds: 172800 # 48 hours
+  reward_assignment:
+    worker_count: 10
+    spot_bid_percentage: 100
+    schedule: rate(4 hours)
+    reward_window_in_seconds: 172800 # 48 hours
+    
+# maxAge: 7776000
+# xgboostHyperparameters:
+#   num_round: "300"
+#   early_stopping_rounds: "40"
+#   objective: "binary:logistic"
+#   eval_metric: "auc"
+#   max_depth: "6" 
+#   eta: "0.1"
+#   subsample: "0.7"
+#   colsample_bytree: "0.7"

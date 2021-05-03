@@ -112,6 +112,7 @@ functions:
   dispatchTrainingJobs:
     description: Dispatch Decision Model Training Jobs
     handler: src/train/train.dispatchTrainingJobs
+    runtime: nodejs14.x
     events:
       - schedule: ${self:provider.environment.TRAINING_JOB_SCHEDULE}
     environment:
@@ -119,6 +120,7 @@ functions:
 
   unpackModels:
     handler: src/train/unpack_models.unpack
+    runtime: nodejs14.x
     events:
       - s3:
           bucket: !Ref TrainS3Bucket

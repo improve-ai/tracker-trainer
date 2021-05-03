@@ -7,7 +7,7 @@ const shajs = require('sha.js')
 const _ = require('lodash');
 
 const s3 = new AWS.S3();
-const sagemaker = new AWS.SageMaker({ maxRetries: 100, retryDelayOptions: { customBackoff: sagemakerBackoff }});
+const sagemaker = new AWS.SageMaker();
 
 const naming = require("./naming.js")
 const customize = require("./customize.js")
@@ -83,97 +83,6 @@ function createFeatureTrainingJob(projectName, model) {
   })
 }
 
-module.exports.featureModelCreated = async (event, context) => {
-
-  console.log(`processing s3 event ${JSON.stringify(event)}`)
-
-  if (!event.Records || !event.Records.length > 0 || event.Records.some(record => !record.s3 || !record.s3.bucket || !record.s3.bucket.name || !record.s3.object || !record.s3.object.key)) {
-    throw new Error(`WARN: Invalid S3 event ${JSON.stringify(event)}`)
-  }
-  
-  // s3 only ever includes one record per event, but this spec allows multiple, so multiple we will process.
-  return Promise.all(event.Records.map(s3EventRecord => {
-    const s3Key = s3EventRecord.s3.object.key
-
-    // feature_models/projectName/modelName/<feature training job>/model.tar.gz
-    let [projectName, model, trainingJobName] = s3Key.split('/').slice(1,4)
-    
-    // Use the trainingJobName as the ModelName
-    let params = {
-      ExecutionRoleArn: process.env.FEATURE_TRAINING_ROLE_ARN,
-      ModelName: trainingJobName,
-      PrimaryContainer: { 
-        Image: process.env.FEATURE_TRAINING_IMAGE,
-        ModelDataUrl: `s3://${s3EventRecord.s3.bucket.name}/${s3Key}`,
-      }
-    }
-
-    console.log(`Attempting to create model ${trainingJobName} params ${JSON.stringify(params)}`);
-    return sagemaker.createModel(params).promise().then((response) => {
-      if (response.ModelArn) {
-        // model created, kick off the transform job
-        return createTransformJob(projectName, model, trainingJobName) // trainingJobName is the ModelName
-      } else {
-        throw new Error("No ModelArn in response, assuming failure");
-      }
-    })
-  }))
-}
-
-function createTransformJob(projectName, model, trainingJobName) {
-  
-  // change the name from -f to -t
-  const transformJobName = trainingJobName.substring(0, trainingJobName.length-1)+'t'
-
-  var params = {
-    TransformJobName: transformJobName,
-    ModelName: trainingJobName,
-    TransformInput: {
-      CompressionType: 'Gzip',
-      DataSource: {
-        S3DataSource: {
-          S3DataType: "S3Prefix",
-          S3Uri: naming.getRewardedDecisionS3Uri(projectName, model), // transform all train/validation splits. XGBoost will seperate them again.
-        }
-      },
-      SplitType: "Line",
-    },
-    TransformOutput: { 
-      Accept: "text/csv",
-      AssembleWith: "None",
-      S3OutputPath: naming.getTransformedS3Uri(projectName, model),
-    },
-    TransformResources: { 
-      InstanceType: process.env.TRANSFORM_INSTANCE_TYPE,
-      InstanceCount: process.env.TRANSFORM_INSTANCE_COUNT, 
-    },
-  };
-  
-  console.log(`Attempting to create transform job ${trainingJobName} params ${JSON.stringify(params)}`);
-  return sagemaker.createTransformJob(params).promise()
-}
-
-module.exports.transformJobCompleted = async function(event, context) {
-  console.log(`processing cloudwatch event ${JSON.stringify(event)}`)
-
-  if (!event.detail || !event.detail.TransformJobName || event.detail.TransformJobStatus !== "Completed" ||
-      !event.detail.TransformOutput || !event.detail.TransformOutput.S3OutputPath) {
-    throw new Error(`WARN: Invalid cloudwatch event ${JSON.stringify(event)}`)
-  }
-  
-  const transformJobName = event.detail.TransformJobName
-  if (!transformJobName.endsWith('-t')) {
-    console.log("Not a record transform job. Nothing to do.")
-    return;
-  }
-  
-  const [projectName, model] = getProjectNameAndModelFromTransformS3OutputPath(event.detail.TransformOutput.S3OutputPath)
-  
-  // change the name from -t to -x
-  const trainingJobName = transformJobName.substring(0, transformJobName.length-1)+'x'
-  
-  return createXGBoostTrainingJob(projectName, model, trainingJobName)
-}
 
 function createXGBoostTrainingJob(projectName, model, trainingJobName) {
   
@@ -251,38 +160,6 @@ module.exports.xgboostModelCreated = async (event, context) => {
     // the model is already created when feature training is complete, so just launch the transform
     return createModelTransformJob(projectName, model, trainingJobName)
   }))
-}
-
-function createModelTransformJob(projectName, model, xgboostTrainingJobName) {
-    
-  // change the name from -x to -f to get the original feature training job and model name
-  const featureModelTrainingJobName = xgboostTrainingJobName.substring(0, xgboostTrainingJobName.length-1)+'f'
-
-  const transformJobName = featureModelTrainingJobName.substring(0, featureModelTrainingJobName.length-1)+'m'
-
-  var params = {
-    TransformJobName: transformJobName,
-    ModelName: featureModelTrainingJobName,
-    TransformInput: {
-      ContentType: "application/gzip",
-      DataSource: { 
-        S3DataSource: { 
-          S3DataType: "S3Prefix",
-          S3Uri: naming.getXGBoostModelS3Uri(projectName, model, xgboostTrainingJobName), 
-        }
-      },
-    },
-    TransformOutput: { 
-      S3OutputPath: naming.getTransformedModelsS3Uri(projectName, model),
-    },
-    TransformResources: { 
-      InstanceType: process.env.TRANSFORM_INSTANCE_TYPE,
-      InstanceCount: 1, 
-    },
-  };
-  
-  console.log(`Attempting to create model transform job ${transformJobName} params ${JSON.stringify(params)}`);
-  return sagemaker.createTransformJob(params).promise()
 }
 
 function getFeatureTrainingJobName(projectName, model) {
