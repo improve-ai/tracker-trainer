@@ -43,9 +43,11 @@ module.exports.track = async function(event, context) {
     }
   }
   
-  return firehose.putRecord(firehoseRecord).then(() => {
-    return successResponse()
-  }).catch(err =>{
+  return firehose.putRecord(firehoseRecord).promise().then(
+      function(result){
+    return successResponse();
+  }
+  ).catch(err =>{
     return errorResponse(err)
   })
 }
