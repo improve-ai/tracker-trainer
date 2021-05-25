@@ -1,22 +1,17 @@
-# Improve.ai Decision Tracker & Model Trainer
+# Improve AI Gym
 
 # Install the Serverless Framework
 npm install -g serverless
 
 # Install the dependencies from package.json
-npm install 
+npm install
 
-# Deploy the s3 buckets and other service resources to us-west-2
-cd resources ; npm i serverless-pseudo-parameters; serverless deploy --stage dev ; cd ..
-
-# Deploy the service to a new dev stage in us-west-2
+# Deploy the service to a new dev stage in us-east-1
 serverless deploy --stage dev
 
-The output of the deployment will list the lambda endpoints for /choose and /track.
+The output of the deployment will list the HTTP URL for the Decision Tracker endpoint.
 
-Once the deployment is complete, you'll need to create a Usage Plan and API keys using AWS API Gateway.  You can also specify API keys in the serverless.yml, but this is not recommended for production.
-
-# Training Pipeline
+# Architecture
 
 ## Track
 
@@ -28,34 +23,12 @@ After 15 minutes or 128MB of data, the Kinesis firehose is flushed to S3, the da
 
 ## Reward Assignment
 
-New data from the /histories folder is processed and rewards are joined to decisions.  The result is sorted by project and model and then output to the /rewarded_decisions folder in the records bucket.
+New data from the /histories folder is processed and rewards are joined to decisions.  The result is sorted by project and model and then output to the /rewarded_decisions folder in the \*-train S3 bucket
 
 ## Model Training
-
-A Sagemaker training job ingests the data from /rewarded_decisions and trains a decision model.
-
-## XGBoost Feature Transformation
-
-A Sagemaker batch transform job transforms data from /rewarded_decisions into a format suitable for training a model using XGBoost.
-
-## XGBoost Model Training
 
 The transformed training data is trained using XGBoost
 
 ## Final Model Transformation and Bundling
 
 Models and boosted models are transformed and bundled for deployment to client libraries.
-
-# Reducing Training Delay
-Factors that influence the time it takes new data to be deployed to a live model:
-    - Firehose buffering configuration (default: 15 minutes)
-    - Training frequency (default: every 15 minutes)
-    - The total size of the training data set
-    - The CPU performance of the training EC2 instance
-
-# Controlling Costs
-The simplest way to control costs is to tune your training frequency.  Simply edit the schedule in dispatchTrainingJobs: in the serverless.yml.
-
-Other factors that influence costs include:
-    - Total training time
-    - Training instance type
