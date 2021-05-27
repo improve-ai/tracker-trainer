@@ -8,6 +8,7 @@ import utils
 
 SIGTERM = False
 
+
 # execute the core worker loop of processing incoming firehose files then 
 # processing incoming history files
 def worker():
@@ -52,21 +53,25 @@ def process_incoming_history_file_group(file_group):
     config.stats.incrementValidatedRecordCount(len(records))
 
     # assign rewards to decision records.
-    rewarded_decisions_by_model = join_rewards.assign_rewards_to_decisions(records)
+    rewarded_decisions_by_model = \
+        join_rewards.assign_rewards_to_decisions(records)
     
     # upload the updated rewarded decision records to S3
     for model, rewarded_decisions in rewarded_decisions_by_model.items():
-        utils.upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions)
+        utils.upload_rewarded_decisions(
+            model, hashed_history_id, rewarded_decisions)
         config.stats.addModel(model)
         config.stats.incrementRewardedDecisionCount(len(rewarded_decisions))
     
     # delete the incoming and history files that were processed
     utils.delete_all(file_group)
 
+
 def handle_signals():
     if SIGTERM:
         print(f'Quitting due to SIGTERM signal (node {config.NODE_ID}).')
         sys.exit() # raises SystemExit, so worker threads should have a chance to finish up
+
 
 def signal_handler(signalNumber, frame):
     global SIGTERM

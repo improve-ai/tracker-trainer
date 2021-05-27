@@ -32,6 +32,7 @@ def listeners():
     ]
     return listeners
 
+
 @fixture
 def decision_records():
     decision_records = [

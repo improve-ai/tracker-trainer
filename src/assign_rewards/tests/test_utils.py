@@ -4,8 +4,8 @@ import random
 from pathlib import Path
 
 # Local imports
-from src.utils import load_records
-from src.utils import sort_records_by_timestamp
+from src.assign_rewards.utils import load_records
+from src.assign_rewards.utils import sort_records_by_timestamp
 
 
 def test_sort_records_by_timestamp(all_type_records):
@@ -43,11 +43,9 @@ def test_load_records(tmpdir, decision_records, reward_records, event_records):
         for record in records:
             f.write(json.dumps(record) + "\n")
     
-    (expected_decision_records, 
-    expected_reward_records, 
-    expected_event_records) = load_records(filename)
+    (expected_decision_records,  expected_reward_records,
+     expected_event_records) = load_records(filename)
 
     assert decision_records == expected_decision_records
     assert reward_records == expected_reward_records
     assert event_records == expected_event_records
-    
