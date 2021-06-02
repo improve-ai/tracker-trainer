@@ -16,18 +16,18 @@ window = timedelta(seconds=config.REWARD_WINDOW)
 
 
 def update_listeners(listeners, record_timestamp, reward):
-
     if not isinstance(listeners, list):
         raise TypeError("Expecting a list for the 'listeners' arg.")
 
     if not isinstance(record_timestamp, datetime):
-        raise TypeError("Expecting a datetime.datetime timestamp for the 'record_timestamp' arg.")
+        raise TypeError(
+            "Expecting a datetime.datetime timestamp for the 'record_timestamp' arg.")
 
     if not (isinstance(reward, int) or isinstance(reward, float)):
         raise TypeError("Expecting int, float or bool.")
 
     # Loop backwards to be able to remove an item in place
-    for i in range(len(listeners)-1, -1, -1):
+    for i in range(len(listeners) - 1, -1, -1):
         listener = listeners[i]
         #  OLD / ORIG
         # listener_timestamp = listener['timestamp']
@@ -35,13 +35,15 @@ def update_listeners(listeners, record_timestamp, reward):
         if listener_timestamp + window < record_timestamp:
             del listeners[i]
         else:
-            listener['reward'] = listener.get('reward', config.DEFAULT_REWARD_VALUE) + float(reward)
+            listener['reward'] = listener.get('reward',
+                                              config.DEFAULT_REWARD_VALUE) + float(
+                reward)
 
 
 def assign_rewards_to_decisions(records):
     """
     1) Collect all records of type "decision" in a dictionary.
-    2) Assign the rewards of records of type "rewards" to all the "decision" 
+    2) Assign the rewards of records of type "rewards" to all the "decision"
     records that match two criteria:
       - reward_key
       - a time window
@@ -53,9 +55,9 @@ def assign_rewards_to_decisions(records):
 
     """
     rewarded_decisions_by_model = {}
-    
+
     # In the event of a timestamp tie between a decision record and another record, ensure the decision record will be sorted earlier
-    # sorting it as if it were 1 microsecond earlier. It is possible that a record 1 microsecond prior to a decision could be sorted after, 
+    # sorting it as if it were 1 microsecond earlier. It is possible that a record 1 microsecond prior to a decision could be sorted after,
     # so double check timestamp ranges for reward assignment
     def sort_key(x):
         #  OLD / ORIG
@@ -75,7 +77,7 @@ def assign_rewards_to_decisions(records):
         # if record.get('type') == 'decision':
         if record.get(constants.TYPE_KEY) == constants.DECISION_KEY:
             rewarded_decision = record.copy()
-            
+
             # OLD / ORIG
             # model = record['model']
             model = record[constants.MODEL_KEY]
@@ -97,7 +99,7 @@ def assign_rewards_to_decisions(records):
                 # update_listeners(listeners, record['timestamp'], reward)
                 update_listeners(
                     listeners, record[constants.TIMESTAMP_KEY], reward)
-        
+
         # Event type records get summed to all decisions within the time window regardless of reward_key
         # OLD / ORIG
         # elif record.get('type') == 'event':
@@ -117,9 +119,8 @@ def assign_rewards_to_decisions(records):
 
 
 def filter_valid_records(hashed_history_id, records):
-
     results = []
-    
+
     history_id = None
 
     for record in records:
@@ -134,6 +135,7 @@ def filter_valid_records(hashed_history_id, records):
             results.append(record)
 
     return results
+
 
 # OLD / ORIG
 # def filter_valid_records(hashed_history_id, records):
@@ -158,7 +160,7 @@ def filter_valid_records(hashed_history_id, records):
 
 def validate_record(record, history_id, hashed_history_id):
     # record is a dict (json.loaded)
-    if constants.TIMESTAMP_KEY not in record or constants.TYPE_KEY not in record\
+    if constants.TIMESTAMP_KEY not in record or constants.TYPE_KEY not in record \
             or constants.HISTORY_ID_KEY not in record:
         # raise ValueError('invalid record')
         return False
@@ -208,7 +210,6 @@ def validate_record(record, history_id, hashed_history_id):
         return False
         # raise ValueError('history_id hash mismatch')
     return True
-
 
 # OLD / ORIG
 # def validate_record(record, history_id, hashed_history_id):

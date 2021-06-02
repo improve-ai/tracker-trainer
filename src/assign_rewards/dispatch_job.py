@@ -11,8 +11,8 @@ def lambda_handler(event, context):
     node_count = int(os.environ['REWARD_ASSIGNMENT_WORKER_COUNT'])
 
     result = batch.submit_job(
-        jobName=f"{os.environ['SERVICE']}-{os.environ['STAGE']}-assign-rewards", 
-        jobQueue=os.environ['JOB_QUEUE'], 
+        jobName=f"{os.environ['SERVICE']}-{os.environ['STAGE']}-assign-rewards",
+        jobQueue=os.environ['JOB_QUEUE'],
         jobDefinition=os.environ['JOB_DEFINITION'],
         containerOverrides={
             "environment": [

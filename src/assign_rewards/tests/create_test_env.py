@@ -53,7 +53,7 @@ def random_b64_str(size=30):
 
 def create_decision_record(history_id):
     timestamp = datetime.now(tz=pytz.utc) + timedelta(seconds=random.randint(0,100))
-    
+
     decision_record = {
         "type": "decision",
         "reward_key": random.choice(REWARD_KEYS),
@@ -68,7 +68,7 @@ def create_reward_record(decision_record):
     str_timestamp = decision_record.get('timestamp')
     timestamp = datetime.strptime(str_timestamp, DATETIME_FORMAT)
     timestamp = timestamp + timedelta(seconds=random.randint(0,3600*2))
-    
+
     reward_record = {
         "type" : "rewards",
         "timestamp": timestamp.strftime(DATETIME_FORMAT),
@@ -92,7 +92,7 @@ def create_records(history_id, num_decision_records=None):
         num_rewards = random.randint(0, MAX_NUM_REWARDS)
         for j in range(num_rewards):
             records.append(create_reward_record(decision_record))
-    
+
     return records
 
 

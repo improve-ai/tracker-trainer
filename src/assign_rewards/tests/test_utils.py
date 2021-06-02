@@ -10,7 +10,7 @@ from src.assign_rewards.utils import sort_records_by_timestamp
 
 def test_sort_records_by_timestamp(all_type_records):
     random.shuffle(all_type_records)
-    
+
     sort_records_by_timestamp(all_type_records)
 
     assert all_type_records[0]['message_id'] == "decision_record_1"
@@ -36,14 +36,14 @@ def test_load_records(tmpdir, decision_records, reward_records, event_records):
     records.extend(decision_records)
     records.extend(reward_records)
     records.extend(event_records)
-    
-    filename = base/"records.jsonl"
+
+    filename = base / "records.jsonl"
 
     with open(filename, "wt") as f:
         for record in records:
             f.write(json.dumps(record) + "\n")
-    
-    (expected_decision_records,  expected_reward_records,
+
+    (expected_decision_records, expected_reward_records,
      expected_event_records) = load_records(filename)
 
     assert decision_records == expected_decision_records

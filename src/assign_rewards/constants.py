@@ -5,6 +5,9 @@ DECISION_KEY = 'decision'
 
 MODEL_KEY = 'model'
 MODEL_NAME_REGEXP = "^[\w\- .]+$"
+HISTORY_FILE_NAME_REGEXP = '^[\w]+$'
+UUID4_FILE_NAME_REGEXP = "^[\w\-]+$"
+JSONLINES_FILENAME_EXTENSION_REGEXP = '.*\.jsonl.gz$'
 
 MESSAGE_ID_KEY = 'message_id'
 EVENT_KEY = 'event'

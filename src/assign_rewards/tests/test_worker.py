@@ -17,6 +17,7 @@ from src.assign_rewards.config import DATETIME_FORMAT
 from src.assign_rewards.config import REWARD_WINDOW
 from src.assign_rewards.join_rewards import update_listeners
 from src.assign_rewards.join_rewards import assign_rewards_to_decisions
+
 # TODO this imports can be fixed (dev-refactor-manuel branch) but are they
 #  needed ?
 # from src.assign_rewards.worker import gzip_records
@@ -39,12 +40,12 @@ class CasesUpdateListeners:
     """
 
     def case_reward_true_inside_window(self, listeners):
-        
         reward = True
         reward_time_past_base = REWARD_WINDOW - 1
 
         window = timedelta(seconds=reward_time_past_base)
-        record_timestamp = datetime.strptime(BASE_TIME, DATETIME_FORMAT) + window
+        record_timestamp = datetime.strptime(BASE_TIME,
+                                             DATETIME_FORMAT) + window
 
         expected_listeners = deepcopy(listeners)
         expected_listeners[0]['reward'] = 1
@@ -53,24 +54,24 @@ class CasesUpdateListeners:
         return reward, record_timestamp, expected_listeners
 
     def case_reward_true_outside_window(self, listeners):
-
         reward = True
         reward_time_past_base = REWARD_WINDOW + 1
 
         window = timedelta(seconds=reward_time_past_base)
-        record_timestamp = datetime.strptime(BASE_TIME, DATETIME_FORMAT) + window
+        record_timestamp = datetime.strptime(BASE_TIME,
+                                             DATETIME_FORMAT) + window
 
         expected_listeners = []
 
         return reward, record_timestamp, expected_listeners
 
     def case_reward_false_inside_window(self, listeners):
-
         reward = False
         reward_time_past_base = REWARD_WINDOW - 1
 
         window = timedelta(seconds=reward_time_past_base)
-        record_timestamp = datetime.strptime(BASE_TIME, DATETIME_FORMAT) + window
+        record_timestamp = datetime.strptime(BASE_TIME,
+                                             DATETIME_FORMAT) + window
 
         expected_listeners = deepcopy(listeners)
         expected_listeners[0]['reward'] = 0
@@ -79,24 +80,24 @@ class CasesUpdateListeners:
         return reward, record_timestamp, expected_listeners
 
     def case_reward_false_outside_window(self, listeners):
-        
         reward = False
         reward_time_past_base = REWARD_WINDOW + 1
 
         window = timedelta(seconds=reward_time_past_base)
-        record_timestamp = datetime.strptime(BASE_TIME, DATETIME_FORMAT) + window
+        record_timestamp = datetime.strptime(BASE_TIME,
+                                             DATETIME_FORMAT) + window
 
         expected_listeners = []
 
         return reward, record_timestamp, expected_listeners
 
     def case_reward_number_inside_window(self, listeners):
-        
         reward = 5.3
         reward_time_past_base = REWARD_WINDOW - 1
 
         window = timedelta(seconds=reward_time_past_base)
-        record_timestamp = datetime.strptime(BASE_TIME, DATETIME_FORMAT) + window
+        record_timestamp = datetime.strptime(BASE_TIME,
+                                             DATETIME_FORMAT) + window
 
         expected_listeners = deepcopy(listeners)
         expected_listeners[0]['reward'] = reward
@@ -105,24 +106,24 @@ class CasesUpdateListeners:
         return reward, record_timestamp, expected_listeners
 
     def case_reward_number_outside_window_1(self, listeners):
-        
         reward = 5.3
         reward_time_past_base = REWARD_WINDOW + 1
 
         window = timedelta(seconds=reward_time_past_base)
-        record_timestamp = datetime.strptime(BASE_TIME, DATETIME_FORMAT) + window
+        record_timestamp = datetime.strptime(BASE_TIME,
+                                             DATETIME_FORMAT) + window
 
         expected_listeners = []
 
         return reward, record_timestamp, expected_listeners
 
     def case_reward_number_outside_window_3600(self, listeners):
-        
         reward = 5.3
         reward_time_past_base = REWARD_WINDOW + 3600
 
         window = timedelta(seconds=reward_time_past_base)
-        record_timestamp = datetime.strptime(BASE_TIME, DATETIME_FORMAT) + window
+        record_timestamp = datetime.strptime(BASE_TIME,
+                                             DATETIME_FORMAT) + window
 
         expected_listeners = []
 
@@ -133,9 +134,8 @@ class CasesUpdateListeners:
     "reward, record_timestamp, expected_listeners", cases=CasesUpdateListeners)
 def test_update_listeners(
         listeners, reward, record_timestamp, expected_listeners):
-
     update_listeners(listeners, record_timestamp, reward)
-    
+
     assert len(expected_listeners) == len(listeners)
 
     for i, listener in enumerate(listeners):
@@ -161,7 +161,7 @@ class CasesAssignRewardsToDecisions:
         reward_record = reward_records[0]
         event_record = event_records[0]
 
-        records = [decision_record, reward_record,  event_record]
+        records = [decision_record, reward_record, event_record]
 
         # Add the effect of the reward record
         decision_record['value'] = reward_record['rewards']['rwkey_X']
@@ -171,7 +171,7 @@ class CasesAssignRewardsToDecisions:
         expected_records = [decision_record]
 
         return [decision_record], [reward_record], [event_record], \
-            expected_records
+               expected_records
 
     def case_all_record_types(
             self, decision_records, reward_records, event_records,
@@ -180,21 +180,22 @@ class CasesAssignRewardsToDecisions:
             assign_rewards_to_decisions(
                 decision_records, reward_records, event_records)
         expected_records = rewarded_records
-        
+
         return decision_records, reward_records, event_records, expected_records
 
 
-@parametrize_with_cases("decision_records, reward_records, event_records, expected_records", cases=CasesAssignRewardsToDecisions)
+@parametrize_with_cases(
+    "decision_records, reward_records, event_records, expected_records",
+    cases=CasesAssignRewardsToDecisions)
 def test_assign_rewards_to_decisions(
         decision_records, reward_records, event_records, expected_records):
-
     rewarded_records = \
         assign_rewards_to_decisions(
             decision_records, reward_records, event_records)
 
     assert len(rewarded_records) == len(expected_records)
 
-    for i,record in enumerate(rewarded_records):
+    for i, record in enumerate(rewarded_records):
         assert record == decision_records[i]
 
 # TODO depends on  old / deprecated import

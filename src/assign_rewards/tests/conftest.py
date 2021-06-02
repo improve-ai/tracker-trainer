@@ -37,7 +37,7 @@ def listeners():
 def decision_records():
     decision_records = [
         {
-            "type"       : "decision", 
+            "type"       : "decision",
             "reward_key" : "rwkey_X",
             "timestamp"  : "2020-01-01T00:00:00.000-05:00",
             "history_id" : "aa4JDSiu3rKRjfEYaEVCFr9XTD3ZffsT4da/AwuBggU=",
@@ -45,7 +45,7 @@ def decision_records():
         },
 
         {
-            "type"       : "decision", 
+            "type"       : "decision",
             "reward_key" : "rwkey_X",
             "timestamp"  : "2020-01-01T01:00:00.000-05:00",
             "history_id" : "aa4JDSiu3rKRjfEYaEVCFr9XTD3ZffsT4da/AwuBggU=",
@@ -53,7 +53,7 @@ def decision_records():
         },
 
         {
-            "type"       : "decision", 
+            "type"       : "decision",
             "reward_key" : "rwkey_Y",
             "timestamp"  : "2020-01-01T02:00:00.000-05:00",
             "history_id" : "aa4JDSiu3rKRjfEYaEVCFr9XTD3ZffsT4da/AwuBggU=",
