@@ -26,7 +26,7 @@ provider:
     
   lambdaHashingVersion: 20201221 # can be removed in serverless v3
   name: aws
-  region: us-east-2
+  region: us-east-1
   runtime: python3.8
   timeout: 6
   memorySize: 192
