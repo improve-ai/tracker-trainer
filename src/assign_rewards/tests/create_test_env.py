@@ -26,7 +26,7 @@ import pytz
 
 # Local imports
 from config import DATETIME_FORMAT
-from config import PATH_INPUT_DIR
+from config import HISTORIES_PATH
 
 
 RECORD_TYPES = ['decision', 'rewards']
@@ -53,7 +53,7 @@ def random_b64_str(size=30):
 
 def create_decision_record(history_id):
     timestamp = datetime.now(tz=pytz.utc) + timedelta(seconds=random.randint(0,100))
-    
+
     decision_record = {
         "type": "decision",
         "reward_key": random.choice(REWARD_KEYS),
@@ -68,7 +68,7 @@ def create_reward_record(decision_record):
     str_timestamp = decision_record.get('timestamp')
     timestamp = datetime.strptime(str_timestamp, DATETIME_FORMAT)
     timestamp = timestamp + timedelta(seconds=random.randint(0,3600*2))
-    
+
     reward_record = {
         "type" : "rewards",
         "timestamp": timestamp.strftime(DATETIME_FORMAT),
@@ -92,7 +92,7 @@ def create_records(history_id, num_decision_records=None):
         num_rewards = random.randint(0, MAX_NUM_REWARDS)
         for j in range(num_rewards):
             records.append(create_reward_record(decision_record))
-    
+
     return records
 
 
@@ -108,7 +108,7 @@ def create_jsonl_from_records(filepath, records):
 
 if __name__ == "__main__":
     for top_level in SUBDIRS:
-        subdir = PATH_INPUT_DIR / top_level
+        subdir = HISTORIES_PATH / top_level
         subdir.mkdir(parents=True, exist_ok=True)
         num_files = random.randint(1, MAX_NUM_FILES_PER_SUBFOLDER)
         for i in range(num_files):

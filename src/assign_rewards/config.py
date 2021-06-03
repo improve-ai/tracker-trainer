@@ -39,3 +39,5 @@ DEFAULT_REWARD_VALUE = 0
 # The default reward value of a record of type 'event'
 DEFAULT_EVENT_REWARD_VALUE = 0.001
 
+# The timestamp format of the records
+DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
