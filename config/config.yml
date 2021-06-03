@@ -15,7 +15,7 @@ defaults:
     image: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
     instance_type: ml.m5.large
     instance_count: 3
-    schedule: rate(24 hours) # trades off between learning delay and cost
+    schedule: rate(24 hours)
     max_runtime_in_seconds: 172800 # 48 hours
   reward_assignment:
     worker_count: 10
