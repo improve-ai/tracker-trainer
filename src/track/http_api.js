@@ -18,23 +18,23 @@ module.exports.track = async function(event, context) {
 
   const historyId = record.history_id
   
-  if (!historyId || typeof historyId !== "string" || historyId.length > MAX_ID_LENGTH) {
-    return errorResponse("history_id field is required")
+  if (!isValidId(historyId)) {
+    return errorResponse('history_id field is required')
   }
   
   const messageId = record.message_id
   
-  if (!messageId || typeof messageId !== "string" || messageId.length > MAX_ID_LENGTH) {
-    return errorResponse("message_id field is required")
+  if (!isValidId(messageId)) {
+    return errorResponse('message_id field is required')
   }
   
   const timestamp = record.timestamp
   
-  if (!timestamp || typeof timestamp !== "string" || !isValidDate(timestamp)) {
-    return errorResponse("timestamp field is required")
+  if (!isValidDate(timestamp)) {
+    return errorResponse('timestamp field is required')
   }
   
-  record["received_at"] = receivedAt.toISOString()
+  record['received_at'] = receivedAt.toISOString()
   
   const firehoseRecord = {
     DeliveryStreamName: process.env.FIREHOSE_DELIVERY_STREAM_NAME,
@@ -54,9 +54,9 @@ function successResponse() {
   return {
     statusCode: 200,
     headers: {
-      "Access-Control-Allow-Origin" : "*"
+      'Access-Control-Allow-Origin' : '*'
     },
-    body: JSON.stringify({ status: "success" })
+    body: JSON.stringify({ status: 'success' })
   }
 }
 
@@ -69,14 +69,18 @@ function errorResponse(message) {
   return response
 }
 
+function isValidId(id) {
+  return id && typeof id === 'string' && id.length > 0 && id.length <= MAX_ID_LENGTH
+}
+
 // from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
 function isValidDate(date) {
-  return !!parseDate(date)
+  return date && typeof date == 'string' && !!parseDate(date)
 }
 
 function parseDate(dateString) {
   const date = new Date(dateString)
-  if ((date !== "Invalid Date") && !isNaN(date)) {
+  if ((date !== 'Invalid Date') && !isNaN(date)) {
     return date
   } else {
     return null
