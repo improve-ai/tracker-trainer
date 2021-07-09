@@ -15,15 +15,15 @@ def lambda_handler(event, context):
         jobQueue=os.environ['JOB_QUEUE'],
         jobDefinition=os.environ['JOB_DEFINITION'],
         containerOverrides={
-            "environment": [
-                {"name": "REWARD_ASSIGNMENT_WORKER_COUNT", "value":
+            'environment': [
+                {'name': 'REWARD_ASSIGNMENT_WORKER_COUNT', 'value':
                     str(node_count)},
-                {"name": "TRAIN_BUCKET", "value": os.environ['TRAIN_BUCKET']}
+                {'name': 'TRAIN_BUCKET', 'value': os.environ['TRAIN_BUCKET']}
             ],
         },
         # Size of the collection of jobs to send
         arrayProperties={
-            "size": node_count
+            'size': node_count
         }
     )
 

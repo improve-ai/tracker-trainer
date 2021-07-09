@@ -3,12 +3,12 @@ import os
 
 import boto3
 
-RECORDS_KEY = "Records"
-S3_KEY = "s3"
-BUCKET_KEY = "bucket"
-NAME_KEY = "name"
-OBJECT_KEY = "object"
-KEY_KEY = "key"
+RECORDS_KEY = 'Records'
+S3_KEY = 's3'
+BUCKET_KEY = 'bucket'
+NAME_KEY = 'name'
+OBJECT_KEY = 'object'
+KEY_KEY = 'key'
 
 # Launch a reward assignment AWS Batch Job
 def lambda_handler(event, context):
@@ -39,9 +39,9 @@ def lambda_handler(event, context):
         jobQueue=os.environ['JOB_QUEUE'], 
         jobDefinition=os.environ['JOB_DEFINITION'],
         containerOverrides={
-            "environment":[
-                {"name": "S3_BUCKET", "value": s3_bucket},
-                {"name": "S3_KEY", "value": s3_key}
+            'environment':[
+                {'name': 'S3_BUCKET', 'value': s3_bucket},
+                {'name': 'S3_KEY', 'value': s3_key}
             ],
         }
     )
