@@ -7,7 +7,7 @@ import hashlib
 import uuid
 from pathlib import Path
 
-s3 = boto3.resource("s3")
+s3 = boto3.resource('s3')
 
 S3_BUCKET = os.environ['S3_BUCKET']
 S3_KEY = os.environ['S3_KEY']
@@ -23,7 +23,7 @@ def worker():
 
     # download and parse the firehose file
     obj = s3.Object(S3_BUCKET, S3_KEY)
-    with gzip.GzipFile(fileobj=obj.get()["Body"]) as gzf:
+    with gzip.GzipFile(fileobj=obj.get()['Body']) as gzf:
         for line in gzf.readlines():
             record = json.loads(line)
             
@@ -52,7 +52,7 @@ def worker():
         
         with gzip.open(file, mode='w') as gzf:
             for record in records:
-                gzf.write((json.dumps(record) + "\n").encode())
+                gzf.write((json.dumps(record) + '\n').encode())
 
         file_count += 1
         record_count += len(records)
@@ -69,11 +69,11 @@ def ensure_parent_dir(file):
 def signal_handler(signalNumber, frame):
     # don't actually handle the signal.  Ingest should take less than the 2 minute
     # spot instance shutdown period and we can't checkpoint it anyway.
-    print(f"SIGTERM received")
+    print(f'SIGTERM received')
     return
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
     worker()
