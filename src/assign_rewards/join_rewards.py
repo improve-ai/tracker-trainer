@@ -36,7 +36,7 @@ def update_listeners(listeners, record_timestamp, reward):
             del listeners[i]
         else:
             listener['reward'] = listener.get('reward',
-                                              config.DEFAULT_REWARD_VALUE) + float(
+                                              0.0) + float(
                 reward)
 
 
@@ -85,7 +85,7 @@ def assign_rewards_to_decisions(records):
                 rewarded_decisions_by_model[model] = []
             rewarded_decisions_by_model[model].append(rewarded_decision)
 
-            reward_key = record.get('reward_key', config.DEFAULT_REWARD_KEY)
+            reward_key = record.get('reward_key', 'reward')
             listeners = decision_records_by_reward_key.get(reward_key, [])
             decision_records_by_reward_key[reward_key] = listeners
             listeners.append(rewarded_decision)

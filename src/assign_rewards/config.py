@@ -31,11 +31,6 @@ HISTORIES_PATH = EFS_PATH / 'histories'
 
 UNRECOVERABLE_PATH = EFS_PATH / 'unrecoverable'
 
-DEFAULT_REWARD_KEY = 'reward'
-
-# Starting reward value for a decision record if it doesn't have one
-DEFAULT_REWARD_VALUE = 0
-
 # The default reward value of a record of type 'event'
 DEFAULT_EVENT_REWARD_VALUE = 0.001
 
