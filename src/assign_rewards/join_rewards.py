@@ -65,7 +65,7 @@ def assign_rewards_to_decisions(records):
         # if x['type'] == 'decision':
         #     timestamp -= timedelta(microseconds=1)
         timestamp = x[constants.TIMESTAMP_KEY]
-        if x[constants.TYPE_KEY] == constants.DECISION_KEY:
+        if x[constants.TYPE_KEY] == constants.DECISION_TYPE:
             timestamp -= timedelta(microseconds=1)
         return timestamp
 
@@ -75,7 +75,7 @@ def assign_rewards_to_decisions(records):
     for record in records:
         # OLD / ORIG
         # if record.get('type') == 'decision':
-        if record.get(constants.TYPE_KEY) == constants.DECISION_KEY:
+        if record.get(constants.TYPE_KEY) == constants.DECISION_TYPE:
             rewarded_decision = record.copy()
 
             # OLD / ORIG
@@ -103,11 +103,11 @@ def assign_rewards_to_decisions(records):
         # Event type records get summed to all decisions within the time window regardless of reward_key
         # OLD / ORIG
         # elif record.get('type') == 'event':
-        elif record.get(constants.TYPE_KEY) == constants.EVENT_KEY:
+        elif record.get(constants.TYPE_KEY) == constants.EVENT_TYPE:
             # OLD / ORIG
             # reward = record.get('properties', {}) \
             #                .get('value', config.DEFAULT_EVENT_REWARD_VALUE)
-            reward = record.get(constants.PROPERTIES_KEY, {}) \
+            reward = record.get('properties', {}) \
                 .get(constants.VALUE_KEY, config.DEFAULT_EVENT_REWARD_VALUE)
             for reward_key, listeners in decision_records_by_reward_key.items():
                 # OLD / ORIG
@@ -166,7 +166,7 @@ def validate_record(record, history_id, hashed_history_id):
         return False
 
     # 'decision' type requires a 'model'
-    if record[constants.TYPE_KEY] == constants.DECISION_KEY \
+    if record[constants.TYPE_KEY] == constants.DECISION_TYPE \
             and record.get(constants.MODEL_KEY, None) is None:
         # previously was: \and constants.MODEL_KEY not in record
         # TODO added None validation
@@ -218,7 +218,7 @@ def validate_record(record, history_id, hashed_history_id):
 #         raise ValueError('invalid record')
 #
 #     # 'decision' type requires a 'model'
-#     if record[constants.TYPE_KEY] == constants.DECISION_KEY \
+#     if record[constants.TYPE_KEY] == constants.DECISION_TYPE \
 #             and constants.MODEL_KEY not in record:
 #         raise ValueError('invalid record')
 #
