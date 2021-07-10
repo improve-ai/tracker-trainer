@@ -8,7 +8,7 @@ import boto3
 def lambda_handler(event, context):
     batch = boto3.client('batch')
 
-    node_count = int(os.environ['REWARD_ASSIGNMENT_WORKER_COUNT'])
+    worker_count = int(os.environ['REWARD_ASSIGNMENT_WORKER_COUNT'])
 
     result = batch.submit_job(
         jobName=f"{os.environ['SERVICE']}-{os.environ['STAGE']}-assign-rewards",
@@ -17,13 +17,13 @@ def lambda_handler(event, context):
         containerOverrides={
             'environment': [
                 {'name': 'REWARD_ASSIGNMENT_WORKER_COUNT', 'value':
-                    str(node_count)},
+                    str(worker_count)},
                 {'name': 'TRAIN_BUCKET', 'value': os.environ['TRAIN_BUCKET']}
             ],
         },
-        # Size of the collection of jobs to send
+        
         arrayProperties={
-            'size': node_count
+            'size': worker_count
         }
     )
 
