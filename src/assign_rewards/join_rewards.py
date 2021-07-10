@@ -107,7 +107,7 @@ def assign_rewards_to_decisions(records):
             # OLD / ORIG
             # reward = record.get('properties', {}) \
             #                .get('value', config.DEFAULT_EVENT_REWARD_VALUE)
-            reward = record.get('properties', {}) \
+            reward = record.get(constants.PROPERTIES_KEY, {}) \
                 .get(constants.VALUE_KEY, config.DEFAULT_EVENT_REWARD_VALUE)
             for reward_key, listeners in decision_records_by_reward_key.items():
                 # OLD / ORIG
