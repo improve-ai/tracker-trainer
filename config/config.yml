@@ -19,7 +19,7 @@ defaults:
     instance_type: ml.m5.large
     instance_count: 3 # or should it be worker_count?  worker_count: auto
     max_runtime_in_seconds: 172800 # 48 hours
-    max_decision_records_per_worker: 500000
+    max_decision_records_per_worker: 500000 # max_records_per_worker, max_decisions_per_worker
   reward_assignment:
     worker_count: 10
     spot_bid_percentage: 100

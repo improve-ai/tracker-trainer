@@ -14,7 +14,7 @@ EVENT_KEY = 'event'
 PROPERTIES_KEY = 'properties'
 VALUE_KEY = 'value'
 GIVEN_KEY = 'given'
-VARIANTS_COUNT_KEY = 'count'
+COUNT_KEY = 'count'
 RUNNERS_UP_KEY = 'runners_up'
 
 UUID4_LENGTH = 36
