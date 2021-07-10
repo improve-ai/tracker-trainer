@@ -21,7 +21,6 @@ def lambda_handler(event, context):
                 {'name': 'TRAIN_BUCKET', 'value': os.environ['TRAIN_BUCKET']}
             ],
         },
-        
         arrayProperties={
             'size': worker_count
         }
