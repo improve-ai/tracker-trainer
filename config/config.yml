@@ -5,7 +5,7 @@ project: demo # CHANGE ME BEFORE FIRST DEPLOYMENT
 models:
   # changeme: Plural nouns of the variant type are recommended for model names, such as "themes", "prices", or "songs"
   appconfig:
-    size: medium
+    size: xsmall # sizes? 
   messages-2.0:
   themes-2.0:
     size: medium
@@ -13,26 +13,16 @@ models:
   stories-2.0:
 
 defaults:
+  max_record_age_in_seconds: 15552000 # 180 days
   training:
     image: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
     schedule: rate(24 hours)
-    instance_type: ml.m5.large
-    instance_count: 3 # or should it be worker_count?  worker_count: auto
+    worker_instance_type: ml.m5.large # instance_type ? 
+    worker_count: 3 
     max_runtime_in_seconds: 172800 # 48 hours
-    max_decision_records_per_worker: 500000 # max_records_per_worker, max_decisions_per_worker
+    max_records_per_worker: 500000 
   reward_assignment:
     worker_count: 10
     spot_bid_percentage: 100
     schedule: rate(4 hours)
     reward_window_in_seconds: 172800 # 48 hours
-    
-# maxAge: 7776000
-# xgboostHyperparameters:
-#   num_round: "300"
-#   early_stopping_rounds: "40"
-#   objective: "binary:logistic"
-#   eval_metric: "auc"
-#   max_depth: "6" 
-#   eta: "0.1"
-#   subsample: "0.7"
-#   colsample_bytree: "0.7"
