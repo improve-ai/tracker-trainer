@@ -29,15 +29,11 @@ def update_listeners(listeners, record_timestamp, reward):
     # Loop backwards to be able to remove an item in place
     for i in range(len(listeners) - 1, -1, -1):
         listener = listeners[i]
-        #  OLD / ORIG
-        # listener_timestamp = listener['timestamp']
         listener_timestamp = listener[constants.TIMESTAMP_KEY]
         if listener_timestamp + window < record_timestamp:
             del listeners[i]
         else:
-            listener['reward'] = listener.get('reward',
-                                              0.0) + float(
-                reward)
+            listener['reward'] = listener.get('reward', 0.0) + float(reward)
 
 
 def assign_rewards_to_decisions(records):
@@ -60,26 +56,18 @@ def assign_rewards_to_decisions(records):
     # sorting it as if it were 1 microsecond earlier. It is possible that a record 1 microsecond prior to a decision could be sorted after,
     # so double check timestamp ranges for reward assignment
     def sort_key(x):
-        #  OLD / ORIG
-        # timestamp = x['timestamp']
-        # if x['type'] == 'decision':
-        #     timestamp -= timedelta(microseconds=1)
         timestamp = x[constants.TIMESTAMP_KEY]
         if x[constants.TYPE_KEY] == constants.DECISION_TYPE:
             timestamp -= timedelta(microseconds=1)
         return timestamp
-
+    # sorted(list5, key=lambda vertex: (degree(vertex), vertex))
     records.sort(key=sort_key)
 
     decision_records_by_reward_key = {}
     for record in records:
-        # OLD / ORIG
-        # if record.get('type') == 'decision':
         if record.get(constants.TYPE_KEY) == constants.DECISION_TYPE:
             rewarded_decision = record.copy()
 
-            # OLD / ORIG
-            # model = record['model']
             model = record[constants.MODEL_KEY]
             if model not in rewarded_decisions_by_model:
                 rewarded_decisions_by_model[model] = []
@@ -90,28 +78,17 @@ def assign_rewards_to_decisions(records):
             decision_records_by_reward_key[reward_key] = listeners
             listeners.append(rewarded_decision)
 
-        # OLD / ORIG
-        # elif record.get('type') == 'rewards':
         elif record.get(constants.TYPE_KEY) == 'rewards':
             for reward_key, reward in record['rewards'].items():
                 listeners = decision_records_by_reward_key.get(reward_key, [])
-                # OLD / ORIG
-                # update_listeners(listeners, record['timestamp'], reward)
                 update_listeners(
                     listeners, record[constants.TIMESTAMP_KEY], reward)
 
         # Event type records get summed to all decisions within the time window regardless of reward_key
-        # OLD / ORIG
-        # elif record.get('type') == 'event':
         elif record.get(constants.TYPE_KEY) == constants.EVENT_TYPE:
-            # OLD / ORIG
-            # reward = record.get('properties', {}) \
-            #                .get('value', config.DEFAULT_EVENT_REWARD_VALUE)
             reward = record.get(constants.PROPERTIES_KEY, {}) \
                 .get(constants.VALUE_KEY, config.DEFAULT_EVENT_REWARD_VALUE)
             for reward_key, listeners in decision_records_by_reward_key.items():
-                # OLD / ORIG
-                # update_listeners(listeners, record['timestamp'], reward)
                 update_listeners(
                     listeners, record[constants.TIMESTAMP_KEY], reward)
 
@@ -137,48 +114,21 @@ def filter_valid_records(hashed_history_id, records):
     return results
 
 
-# OLD / ORIG
-# def filter_valid_records(hashed_history_id, records):
-#     results = []
-#
-#     history_id = None
-#
-#     for record in records:
-#         try:
-#             validate_record(record, history_id, hashed_history_id)
-#
-#             if not history_id:
-#                 # history_id has been validated to hash to the hashed_history_id
-#                 history_id = record[constants.HISTORY_ID_KEY]
-#
-#             results.append(record)
-#         except Exception as e:
-#             pass
-#
-#     return results
-
-
 def validate_record(record, history_id, hashed_history_id):
     # record is a dict (json.loaded)
     if constants.TIMESTAMP_KEY not in record or constants.TYPE_KEY not in record \
             or constants.HISTORY_ID_KEY not in record:
-        # raise ValueError('invalid record')
         return False
 
     # 'decision' type requires a 'model'
     if record[constants.TYPE_KEY] == constants.DECISION_TYPE \
             and record.get(constants.MODEL_KEY, None) is None:
-        # previously was: \and constants.MODEL_KEY not in record
-        # TODO added None validation
-        # raise ValueError('invalid record')
-        print('type key == `decision` and model name is missing')
         return False
 
     # validate given type
     givens = record.get(constants.GIVEN_KEY, None)
     if givens is not None and not isinstance(givens, dict):
         # given is not a dict and should be
-        print('Givens are not of a dict type')
         return False
 
     # validate model name
@@ -189,45 +139,21 @@ def validate_record(record, history_id, hashed_history_id):
     if model_name is not None:
         # if model name is not None and is not a string that means it is faulty
         if not isinstance(model_name, str):
-            print('Model name is not None and not a string')
+            # model name is not an instance of a string
             return False
 
         # if model name has special chars like !@#$%^ etc. it is faulty
         if not re.match(constants.MODEL_NAME_REGEXP, model_name):
-            print('Model name failed to pass through the regex')
+            # model name fails to pass regexp test
             return False
 
     if history_id:
         # history id provided, see if they match
         if history_id != record[constants.HISTORY_ID_KEY]:
-            print('Provided history_id mismatches the on e in the record')
+            # input history id mismatches the one of the record
             return False
-            # raise ValueError('history_id hash mismatch')
     elif not utils.hash_history_id(
             record[constants.HISTORY_ID_KEY]) == hashed_history_id:
-
-        print('Record`s history_id mismatches hashed_history_id (?)')
+        # Record`s history_id mismatches hashed_history_id (?)
         return False
-        # raise ValueError('history_id hash mismatch')
     return True
-
-# OLD / ORIG
-# def validate_record(record, history_id, hashed_history_id):
-#     if constants.TIMESTAMP_KEY not in record or constants.TYPE_KEY not in record \
-#             or constants.HISTORY_ID_KEY not in record:
-#         raise ValueError('invalid record')
-#
-#     # 'decision' type requires a 'model'
-#     if record[constants.TYPE_KEY] == constants.DECISION_TYPE \
-#             and constants.MODEL_KEY not in record:
-#         raise ValueError('invalid record')
-#
-#     # check valid model name characters
-#
-#     if history_id:
-#         # history id provided, see if they match
-#         if history_id != record[constants.HISTORY_ID_KEY]:
-#             raise ValueError('history_id hash mismatch')
-#     elif not utils.hash_history_id(
-#             record[constants.HISTORY_ID_KEY]) == hashed_history_id:
-#         raise ValueError('history_id hash mismatch')

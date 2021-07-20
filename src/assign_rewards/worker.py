@@ -65,10 +65,16 @@ def process_incoming_history_file_group(file_group):
 
     # upload the updated rewarded decision records to S3
     for model, rewarded_decisions in rewarded_decisions_by_model.items():
+
+        rewarded_decisions_with_desired_keys = \
+            utils.drop_needless_keys_from_records(
+                rewarded_decisions=rewarded_decisions)
+
         utils.upload_rewarded_decisions(
-            model, hashed_history_id, rewarded_decisions)
+            model, hashed_history_id, rewarded_decisions_with_desired_keys)
         config.stats.addModel(model)
-        config.stats.incrementRewardedDecisionCount(len(rewarded_decisions))
+        config.stats.incrementRewardedDecisionCount(
+            len(rewarded_decisions_with_desired_keys))
 
     # delete the incoming and history files that were processed
     utils.delete_all(file_group)

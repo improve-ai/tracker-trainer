@@ -8,7 +8,8 @@ provider:
     #
     # Customize your deployment here:
     #
-    TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
+    # INFO: ECR image repo region must match region set in here
+    TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest
     TRAINING_INSTANCE_TYPE: ml.m5.large
     TRAINING_INSTANCE_COUNT: 3
     TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
@@ -23,7 +24,7 @@ provider:
     MODELS_BUCKET: !Ref ModelsS3Bucket
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
-    
+
   lambdaHashingVersion: 20201221 # can be removed in serverless v3
   name: aws
   region: us-east-1
@@ -66,6 +67,10 @@ provider:
           Action:
             - batch:SubmitJob
           Resource: "arn:aws:batch:*:*:*"
+        - Effect: Allow
+          Action:
+            - 's3:*'
+          Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
 
 service: improve-v6-${self:custom.organization}-${self:custom.project}
 
@@ -87,7 +92,6 @@ functions:
           path: /track
     environment:
       FIREHOSE_DELIVERY_STREAM_NAME: !Ref Firehose
-
   dispatchIngestFirehoseFile: # FIX change to dispatchIngestFirehoseJob
     description: Dispatch Ingest Firehose Batch Job
     handler: src/ingest_firehose/dispatch_job.lambda_handler
@@ -99,7 +103,6 @@ functions:
     environment:
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref IngestFirehoseJobDefinition
-
   dispatchRewardAssignmentJobs:
     description: Dispatch Reward Assignment Batch Jobs
     handler: src/assign_rewards/dispatch_job.lambda_handler
@@ -108,16 +111,21 @@ functions:
     environment:
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref AssignRewardsJobDefinition
-
   dispatchTrainingJobs:
-    description: Dispatch Decision Model Training Jobs
-    handler: src/train/train.dispatchTrainingJobs
-    runtime: nodejs14.x
+    description: Dispatch Reward Assignment Batch Jobs
+    runtime: python3.8
+    handler: src/train/dispatch_job.lambda_handler
     events:
       - schedule: ${self:provider.environment.TRAINING_JOB_SCHEDULE}
     environment:
+      JOB_QUEUE: !Ref JobQueue
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
-
+      TRAINING_SUBNET: !Ref Subnet
+      TRAINING_SECURITY_GROUP: !Ref SecurityGroup
+      TRAINING_INPUT_CHANNEL_NAME: 'decisions'
+      TRAINING_INPUT_MODE: 'Pipe'
+      TRAINING_INPUT_COMPRESSION: 'Gzip'
+      TRAINING_SHARDING_TYPE: 'ShardedByS3Key'
   unpackModels:
     handler: src/train/unpack_models.unpack
     runtime: nodejs14.x
@@ -173,12 +181,12 @@ resources:
           RoleName: ${self:service}-${opt:stage, self:provider.stage}-SagemakerExecutionRole
           AssumeRolePolicyDocument:
             Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                - firehose.amazonaws.com
-              Action:
-              - sts:AssumeRole
+#            - Effect: Allow
+#              Principal:
+#                Service:
+#                - firehose.amazonaws.com
+#              Action:
+#              - sts:AssumeRole
             - Effect: Allow
               Principal:
                 Service:
@@ -193,10 +201,11 @@ resources:
               Statement:
                 - Effect: Allow
                   Action:
-                  - s3:GetObject
-                  - s3:DeleteObject
-                  - s3:ListBucket
-                  - s3:PutObject
+                  - 's3:GetObject'
+                  - 's3:GetBucketLocation'
+                  - 's3:DeleteObject'
+                  - 's3:ListBucket'
+                  - 's3:PutObject'
                   Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
       FirehoseS3Bucket:
         Type: 'AWS::S3::Bucket'
@@ -222,7 +231,7 @@ resources:
               - - 'arn:aws:s3:::'
                 - Ref: FirehoseS3Bucket
             BufferingHints:
-              IntervalInSeconds: 900 # max value is 900
+              IntervalInSeconds: 90 # max value is 900
               SizeInMBs: 128 # max value is 128
             CompressionFormat: "GZIP"
             RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
@@ -261,7 +270,24 @@ resources:
             - IpProtocol: tcp
               FromPort: 2049 # Allows Batch to connect to EFS
               ToPort: 2049  
-              CidrIp: 0.0.0.0/0 
+              CidrIp: 0.0.0.0/0
+            - IpProtocol: udp
+              FromPort: 500 # Allows for encrypted inter-container traffic
+              ToPort: 500
+              CidrIp: 0.0.0.0/0
+            - IpProtocol: -1
+              FromPort: -1 # Allows for inter-instance comm
+              ToPort: -1
+              CidrIp: 0.0.0.0/0
+          SecurityGroupEgress:
+            - IpProtocol: udp
+              FromPort: 500 # Allows Batch to connect to EFS
+              ToPort: 500
+              CidrIp: 0.0.0.0/0
+            - IpProtocol: -1
+              FromPort: -1 # Allows for inter-instance comm
+              ToPort: -1
+              CidrIp: 0.0.0.0/0
       Subnet:
         Type: AWS::EC2::Subnet
         Properties:
@@ -423,3 +449,16 @@ resources:
             - Ref: SecurityGroup
           SubnetId: !Ref Subnet
         DependsOn: Subnet
+      S3Endpoint:
+        Type: AWS::EC2::VPCEndpoint
+        Properties:
+          PolicyDocument:
+            Statement:
+              - Action: "*"
+                Effect: "Allow"
+                Resource: "*"
+                Principal: "*"
+          RouteTableIds:
+            - !Ref RouteTable
+          ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+          VpcId: !Ref VPC

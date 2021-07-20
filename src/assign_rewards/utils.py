@@ -151,29 +151,25 @@ def _is_history_filename_valid(checked_filename: str):
     # bad extension
     if re.match(
             constants.JSONLINES_FILENAME_EXTENSION_REGEXP, checked_filename) is None:
-        print('Filename: {} has no jsonl.gz suffix'.format(checked_filename))
+        # Filename has no jsonl.gz suffix
         return False
 
-    sha_256_len = 64
-    uuid4_len = 36
     sha_filename_chunk = checked_filename.split('-')[0]
 
     # illegal chars or bad length of sha256 chunk
-    if len(sha_filename_chunk) != sha_256_len \
+    if len(sha_filename_chunk) != constants.SHA_256_LEN \
             or re.match(
             constants.HISTORY_FILE_NAME_REGEXP, sha_filename_chunk) is None:
-        print('Filename: {} has illegal chars in hashed history id'
-              .format(checked_filename))
+        # Filename has illegal chars in hashed history id
         return False
 
     uuid4_filename_chunk = \
         '-'.join(checked_filename.split('-')[1:]).split('.')[0]
     # illegal chars or bad length of uuid4 chunk
-    if len(uuid4_filename_chunk) != uuid4_len \
+    if len(uuid4_filename_chunk) != constants.UUID4_LENGTH \
             or re.match(
                 constants.UUID4_FILE_NAME_REGEXP, uuid4_filename_chunk) is None:
-        print('Filename: {} has illegal chars in uuid4'
-              .format(checked_filename))
+        # Filename has illegal chars in uuid4
         return False
 
     return True
@@ -219,22 +215,32 @@ def upload_gzipped_jsonlines(s3_bucket, s3_key, records):
     config.s3client.put_object(Bucket=s3_bucket, Body=gzipped, Key=s3_key)
 
 
+def drop_needless_keys_from_records(rewarded_decisions):
+    rewarded_decisions_with_desired_keys = \
+        [{k: rd[k] for k in rd if k in constants.REWARDED_DECISIONS_S3_KEYS}
+         for rd in rewarded_decisions]
+
+    return rewarded_decisions_with_desired_keys
+
+
 def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):
     # TODO double check model name and hashed_history_id to ensure valid characters
 
     # check hashed_historyid for sha256
     if re.match(constants.HISTORY_FILE_NAME_REGEXP, hashed_history_id) is None:
-        print('Malformed `hashed_history_id`: {}'.format(hashed_history_id))
+        # Malformed `hashed_history_id`
         return
 
     # check model name
     if re.match(constants.MODEL_NAME_REGEXP, model) is None:
-        print('Malformed `model` name: {}'.format(model))
+        # 'Malformed `model` name
         return
 
+    # TODO does this return statement have eny effect ?
     return upload_gzipped_jsonlines(
         config.TRAIN_BUCKET,
-        rewarded_decisions_s3_key(model, hashed_history_id), rewarded_decisions)
+        rewarded_decisions_s3_key(
+            model, hashed_history_id), rewarded_decisions)
 
 
 def delete_all(paths):
