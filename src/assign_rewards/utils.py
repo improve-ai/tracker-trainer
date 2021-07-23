@@ -277,3 +277,9 @@ def sort_records_by_timestamp(records):
 def deepcopy(o):
     return json.loads(json.dumps(o))
 
+
+def make_decision_type_first(event_type):
+    if event_type == constants.DECISION_TYPE:
+        return 0
+    else:
+        return 1

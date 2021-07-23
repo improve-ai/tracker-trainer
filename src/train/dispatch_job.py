@@ -10,7 +10,7 @@ IMPROVE_VERSION = 'v6'
 JOB_NAME_PREFIX = 'improve-train-job-{}'.format(IMPROVE_VERSION)
 MODEL_NAME_REGEXP = "^[\w\- .]+$"
 AWS_BUCKET_PREFIX = 's3://'
-AWS_S3_OS_SEP = '/'
+AWS_S3_PATH_SEP = '/'
 MODEL_NAME_ENVVAR = 'MODEL_NAME'
 
 
@@ -33,8 +33,7 @@ TRAINING_SHARDING_TYPE_ENVVAR = 'TRAINING_SHARDING_TYPE'
 
 
 MODELS_BUCKET_ENVVAR = 'MODELS_BUCKET'
-MODELS_BUCKET_SUBDIR = 'xgboost_models'
-MODEL_LATEST_SUBDIR = 'latest'
+MODELS_BUCKET_SUBDIR = 'models'
 
 
 def get_training_s3_uri_for_model(model_name: str):
@@ -57,7 +56,7 @@ def get_training_s3_uri_for_model(model_name: str):
     training_bucket_name = os.getenv(TRAINING_INPUT_BUCKET_ENVVAR)
 
     return \
-        AWS_BUCKET_PREFIX + AWS_S3_OS_SEP.join(
+        AWS_BUCKET_PREFIX + AWS_S3_PATH_SEP.join(
             [training_bucket_name, TRAINING_INPUT_BUCKET_SUBDIR, model_name])
 
 
@@ -79,9 +78,8 @@ def get_s3_model_save_uri(model_name: str):
     models_bucket_name = os.getenv(MODELS_BUCKET_ENVVAR)
 
     return \
-        AWS_BUCKET_PREFIX + AWS_S3_OS_SEP.join(
-            [models_bucket_name, MODELS_BUCKET_SUBDIR, model_name,
-             MODEL_LATEST_SUBDIR])
+        AWS_BUCKET_PREFIX + AWS_S3_PATH_SEP.join(
+            [models_bucket_name, MODELS_BUCKET_SUBDIR, model_name])
 
 
 def get_s3_bucket_contents_paths(s3_client, bucket_name: str) -> list:
@@ -260,17 +258,17 @@ def get_model_names(s3_client, bucket_name: str) -> list:
         return []
 
     assert all(
-        [el.split(AWS_S3_OS_SEP)[0] == TRAINING_INPUT_BUCKET_SUBDIR
+        [el.split(AWS_S3_PATH_SEP)[0] == TRAINING_INPUT_BUCKET_SUBDIR
          for el in model_subdirectories])
     valid_model_names = \
-        [el.split(AWS_S3_OS_SEP)[1] for el in model_subdirectories
-         if is_valid_model_name(el.split(AWS_S3_OS_SEP)[1])]
+        [el.split(AWS_S3_PATH_SEP)[1] for el in model_subdirectories
+         if is_valid_model_name(el.split(AWS_S3_PATH_SEP)[1])]
 
     print('Valid model names: {}'.format(valid_model_names))
 
     print('Invalid model names: {}'.format(
-        [el.split(AWS_S3_OS_SEP)[1] for el in model_subdirectories
-         if not is_valid_model_name(el.split(AWS_S3_OS_SEP)[1])]))
+        [el.split(AWS_S3_PATH_SEP)[1] for el in model_subdirectories
+         if not is_valid_model_name(el.split(AWS_S3_PATH_SEP)[1])]))
     return valid_model_names
 
 
@@ -373,6 +371,8 @@ def lambda_handler(event, context):
             failed_starts.append(model_name)
 
     # TODO maybe check train_jobs_processes for completion
-    print('All train jobs dispatched')
-    print('{} train jobs started successfully'.format(successful_starts))
-    print('{} train jobs failed to start'.format(failed_starts))
+    print('Attempt to dispatch all train jobs complete:')
+    print(' - train jobs for models: {} started successfully'
+          .format(successful_starts))
+    if failed_starts:
+        print(' - train jobs for models {} failed to start'.format(failed_starts))

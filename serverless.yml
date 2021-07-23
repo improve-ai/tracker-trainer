@@ -10,6 +10,7 @@ provider:
     #
     # INFO: ECR image repo region must match region set in here
     TRAINING_IMAGE: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest
+#    TRAINING_IMAGE: 278455137857.dkr.ecr.us-east-2.amazonaws.com/improve.ai:v6-trainer
     TRAINING_INSTANCE_TYPE: ml.m5.large
     TRAINING_INSTANCE_COUNT: 3
     TRAINING_MAX_RUNTIME_IN_SECONDS: 172800 # 2 days
@@ -126,18 +127,21 @@ functions:
       TRAINING_INPUT_MODE: 'Pipe'
       TRAINING_INPUT_COMPRESSION: 'Gzip'
       TRAINING_SHARDING_TYPE: 'ShardedByS3Key'
+
   unpackModels:
+    runtime: python3.8
     handler: src/train/unpack_models.unpack
-    runtime: nodejs14.x
     events:
       - s3:
-          bucket: !Ref TrainS3Bucket
+          bucket: !Ref ModelsS3Bucket
           existing: true # created in resources
           event: s3:ObjectCreated:*
           rules:
             - prefix: models/
             - suffix: model.tar.gz
-            
+    environment:
+      JOB_QUEUE: !Ref JobQueue
+
   forceDockerPushIngestFirehose: # Serverless wants the image to be used to deploy it
     description: Force Serverless to Push Docker Image to ECR
     image:

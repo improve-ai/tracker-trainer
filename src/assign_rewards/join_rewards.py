@@ -52,16 +52,8 @@ def assign_rewards_to_decisions(records):
     """
     rewarded_decisions_by_model = {}
 
-    # In the event of a timestamp tie between a decision record and another record, ensure the decision record will be sorted earlier
-    # sorting it as if it were 1 microsecond earlier. It is possible that a record 1 microsecond prior to a decision could be sorted after,
-    # so double check timestamp ranges for reward assignment
-    def sort_key(x):
-        timestamp = x[constants.TIMESTAMP_KEY]
-        if x[constants.TYPE_KEY] == constants.DECISION_TYPE:
-            timestamp -= timedelta(microseconds=1)
-        return timestamp
-    # sorted(list5, key=lambda vertex: (degree(vertex), vertex))
-    records.sort(key=sort_key)
+    records.sort(
+        key=lambda x: (x['timestamp'], utils.make_decision_type_first(x['type'])))
 
     decision_records_by_reward_key = {}
     for record in records:
@@ -71,6 +63,7 @@ def assign_rewards_to_decisions(records):
             model = record[constants.MODEL_KEY]
             if model not in rewarded_decisions_by_model:
                 rewarded_decisions_by_model[model] = []
+
             rewarded_decisions_by_model[model].append(rewarded_decision)
 
             reward_key = record.get('reward_key', 'reward')
