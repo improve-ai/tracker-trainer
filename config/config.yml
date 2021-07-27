@@ -7,14 +7,18 @@ models:
   appconfig:
     size: medium
   messages-2.0:
+    size: medium
   themes-2.0:
     size: medium
   songs-2.0:
+    size: medium
   stories-2.0:
+    size: medium
 
 defaults:
+  region: us-east-1
   training:
-    image: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
+    image: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest
     schedule: rate(24 hours)
     instance_type: ml.m5.large
     instance_count: 3 # or should it be worker_count?  worker_count: auto

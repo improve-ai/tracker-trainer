@@ -5,11 +5,7 @@ import os
 import tarfile
 from uuid import uuid4
 
-
-AWS_S3_PATH_SEP = '/'
-EXPECTED_TRAINER_OUTPUT_FILENAME = 'model.tar.gz'
-EXPECTED_MODELS_COUNT = 2
-MODELS_BUCKET_ENVVAR = 'MODELS_BUCKET'
+import src.train.constants as tc
 
 
 def unpack(event, context):
@@ -21,17 +17,13 @@ def unpack(event, context):
     s3_record = event['Records'][0]['s3']
 
     input_key = s3_record['object']['key']
-    path_parts = input_key.split(AWS_S3_PATH_SEP)
+    path_parts = input_key.split(tc.AWS_S3_PATH_SEP)
 
-    if path_parts[-1] != EXPECTED_TRAINER_OUTPUT_FILENAME:
+    if path_parts[-1] != tc.EXPECTED_TRAINER_OUTPUT_FILENAME:
         raise ValueError(
             'Invalid S3 event - model filename `{}` differs from expected `{}`'
-            .format(input_key, EXPECTED_TRAINER_OUTPUT_FILENAME))
+            .format(input_key, tc.EXPECTED_TRAINER_OUTPUT_FILENAME))
 
-    # path_parts ==
-    # ['models', 'dummy-model-1',
-    # 'improve-train-job-v6-dummy-model-1-20210722122235', 'output',
-    # 'model.tar.gz']
     _, s3_model_name, train_job_name, _, model_filename = path_parts
 
     params = {
@@ -49,10 +41,10 @@ def unpack(event, context):
 
     with tarfile.open(fileobj=tar_gz_models_buffer) as tar_gz_models_file:
         model_filenames = tar_gz_models_file.getnames()
-        if len(model_filenames) != EXPECTED_MODELS_COUNT:
+        if len(model_filenames) != tc.EXPECTED_MODELS_COUNT:
             raise ValueError(
                 'Expected: {} models, got: {}'
-                .format(EXPECTED_MODELS_COUNT, len(model_filenames)))
+                .format(tc.EXPECTED_MODELS_COUNT, len(model_filenames)))
 
         trained_models_uuid = str(uuid4())
 
@@ -83,7 +75,7 @@ def upload_model(
 
     write_params = {
         'Fileobj': uploaded_model_fileobject,
-        'Bucket': os.getenv(MODELS_BUCKET_ENVVAR),
+        'Bucket': os.getenv(tc.MODELS_BUCKET_ENVVAR),
         'Key': key,
         'ExtraArgs': {
             'ContentType':
@@ -91,8 +83,8 @@ def upload_model(
                 else 'application/gzip'}}
 
     copy_params = {
-        'Bucket': os.getenv(MODELS_BUCKET_ENVVAR),
-        'CopySource': os.getenv(MODELS_BUCKET_ENVVAR) + AWS_S3_PATH_SEP + key,
+        'Bucket': os.getenv(tc.MODELS_BUCKET_ENVVAR),
+        'CopySource': os.getenv(tc.MODELS_BUCKET_ENVVAR) + tc.AWS_S3_PATH_SEP + key,
         'Key': latest_key,
     }
 
