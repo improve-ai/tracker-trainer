@@ -6,7 +6,8 @@ custom:
   project: ${self:custom_config.project} # CHANGE ME BEFORE FIRST DEPLOYMENT
   pythonRequirements:
     dockerizePip: non-linux
-  # This hooks are responsible for including customize.py in the assign_rewards image
+  # This hooks are responsible for including customize.py in the assign_rewards
+  #  image and removing it after stack deploy is complete
   scriptable:
     hooks:
       before:package:createDeploymentArtifacts: cp ./config/customize.py ./src/assign_rewards/customize.py
@@ -21,8 +22,6 @@ provider:
     #
     # Customize your deployment here:
     #
-    # INFO: ECR image repo region must match region set in here
-    # TRAINING_IMAGE: 278455137857.dkr.ecr.us-east-2.amazonaws.com/improve.ai:v6-trainer
     TRAINING_IMAGE: ${self:custom_config.defaults.training.image}
     TRAINING_INSTANCE_TYPE: ${self:custom_config.defaults.training.instance_type}
     TRAINING_INSTANCE_COUNT: ${self:custom_config.defaults.training.instance_count}
@@ -139,10 +138,6 @@ functions:
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
       TRAINING_SUBNET: !Ref Subnet
       TRAINING_SECURITY_GROUP: !Ref SecurityGroup
-      TRAINING_INPUT_CHANNEL_NAME: 'decisions'
-      TRAINING_INPUT_MODE: 'Pipe'
-      TRAINING_INPUT_COMPRESSION: 'Gzip'
-      TRAINING_SHARDING_TYPE: 'ShardedByS3Key'
 
   unpackModels:
     runtime: python3.8

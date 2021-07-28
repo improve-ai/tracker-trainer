@@ -32,16 +32,10 @@ def create_sagemaker_training_job(
 
     image_uri = os.getenv(tc.IMAGE_URI_ENVVAR)
 
-    training_input_channel_name = \
-        os.getenv(tc.TRAINING_INPUT_CHANNEL_NAME_ENVVAR)
-
-    training_input_channel_mode = \
-        os.getenv(tc.TRAINING_INPUT_CHANNEL_MODE_ENVVAR)
-
-    training_input_channel_compression = \
-        os.getenv(tc.TRAINING_INPUT_CHANNEL_COMPRESSION_ENVVAR)
-
-    training_input_sharding_type = os.getenv(tc.TRAINING_SHARDING_TYPE_ENVVAR)
+    training_input_channel_name = tc.TRAINING_INPUT_CHANNEL_NAME
+    training_input_channel_mode = tc.TRAINING_INPUT_MODE
+    training_input_channel_compression = tc.TRAINING_INPUT_COMPRESSION
+    training_input_sharding_type = tc.TRAINING_SHARDING_TYPE
 
     instance_count = int(os.getenv(tc.INSTANCE_COUNT_ENVVAR))
     instance_type = os.getenv(tc.INSTANCE_TYPE_ENVVAR)
