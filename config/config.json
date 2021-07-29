@@ -1,0 +1,33 @@
+{
+  "organization": "acme",
+  "project": "demo",
+
+  "models":{
+    "appconfig": {"size": "medium"},
+    "messages-2.0": {"size": "medium"},
+    "themes-2.0": {"size": "medium"},
+    "songs-2.0": {"size": "medium"},
+    "stories-2.0": {"size": "medium"}
+  },
+
+  "defaults": {
+    "region": "us-east-1",
+
+    "training": {
+      "image": "117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest",
+      "schedule": "rate(24 hours)",
+      "instance_type": "ml.m5.large",
+      "instance_count": 3,
+      "max_runtime_in_seconds": 172800,
+      "max_decision_records_per_worker": 500000
+    },
+
+    "reward_assignment": {
+      "worker_count": 10,
+      "spot_bid_percentage": 100,
+      "schedule": "rate(4 hours)",
+      "reward_window_in_seconds": 172800
+
+    }
+  }
+}

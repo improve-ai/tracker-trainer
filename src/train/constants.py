@@ -25,7 +25,10 @@ JOB_NAME_PREFIX = 'improve-train-job-{}'.format(os.getenv(IMPROVE_VERSION_ENVVAR
 MODEL_NAME_REGEXP = "^[\w\- .]+$"
 AWS_BUCKET_PREFIX = 's3://'
 AWS_S3_PATH_SEP = '/'
-CONFIG_YAML_PATH = 'config/config.yml'
+
+# CONFIG_YAML_PATH = 'config/config.yml'
+CONFIG_JSON_PATH = 'config/config.json'
+
 EXPECTED_TRAINER_OUTPUT_FILENAME = 'model.tar.gz'
 EXPECTED_MODELS_COUNT = 2
 

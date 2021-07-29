@@ -1,7 +1,8 @@
 from datetime import datetime
+import json
 import os
 import re
-import yaml
+# import yaml
 
 import src.train.constants as tc
 
@@ -113,8 +114,12 @@ def get_model_names_from_config():
 
     """
     # load config
-    with open(tc.CONFIG_YAML_PATH, 'r') as cfg_yml:
-        config = yaml.full_load(cfg_yml)
+    # with open(tc.CONFIG_YAML_PATH, 'r') as cfg_yml:
+    #     config = yaml.full_load(cfg_yml)
+
+    with open(tc.CONFIG_JSON_PATH, 'r') as cfg_json:
+        config_str = cfg_json.read()
+        config = json.loads(config_str)
 
     # get models config
     models_config = config.get('models')
