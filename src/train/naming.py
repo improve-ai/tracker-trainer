@@ -117,12 +117,17 @@ def get_model_names_from_config():
     # with open(tc.CONFIG_YAML_PATH, 'r') as cfg_yml:
     #     config = yaml.full_load(cfg_yml)
 
-    with open(tc.CONFIG_JSON_PATH, 'r') as cfg_json:
-        config_str = cfg_json.read()
-        config = json.loads(config_str)
+    # with open(tc.CONFIG_JSON_PATH, 'r') as cfg_json:
+    #     config_str = cfg_json.read()
+    #     config = json.loads(config_str)
 
     # get models config
-    models_config = config.get('models')
+    models_config = tc.IMPROVE_CONFIG.get('models', None)
+
+    if not models_config:
+        print('`models` section of the config is empty - returning empty list')
+        return []
+
     # get model names
     model_names = models_config.keys()
 

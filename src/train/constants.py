@@ -1,3 +1,4 @@
+import json
 import os
 
 MAX_RUNTIME_IN_SECONDS_ENVVAR = 'TRAINING_MAX_RUNTIME_IN_SECONDS'
@@ -26,8 +27,7 @@ MODEL_NAME_REGEXP = "^[\w\- .]+$"
 AWS_BUCKET_PREFIX = 's3://'
 AWS_S3_PATH_SEP = '/'
 
-# CONFIG_YAML_PATH = 'config/config.yml'
-CONFIG_JSON_PATH = 'config/config.json'
+IMPROVE_CONFIG = json.loads(os.getenv('IMPROVE_CONFIG'))
 
 EXPECTED_TRAINER_OUTPUT_FILENAME = 'model.tar.gz'
 EXPECTED_MODELS_COUNT = 2
