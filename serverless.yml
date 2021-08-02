@@ -1,19 +1,19 @@
 # !!! NOTICE: Modify config/config.yml to customize deployment
-custom_config: ${file(config/config.yml)}
+custom_config:
+  yml: ${file(config/config.yml)}
+  json: ${file(src/predeploy.js):config}
 
 custom:
-  organization: ${self:custom_config.organization} # CHANGE ME BEFORE FIRST DEPLOYMENT
-  project: ${self:custom_config.project} # CHANGE ME BEFORE FIRST DEPLOYMENT
-  pythonRequirements:
-    dockerizePip: non-linux
-  # This hooks are responsible for including customize.py in the assign_rewards image
+  organization: ${self:custom_config.yml.organization} # CHANGE ME BEFORE FIRST DEPLOYMENT
+  project: ${self:custom_config.yml.project} # CHANGE ME BEFORE FIRST DEPLOYMENT
+  # Hooks are responsible for including customize.py in the assign_rewards
+  #  image and removing it after stack deploy is complete
   scriptable:
     hooks:
       before:package:createDeploymentArtifacts: cp ./config/customize.py ./src/assign_rewards/customize.py
       after:deploy:finalize: rm ./src/assign_rewards/customize.py
 
 plugins:
-  - serverless-python-requirements
   - serverless-scriptable-plugin
 
 provider:
@@ -21,20 +21,19 @@ provider:
     #
     # Customize your deployment here:
     #
-    # INFO: ECR image repo region must match region set in here
-    # TRAINING_IMAGE: 278455137857.dkr.ecr.us-east-2.amazonaws.com/improve.ai:v6-trainer
-    TRAINING_IMAGE: ${self:custom_config.defaults.training.image}
-    TRAINING_INSTANCE_TYPE: ${self:custom_config.defaults.training.instance_type}
-    TRAINING_INSTANCE_COUNT: ${self:custom_config.defaults.training.instance_count}
-    TRAINING_MAX_RUNTIME_IN_SECONDS: ${self:custom_config.defaults.training.max_runtime_in_seconds}
-    TRAINING_JOB_SCHEDULE: ${self:custom_config.defaults.training.schedule}
-    REWARD_ASSIGNMENT_JOB_SCHEDULE: ${self:custom_config.defaults.reward_assignment.schedule}
-    REWARD_ASSIGNMENT_WORKER_COUNT: ${self:custom_config.defaults.reward_assignment.worker_count}
-    BATCH_SPOT_BID_PERCENTAGE: ${self:custom_config.defaults.reward_assignment.spot_bid_percentage}
+    TRAINING_IMAGE: ${self:custom_config.yml.defaults.training.image}
+    TRAINING_INSTANCE_TYPE: ${self:custom_config.yml.defaults.training.instance_type}
+    TRAINING_INSTANCE_COUNT: ${self:custom_config.yml.defaults.training.instance_count}
+    TRAINING_MAX_RUNTIME_IN_SECONDS: ${self:custom_config.yml.defaults.training.max_runtime_in_seconds}
+    TRAINING_JOB_SCHEDULE: ${self:custom_config.yml.defaults.training.schedule}
+    REWARD_ASSIGNMENT_JOB_SCHEDULE: ${self:custom_config.yml.defaults.reward_assignment.schedule}
+    REWARD_ASSIGNMENT_WORKER_COUNT: ${self:custom_config.yml.defaults.reward_assignment.worker_count}
+    BATCH_SPOT_BID_PERCENTAGE: ${self:custom_config.yml.defaults.reward_assignment.spot_bid_percentage}
     # 
     # End customization
     #
     IMPROVE_API_VERSION: v6
+    IMPROVE_CONFIG: ${self:custom_config.json}
     TRAIN_BUCKET: !Ref TrainS3Bucket
     MODELS_BUCKET: !Ref ModelsS3Bucket
     SERVICE: ${self:service}
@@ -42,7 +41,7 @@ provider:
 
   lambdaHashingVersion: 20201221 # can be removed in serverless v3
   name: aws
-  region: ${self:custom_config.defaults.region}
+  region: ${self:custom_config.yml.defaults.region}
   runtime: python3.8
   timeout: 6
   memorySize: 192
@@ -139,10 +138,6 @@ functions:
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
       TRAINING_SUBNET: !Ref Subnet
       TRAINING_SECURITY_GROUP: !Ref SecurityGroup
-      TRAINING_INPUT_CHANNEL_NAME: 'decisions'
-      TRAINING_INPUT_MODE: 'Pipe'
-      TRAINING_INPUT_COMPRESSION: 'Gzip'
-      TRAINING_SHARDING_TYPE: 'ShardedByS3Key'
 
   unpackModels:
     runtime: python3.8
