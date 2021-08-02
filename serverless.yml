@@ -4,8 +4,8 @@ custom_config:
   json: ${file(src/predeploy.js):config}
 
 custom:
-  organization: ${self:custom_config.yml.organization} # CHANGE ME BEFORE FIRST DEPLOYMENT
-  project: ${self:custom_config.yml.project} # CHANGE ME BEFORE FIRST DEPLOYMENT
+  organization: ${self:custom_config.yml.organization}
+  project: ${self:custom_config.yml.project}
   # Hooks are responsible for including customize.py in the assign_rewards
   #  image and removing it after stack deploy is complete
   scriptable:
