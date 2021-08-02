@@ -14,31 +14,47 @@ S3_KEY = os.environ['S3_KEY']
 
 INCOMING_PATH = Path('/mnt/efs/incoming')
 
+
 def worker():
     print(f'starting firehose ingest for s3://{S3_BUCKET}/{S3_KEY}')
 
     records_by_history_id = {}
     
-    bad_history_id_count = 0
+    invalid_record_count = 0
 
     # download and parse the firehose file
     obj = s3.Object(S3_BUCKET, S3_KEY)
     with gzip.GzipFile(fileobj=obj.get()['Body']) as gzf:
         for line in gzf.readlines():
-            record = json.loads(line)
+
+            # try-catch json.loads
+            try:
+                record = json.loads(line)
+            except Exception as exc:
+                invalid_record_count += 1
+                continue
+
+            # check if record is of expected type (dict)
+            if not isinstance(record, dict):
+                invalid_record_count += 1
+                continue
             
             history_id = record.get('history_id', None)
-            if not history_id or not isinstance(history_id, str) or not len(history_id):
-                bad_history_id_count += 1
+            if not history_id or not isinstance(history_id, str) \
+                    or not len(history_id):
+                invalid_record_count += 1
                 continue
                 
+            # this might be a double check - httpApi has got identical check
             if not history_id in records_by_history_id:
                 records_by_history_id[history_id] = []
                 
             records_by_history_id[history_id].append(record)
-            
-    if bad_history_id_count:
-        print(f'skipped {bad_history_id_count} records with bad history_id fields')
+
+    if invalid_record_count:
+        print(
+            f'skipped {invalid_record_count} invalid records (failed to parse '
+            f'from JSON string, weren`t of a dict type, had a bad history_id)')
 
     file_count = 0
     record_count = 0
@@ -59,6 +75,7 @@ def worker():
         
     print(f'wrote {record_count} records to {file_count} incoming history files')
     print('finished firehose ingest job')
+
 
 def ensure_parent_dir(file):
     parent_dir = file.parent

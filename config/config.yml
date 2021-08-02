@@ -7,15 +7,19 @@ models:
   appconfig:
     size: xsmall # sizes? 
   messages-2.0:
+    size: medium
   themes-2.0:
     size: medium
   songs-2.0:
+    size: medium
   stories-2.0:
+    size: medium
 
 defaults:
   max_record_age_in_seconds: 15552000 # 180 days
+  region: us-east-1
   training:
-    image: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest 
+    image: 117097735164.dkr.ecr.us-west-2.amazonaws.com/improve_trainer-dev:latest
     schedule: rate(24 hours)
     worker_instance_type: ml.m5.large # instance_type ? 
     worker_count: 3 

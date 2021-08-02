@@ -5,6 +5,7 @@ import concurrent.futures
 import join_rewards
 import config
 import utils
+from customize import customize_history
 
 SIGTERM = False
 
@@ -53,22 +54,32 @@ def process_incoming_history_file_group(file_group):
     # write the consolidated records to a new history file
     utils.save_history(hashed_history_id, records)
 
+    history_customized_records = customize_history(records=records)
+
     # perform validation after consolidation so that invalid records are retained
     # this ensures that any bugs in custom validation code doesn't cause records to be lost
-    records = join_rewards.filter_valid_records(hashed_history_id, records)
+    valid_records = \
+        join_rewards.filter_valid_records(
+            hashed_history_id, records=history_customized_records)
 
-    config.stats.incrementValidatedRecordCount(len(records))
+    config.stats.incrementValidatedRecordCount(len(valid_records))
 
     # assign rewards to decision records.
     rewarded_decisions_by_model = \
-        join_rewards.assign_rewards_to_decisions(records)
+        join_rewards.assign_rewards_to_decisions(valid_records)
 
     # upload the updated rewarded decision records to S3
     for model, rewarded_decisions in rewarded_decisions_by_model.items():
+
+        rewarded_decisions_with_desired_keys = \
+            utils.drop_needless_keys_from_records(
+                rewarded_decisions=rewarded_decisions)
+
         utils.upload_rewarded_decisions(
-            model, hashed_history_id, rewarded_decisions)
+            model, hashed_history_id, rewarded_decisions_with_desired_keys)
         config.stats.addModel(model)
-        config.stats.incrementRewardedDecisionCount(len(rewarded_decisions))
+        config.stats.incrementRewardedDecisionCount(
+            len(rewarded_decisions_with_desired_keys))
 
     # delete the incoming and history files that were processed
     utils.delete_all(file_group)
