@@ -18,8 +18,8 @@ training_image: https://docker.example.com/decision_trainer:latest # CHANGE ME B
 #
 # decision models to train
 #
-# 'appconfig' is the default decision model used by the AIAppConfig classes,
-# remove it if not using AIAppConfig
+# 'appconfig' is the default decision model used by the AIAppConfig classes, remove if not using AIAppConfig
+#
 models:
   appconfig: 
 
