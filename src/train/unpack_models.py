@@ -45,9 +45,9 @@ def unpack(event, context):
 
         for filename in filenames:
             extension = None
-            if filename.endswith('.xgb'):
+            if filename == 'model.xgb':
                 extension = '.xgb.gz'
-            elif filename.endswith('.mlmodel'):
+            elif filename == 'model.mlmodel':
                 extension = '.mlmodel.gz'
             else:
                 print(f'skipping {filename}')
