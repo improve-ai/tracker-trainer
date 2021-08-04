@@ -93,4 +93,4 @@ def get_timestamped_s3_key(
         model_name: str, extension: str, model_uuid: str = None) -> str:
     date_str = datetime.now().strftime('%Y-%m-%d-%M-%H-%S')
 
-    return f'models/archive/{model_name}/improveai-{model_name}-{date_str}-{str(uuid4())}{extension}'
+    return f'models/archive/{model_name}/improveai-{model_name}-{date_str}-{uuid4()}{extension}'
