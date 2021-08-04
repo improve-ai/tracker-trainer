@@ -32,11 +32,6 @@ def create_sagemaker_training_job(
 
     image_uri = os.getenv(tc.IMAGE_URI_ENVVAR)
 
-    training_input_channel_name = tc.TRAINING_INPUT_CHANNEL_NAME
-    training_input_channel_mode = tc.TRAINING_INPUT_MODE
-    training_input_channel_compression = tc.TRAINING_INPUT_COMPRESSION
-    training_input_sharding_type = tc.TRAINING_SHARDING_TYPE
-
     instance_count = int(os.getenv(tc.INSTANCE_COUNT_ENVVAR))
     instance_type = os.getenv(tc.INSTANCE_TYPE_ENVVAR)
     subnets = [os.getenv(tc.SUBNET_ENVVAR)]
@@ -54,32 +49,26 @@ def create_sagemaker_training_job(
         HyperParameters=hyperparameters,
         AlgorithmSpecification={
             'TrainingImage': image_uri,
-            'TrainingInputMode': training_input_channel_mode
+            'TrainingInputMode': 'Pipe'
         },
         RoleArn=role,
         InputDataConfig=[
             {
-                'ChannelName': training_input_channel_name,
+                'ChannelName': 'decisions',
                 'DataSource': {
                     'S3DataSource': {
                         'S3DataType': 'S3Prefix',
                         'S3Uri': training_s3_uri,
-                        'S3DataDistributionType':
-                            training_input_sharding_type
+                        'S3DataDistributionType': 'ShardedByS3Key'
                     },
                 },
-                # 'ContentType': content_type,
-                'CompressionType': training_input_channel_compression,
-                'InputMode': training_input_channel_mode,
-                'ShuffleConfig': {
-                    'Seed': tc.SHUFFLE_INPUT_SEED
-                }
+                'CompressionType': 'Gzip'
             },
         ],
         ResourceConfig={
             'InstanceType': instance_type,
             'InstanceCount': instance_count,
-            'VolumeSizeInGB': tc.VOLUME_SIZE,
+            'VolumeSizeInGB': tc.VOLUME_SIZE_IN_GB,
         },
         VpcConfig={
             'SecurityGroupIds': security_groups_ids,
@@ -121,7 +110,7 @@ def get_hyperparameters_for_model(model_name: str):
 def lambda_handler(event, context):
 
     # get sagemaker_client
-    s3_client = boto3.client("s3")
+    s3_client = boto3.client('s3')
     sagemaker_client = boto3.client('sagemaker')
 
     # get all model names
@@ -133,35 +122,14 @@ def lambda_handler(event, context):
             .format(os.getenv(tc.TRAINING_INPUT_BUCKET_ENVVAR)))
         return
 
-    successful_starts = []
-    failed_starts = []
-
-    print('Found train data for: {}'.format(model_names))
-
     for model_name in model_names:
 
-        print('Getting hyperparameters for model: {}'.format(model_name))
         hyperparameters = get_hyperparameters_for_model(model_name=model_name)
 
-        try:
-            print('Creating training job for model: {}'.format(model_name))
-            response = \
-                create_sagemaker_training_job(
-                    sagemaker_client=sagemaker_client, model_name=model_name,
-                    hyperparameters=hyperparameters)
-            print('Sagemaker`s response was:')
-            print(response)
-            successful_starts.append(model_name)
-        except Exception as exc:
-            print(
-                'When attempting to run training job for model: {} the '
-                'following exception occurred:'.format(model_name))
-            print(exc)
-            failed_starts.append(model_name)
-
-    # TODO maybe check train_jobs_processes for completion
-    print('Attempt to dispatch all train jobs complete:')
-    print(' - train jobs for models: {} started successfully'
-          .format(successful_starts))
-    if failed_starts:
-        print(' - train jobs for models {} failed to start'.format(failed_starts))
+        print(f'creating training job for model: {model_name}')
+        response = \
+            create_sagemaker_training_job(
+                sagemaker_client=sagemaker_client, model_name=model_name,
+                hyperparameters=hyperparameters)
+        print('Sagemaker`s response was:')
+        print(response)

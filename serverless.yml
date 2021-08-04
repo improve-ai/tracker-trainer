@@ -102,7 +102,6 @@ functions:
       - schedule: ${self:custom_config.yml.defaults.reward_assignment.schedule}
     environment:
       WORKER_COUNT: ${self:custom_config.yml.defaults.reward_assignment.worker_count}
-      BATCH_SPOT_BID_PERCENTAGE: ${self:custom_config.yml.defaults.reward_assignment.spot_bid_percentage}
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref AssignRewardsJobDefinition
   dispatchTrainingJobs:
@@ -119,7 +118,6 @@ functions:
       TRAINING_SUBNET: !Ref Subnet
       TRAINING_SECURITY_GROUP: !Ref SecurityGroup
       JOB_QUEUE: !Ref JobQueue
-      
   unpackModels:
     handler: src/train/unpack_models.unpack
     events:
@@ -356,7 +354,7 @@ resources:
           ComputeResources:
             Type: SPOT
             AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
-            BidPercentage: ${self:provider.environment.BATCH_SPOT_BID_PERCENTAGE} 
+            BidPercentage: ${self:custom_config.yml.defaults.reward_assignment.spot_bid_percentage}
             InstanceTypes:
               - optimal
             MinvCpus: 0
