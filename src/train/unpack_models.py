@@ -10,9 +10,9 @@ import src.train.constants as tc
 
 
 def unpack(event, context):
-    s3_client = boto3.client("s3")
+    s3_client = boto3.client('s3')
 
-    if not event["Records"][0]['s3']:
+    if not event['Records'][0]['s3']:
         raise TypeError('Invalid S3 event: {}'.format(event))
 
     s3_record = event['Records'][0]['s3']
@@ -33,12 +33,12 @@ def unpack(event, context):
 
     models_object = s3_client.get_object(**params)
 
-    if "Body" not in models_object:
+    if 'Body' not in models_object:
         raise ValueError('Missing `Body` in S3 `get_object()` response')
 
-    # models_object["Body"] is a 'botocore.response.StreamingBody'
+    # models_object['Body'] is a 'botocore.response.StreamingBody'
     # need to call read() on it to access the *.tar.gz file
-    tar_gz_models_buffer = BytesIO(models_object["Body"].read())
+    tar_gz_models_buffer = BytesIO(models_object['Body'].read())
 
     with tarfile.open(fileobj=tar_gz_models_buffer) as tar_gz_models_file:
         filenames = tar_gz_models_file.getnames()
