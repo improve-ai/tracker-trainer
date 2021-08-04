@@ -3,6 +3,7 @@ from io import BytesIO
 from datetime import datetime
 import os
 import tarfile
+import gzip
 from uuid import uuid4
 
 import src.train.constants as tc
@@ -24,7 +25,7 @@ def unpack(event, context):
             'Invalid S3 event - model filename `{}` differs from expected `{}`'
             .format(input_key, tc.EXPECTED_TRAINER_OUTPUT_FILENAME))
 
-    _, s3_model_name, train_job_name, _, model_filename = path_parts
+    s3_model_name = path_parts[1]
 
     params = {
         'Bucket': s3_record['bucket']['name'],
@@ -40,47 +41,41 @@ def unpack(event, context):
     tar_gz_models_buffer = BytesIO(models_object["Body"].read())
 
     with tarfile.open(fileobj=tar_gz_models_buffer) as tar_gz_models_file:
-        model_filenames = tar_gz_models_file.getnames()
-        if len(model_filenames) != tc.EXPECTED_MODELS_COUNT:
-            raise ValueError(
-                'Expected: {} models, got: {}'
-                .format(tc.EXPECTED_MODELS_COUNT, len(model_filenames)))
+        filenames = tar_gz_models_file.getnames()
 
-        trained_models_uuid = str(uuid4())
-
-        for model_filename in model_filenames:
-            extension = get_extension(model_filename)
-
-            if not extension:
+        for filename in filenames:
+            extension = None
+            if filename.endswith('.xgb'):
+                extension = '.xgb.gz'
+            elif filename.endswith('.mlmodel'):
+                extension = '.mlmodel.gz'
+            else:
+                print(f'skipping {filename}')
                 continue
 
-            key = \
-                get_timestamped_s3_key(
-                    model_name=s3_model_name, extension=extension,
-                    model_uuid=trained_models_uuid)
-            latest_key = \
-                get_latest_s3_key(
-                    model_name=s3_model_name, extension=extension)
+            key = get_timestamped_s3_key(model_name=s3_model_name, extension=extension)
+            latest_key = get_latest_s3_key(model_name=s3_model_name, extension=extension)
 
-            model_member = tar_gz_models_file.getmember(model_filename)
+            model_member = tar_gz_models_file.getmember(filename)
             model = tar_gz_models_file.extractfile(model_member)
 
             upload_model(
                 key=key, latest_key=latest_key, s3_client=s3_client,
-                uploaded_model_fileobject=model)
+                model_fileobject=model)
 
 
 def upload_model(
-        key: str, latest_key: str, s3_client, uploaded_model_fileobject: BytesIO):
+        key: str, latest_key: str, s3_client, model_fileobject: BytesIO):
 
+    # upload gzipped compressed model
     write_params = {
-        'Fileobj': uploaded_model_fileobject,
+        'Fileobj': gzip.compress(model_fileobject),
         'Bucket': os.getenv(tc.MODELS_BUCKET_ENVVAR),
         'Key': key,
         'ExtraArgs': {
-            'ContentType':
-                'application/protobuf' if key.split('.')[-1] == 'mlmodel'
-                else 'application/gzip'}}
+            'ContentType': 'application/gzip'
+        }
+    }
 
     copy_params = {
         'Bucket': os.getenv(tc.MODELS_BUCKET_ENVVAR),
@@ -91,36 +86,11 @@ def upload_model(
     s3_client.upload_fileobj(**write_params)
     s3_client.copy_object(**copy_params)
 
-
-def get_extension(filename: str) -> str or None:
-    split_filename = filename.split('.')
-
-    extracted_extension = '.'.join(split_filename[1:])
-
-    if extracted_extension == 'xgb':
-        return '.xgb'
-    elif extracted_extension == 'xgb.gz':
-        return '.xgb.gz'
-    elif extracted_extension == 'mlmodel':
-        return '.mlmodel'
-    elif extracted_extension == 'mlmodel.gz':
-        return '.mlmodel.gz'
-    else:
-        return
-
-
-# TODO ask if removal of project_name is ok
 def get_latest_s3_key(model_name: str, extension: str) -> str:
-    return f'models/latest/improve-{model_name}{extension}'
+    return f'models/latest/improveai-{model_name}{extension}'
 
-
-# TODO ask if removal of project_name is ok
 def get_timestamped_s3_key(
         model_name: str, extension: str, model_uuid: str = None) -> str:
     date_str = datetime.now().strftime('%Y-%m-%d-%M-%H-%S')
 
-    if model_uuid is None:
-        model_uuid = str(uuid4())
-
-    return f'models/archive/{model_name}/improve-{model_name}-{date_str}-' \
-           f'{model_uuid}{extension}'
+    return f'models/archive/{model_name}/improveai-{model_name}-{date_str}-{str(uuid4())}{extension}'
