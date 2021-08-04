@@ -53,15 +53,6 @@ provider:
           Action:
             - "iam:PassRole"
           Resource: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
-        # - Effect: Allow
-        #   Action:
-        #     - logs:CreateLogGroup
-        #     - logs:CreateLogStream
-        #     - logs:PutLogEvents
-        #     - ec2:CreateNetworkInterface
-        #     - ec2:DescribeNetworkInterfaces
-        #     - ec2:DeleteNetworkInterface
-        #   Resource: "*"
         - Effect: Allow
           Action:
             - batch:SubmitJob
