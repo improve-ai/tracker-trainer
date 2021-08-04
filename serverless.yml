@@ -18,21 +18,6 @@ plugins:
 
 provider:
   environment:
-    #
-    # Customize your deployment here:
-    #
-    TRAINING_IMAGE: ${self:custom_config.yml.defaults.training.image}
-    TRAINING_INSTANCE_TYPE: ${self:custom_config.yml.defaults.training.instance_type}
-    TRAINING_INSTANCE_COUNT: ${self:custom_config.yml.defaults.training.instance_count}
-    TRAINING_MAX_RUNTIME_IN_SECONDS: ${self:custom_config.yml.defaults.training.max_runtime_in_seconds}
-    TRAINING_JOB_SCHEDULE: ${self:custom_config.yml.defaults.training.schedule}
-    REWARD_ASSIGNMENT_JOB_SCHEDULE: ${self:custom_config.yml.defaults.reward_assignment.schedule}
-    REWARD_ASSIGNMENT_WORKER_COUNT: ${self:custom_config.yml.defaults.reward_assignment.worker_count}
-    BATCH_SPOT_BID_PERCENTAGE: ${self:custom_config.yml.defaults.reward_assignment.spot_bid_percentage}
-    # 
-    # End customization
-    #
-    IMPROVE_API_VERSION: v6
     IMPROVE_CONFIG: ${self:custom_config.json}
     TRAIN_BUCKET: !Ref TrainS3Bucket
     MODELS_BUCKET: !Ref ModelsS3Bucket
@@ -86,7 +71,7 @@ provider:
             - 's3:*'
           Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
 
-service: improve-v6-${self:custom.organization}-${self:custom.project}
+service: improveai-${self:custom.organization}-${self:custom.project}
 
 package:
   exclude:
@@ -108,7 +93,7 @@ functions:
           path: /track
     environment:
       FIREHOSE_DELIVERY_STREAM_NAME: !Ref Firehose
-  dispatchIngestFirehoseFile: # FIX change to dispatchIngestFirehoseJob
+  dispatchIngestFirehoseJob:
     description: Dispatch Ingest Firehose Batch Job
     handler: src/ingest_firehose/dispatch_job.lambda_handler
     events:
@@ -119,28 +104,32 @@ functions:
     environment:
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref IngestFirehoseJobDefinition
-  dispatchRewardAssignmentJobs:
-    description: Dispatch Reward Assignment Batch Jobs
+  dispatchAssignRewardsJob:
+    description: Dispatch Reward Assignment Batch Array Job
     handler: src/assign_rewards/dispatch_job.lambda_handler
     events:
-      - schedule: ${self:provider.environment.REWARD_ASSIGNMENT_JOB_SCHEDULE}
+      - schedule: ${self:custom_config.yml.defaults.reward_assignment.schedule}
     environment:
+      WORKER_COUNT: ${self:custom_config.yml.defaults.reward_assignment.worker_count}
+      BATCH_SPOT_BID_PERCENTAGE: ${self:custom_config.yml.defaults.reward_assignment.spot_bid_percentage}
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref AssignRewardsJobDefinition
   dispatchTrainingJobs:
     description: Dispatch Reward Assignment Batch Jobs
-    runtime: python3.8
     handler: src/train/dispatch_job.lambda_handler
     events:
-      - schedule: ${self:provider.environment.TRAINING_JOB_SCHEDULE}
+      - schedule: ${self:custom_config.yml.defaults.training.schedule}
     environment:
-      JOB_QUEUE: !Ref JobQueue
+      TRAINING_IMAGE: ${self:custom_config.yml.defaults.training.image}
+      TRAINING_INSTANCE_TYPE: ${self:custom_config.yml.defaults.training.instance_type}
+      TRAINING_INSTANCE_COUNT: ${self:custom_config.yml.defaults.training.instance_count}
+      TRAINING_MAX_RUNTIME_IN_SECONDS: ${self:custom_config.yml.defaults.training.max_runtime_in_seconds}
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
       TRAINING_SUBNET: !Ref Subnet
       TRAINING_SECURITY_GROUP: !Ref SecurityGroup
-
+      JOB_QUEUE: !Ref JobQueue
+      
   unpackModels:
-    runtime: python3.8
     handler: src/train/unpack_models.unpack
     events:
       - s3:
@@ -196,12 +185,6 @@ resources:
           RoleName: ${self:service}-${opt:stage, self:provider.stage}-SagemakerExecutionRole
           AssumeRolePolicyDocument:
             Statement:
-#            - Effect: Allow
-#              Principal:
-#                Service:
-#                - firehose.amazonaws.com
-#              Action:
-#              - sts:AssumeRole
             - Effect: Allow
               Principal:
                 Service:

@@ -18,8 +18,8 @@ REWARD_WINDOW = 24 * 2 * 60 * 60
 # The worker number of this job
 NODE_ID = int(os.environ['AWS_BATCH_JOB_ARRAY_INDEX'])
 
-# The total number of jobs launched
-NODE_COUNT = int(os.environ['REWARD_ASSIGNMENT_WORKER_COUNT'])
+# The length of the batch job array
+NODE_COUNT = int(os.environ['WORKER_COUNT'])
 
 TRAIN_BUCKET = os.environ['TRAIN_BUCKET']
 
