@@ -1,11 +1,6 @@
 # !!! NOTICE: Modify config/config.yml to customize deployment
-custom_config:
-  yml: ${file(config/config.yml)}
-  json: ${file(src/predeploy.js):config}
-
 custom:
-  organization: ${self:custom_config.yml.organization}
-  project: ${self:custom_config.yml.project}
+  config: ${file(config/config.yml)}
   # Hooks are responsible for including customize.py in the assign_rewards
   #  image and removing it after stack deploy is complete
   scriptable:
@@ -13,23 +8,18 @@ custom:
       before:package:createDeploymentArtifacts: cp ./config/customize.py ./src/assign_rewards/customize.py
       after:deploy:finalize: rm ./src/assign_rewards/customize.py
 
+service: improveai-${self:custom.config.organization}-${self:custom.config.project}
+
 plugins:
   - serverless-scriptable-plugin
 
 provider:
-  environment:
-    IMPROVE_CONFIG: ${self:custom_config.json}
-    TRAIN_BUCKET: !Ref TrainS3Bucket
-    MODELS_BUCKET: !Ref ModelsS3Bucket
-    SERVICE: ${self:service}
-    STAGE: ${opt:stage, self:provider.stage}
-
   lambdaHashingVersion: 20201221 # can be removed in serverless v3
   name: aws
-  region: ${self:custom_config.yml.defaults.region}
+  region: ${self:custom.config.region}
   runtime: python3.8
-  timeout: 6
   memorySize: 192
+  timeout: 6
   ecr:
     images:
       ingest-firehose:
@@ -61,8 +51,12 @@ provider:
           Action:
             - 's3:*'
           Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
-
-service: improveai-${self:custom.organization}-${self:custom.project}
+  environment:
+    SERVICE: ${self:service}
+    STAGE: ${opt:stage, self:provider.stage}
+    IMPROVE_CONFIG: ${file(src/config_json.js):config_json} # JSON encoded string of the config
+    TRAIN_BUCKET: !Ref TrainS3Bucket
+    MODELS_BUCKET: !Ref ModelsS3Bucket
 
 package:
   exclude:
@@ -99,21 +93,21 @@ functions:
     description: Dispatch Reward Assignment Batch Array Job
     handler: src/assign_rewards/dispatch_job.lambda_handler
     events:
-      - schedule: ${self:custom_config.yml.defaults.reward_assignment.schedule}
+      - schedule: ${self:custom.config.defaults.reward_assignment.schedule}
     environment:
-      WORKER_COUNT: ${self:custom_config.yml.defaults.reward_assignment.worker_count}
+      WORKER_COUNT: ${self:custom.config.defaults.reward_assignment.worker_count}
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref AssignRewardsJobDefinition
   dispatchTrainingJobs:
     description: Dispatch Reward Assignment Batch Jobs
     handler: src/train/dispatch_job.lambda_handler
     events:
-      - schedule: ${self:custom_config.yml.defaults.training.schedule}
+      - schedule: ${self:custom.config.defaults.training.schedule}
     environment:
-      TRAINING_IMAGE: ${self:custom_config.yml.defaults.training.image}
-      TRAINING_INSTANCE_TYPE: ${self:custom_config.yml.defaults.training.instance_type}
-      TRAINING_INSTANCE_COUNT: ${self:custom_config.yml.defaults.training.instance_count}
-      TRAINING_MAX_RUNTIME_IN_SECONDS: ${self:custom_config.yml.defaults.training.max_runtime_in_seconds}
+      TRAINING_IMAGE: ${self:custom.config.training_image}
+      TRAINING_INSTANCE_TYPE: ${self:custom.config.defaults.training.worker_instance_type}
+      TRAINING_INSTANCE_COUNT: ${self:custom.config.defaults.training.worker_count}
+      TRAINING_MAX_RUNTIME_IN_SECONDS: ${self:custom.config.defaults.training.max_runtime_in_seconds}
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
       TRAINING_SUBNET: !Ref Subnet
       TRAINING_SECURITY_GROUP: !Ref SecurityGroup
@@ -167,7 +161,7 @@ resources:
                   - s3:ListBucket
                   - s3:ListBucketMultipartUploads
                   - s3:PutObject
-                  Resource: '*' # FIX scope to firehose bucket when testing track()
+                  Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
       SagemakerExecutionRole:
         Type: AWS::IAM::Role
         Properties:
@@ -354,7 +348,7 @@ resources:
           ComputeResources:
             Type: SPOT
             AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
-            BidPercentage: ${self:custom_config.yml.defaults.reward_assignment.spot_bid_percentage}
+            BidPercentage: ${self:custom.config.defaults.reward_assignment.spot_bid_percentage}
             InstanceTypes:
               - optimal
             MinvCpus: 0
