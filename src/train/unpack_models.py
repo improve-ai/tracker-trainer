@@ -44,17 +44,17 @@ def unpack(event, context):
         filenames = tar_gz_models_file.getnames()
 
         for filename in filenames:
-            extension = None
+            upload_extension = None
             if filename == 'model.xgb':
-                extension = '.xgb.gz'
+                upload_extension = '.xgb.gz'
             elif filename == 'model.mlmodel':
-                extension = '.mlmodel.gz'
+                upload_extension = '.mlmodel.gz'
             else:
                 print(f'skipping {filename}')
                 continue
 
-            key = get_timestamped_s3_key(model_name=s3_model_name, extension=extension)
-            latest_key = get_latest_s3_key(model_name=s3_model_name, extension=extension)
+            key = get_timestamped_s3_key(model_name=s3_model_name, extension=upload_extension)
+            latest_key = get_latest_s3_key(model_name=s3_model_name, extension=upload_extension)
 
             model_member = tar_gz_models_file.getmember(filename)
             model = tar_gz_models_file.extractfile(model_member)
