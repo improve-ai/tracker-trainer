@@ -7,7 +7,7 @@ import hashlib
 import gzip
 import zlib
 import shutil
-import uuid
+from uuid import uuid4
 import dateutil
 from datetime import datetime
 from datetime import timedelta
@@ -91,7 +91,7 @@ def select_incoming_history_files():
 def save_history(hashed_history_id, history_records):
     output_file = \
         history_dir_for_hashed_history_id(
-            hashed_history_id) / f'{hashed_history_id}-{uuid.uuid4()}.jsonl.gz'
+            hashed_history_id) / f'{hashed_history_id}-{uuid4()}.jsonl.gz'
 
     ensure_parent_dir(output_file)
 
@@ -99,7 +99,7 @@ def save_history(hashed_history_id, history_records):
 
 
 def unique_hashed_history_file_name(hashed_history_id):
-    return f'{hashed_history_id}-{uuid.uuid4()}.jsonl.gz'
+    return f'{hashed_history_id}-{uuid4()}.jsonl.gz'
 
 
 def hashed_history_id_from_file(file):
