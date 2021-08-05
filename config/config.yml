@@ -19,7 +19,7 @@ models:
   appconfig: 
 
 training:
-  # get a training image URL by subscribing to the decision model trainer at 
+  # get your training image URL by subscribing to the decision model trainer at 
   # XXX
   image: https://docker.example.com/decision_trainer:latest # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
   schedule: rate(24 hours)
