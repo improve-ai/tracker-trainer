@@ -54,7 +54,7 @@ provider:
   environment:
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
-    IMPROVE_CONFIG: ${file(src/config_json.js):config_json} # JSON encoded string of the config
+    IMPROVE_CONFIG: ${file(src/predeploy.js):config_json} # JSON encoded string of the config
     TRAIN_BUCKET: !Ref TrainS3Bucket
     MODELS_BUCKET: !Ref ModelsS3Bucket
 
