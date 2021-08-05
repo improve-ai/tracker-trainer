@@ -1,19 +1,14 @@
 ---
 #
-# deployment level configuration. The names of provisioned AWS resources depend on these values
+# deployment level configuration. The names of provisioned AWS resources depend
+# on these values. 
+#
+# 'organization' and 'project' may contain only lowercase letters and numbers
 #
 region: us-east-1
-organization: acme # CHANGE ME BEFORE FIRST DEPLOYMENT
-project: demo # CHANGE ME BEFORE FIRST DEPLOYMENT
-
-contact: example@example.com # CHANGE ME BEFORE FIRST DEPLOYMENT
-
-#
-# Subscribe to the Improve AI decision model trainer, add image URL here
-#
-# SUBSCRIBE HERE: XXX
-#
-training_image: https://docker.example.com/decision_trainer:latest # CHANGE ME BEFORE FIRST DEPLOYMENT
+organization: acme # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
+project: demo # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
+contact: example@example.com # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
 
 #
 # decision models to train
@@ -24,6 +19,7 @@ models:
   appconfig: 
 
 training:
+  image: https://docker.example.com/decision_trainer:latest # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
   schedule: rate(24 hours)
   worker_instance_type: ml.m5.large
   worker_count: 3 
@@ -35,6 +31,3 @@ reward_assignment:
   worker_count: 10
   spot_bid_percentage: 100
   reward_window_in_seconds: 172800 # 48 hours
-
-# defaults:
-#   max_record_age_in_seconds: 15552000 # 180 days

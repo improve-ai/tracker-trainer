@@ -104,7 +104,7 @@ functions:
     events:
       - schedule: ${self:custom.config.training.schedule}
     environment:
-      TRAINING_IMAGE: ${self:custom.config.training_image}
+      TRAINING_IMAGE: ${self:custom.config.training.image}
       TRAINING_INSTANCE_TYPE: ${self:custom.config.training.worker_instance_type}
       TRAINING_INSTANCE_COUNT: ${self:custom.config.training.worker_count}
       TRAINING_MAX_RUNTIME_IN_SECONDS: ${self:custom.config.training.max_runtime_in_seconds}
