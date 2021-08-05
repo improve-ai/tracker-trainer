@@ -13,7 +13,7 @@ contact: example@example.com # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
 #
 # decision models to train
 #
-# 'appconfig' is the default decision model used by the AIAppConfig classes, remove if not using AIAppConfig
+# 'appconfig' is the default decision model used by the AIAppConfig classes
 #
 models:
   appconfig: 
