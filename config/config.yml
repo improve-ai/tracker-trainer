@@ -23,17 +23,18 @@ training_image: https://docker.example.com/decision_trainer:latest # CHANGE ME B
 models:
   appconfig: 
 
-defaults:
-  max_record_age_in_seconds: 15552000 # 180 days
-
 training:
   schedule: rate(24 hours)
   worker_instance_type: ml.m5.large
   worker_count: 3 
-  max_records_per_worker: 500000 # limited by worker memory
+  max_records_per_worker: 500000 # limited by worker instance memory
   max_runtime_in_seconds: 172800 # 48 hours
+
 reward_assignment:
   schedule: rate(4 hours)
   worker_count: 10
   spot_bid_percentage: 100
   reward_window_in_seconds: 172800 # 48 hours
+
+# defaults:
+#   max_record_age_in_seconds: 15552000 # 180 days

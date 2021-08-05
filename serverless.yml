@@ -93,21 +93,21 @@ functions:
     description: Dispatch Reward Assignment Batch Array Job
     handler: src/assign_rewards/dispatch_job.lambda_handler
     events:
-      - schedule: ${self:custom.config.defaults.reward_assignment.schedule}
+      - schedule: ${self:custom.config.reward_assignment.schedule}
     environment:
-      WORKER_COUNT: ${self:custom.config.defaults.reward_assignment.worker_count}
+      WORKER_COUNT: ${self:custom.config.reward_assignment.worker_count}
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref AssignRewardsJobDefinition
   dispatchTrainingJobs:
     description: Dispatch Reward Assignment Batch Jobs
     handler: src/train/dispatch_job.lambda_handler
     events:
-      - schedule: ${self:custom.config.defaults.training.schedule}
+      - schedule: ${self:custom.config.training.schedule}
     environment:
       TRAINING_IMAGE: ${self:custom.config.training_image}
-      TRAINING_INSTANCE_TYPE: ${self:custom.config.defaults.training.worker_instance_type}
-      TRAINING_INSTANCE_COUNT: ${self:custom.config.defaults.training.worker_count}
-      TRAINING_MAX_RUNTIME_IN_SECONDS: ${self:custom.config.defaults.training.max_runtime_in_seconds}
+      TRAINING_INSTANCE_TYPE: ${self:custom.config.training.worker_instance_type}
+      TRAINING_INSTANCE_COUNT: ${self:custom.config.training.worker_count}
+      TRAINING_MAX_RUNTIME_IN_SECONDS: ${self:custom.config.training.max_runtime_in_seconds}
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
       TRAINING_SUBNET: !Ref Subnet
       TRAINING_SECURITY_GROUP: !Ref SecurityGroup
@@ -348,7 +348,7 @@ resources:
           ComputeResources:
             Type: SPOT
             AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
-            BidPercentage: ${self:custom.config.defaults.reward_assignment.spot_bid_percentage}
+            BidPercentage: ${self:custom.config.reward_assignment.spot_bid_percentage}
             InstanceTypes:
               - optimal
             MinvCpus: 0
