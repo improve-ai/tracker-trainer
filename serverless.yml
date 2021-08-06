@@ -431,7 +431,7 @@ resources:
                   AWS: "*"
           FileSystemTags:
             - Key: Name
-              Value: ${self:service}-${opt:stage, self:provider.stage}-EFSFileSystem
+              Value: ${self:service}-${opt:stage, self:provider.stage}-histories
       MountTarget:
         Type: AWS::EFS::MountTarget
         Properties:
