@@ -233,7 +233,7 @@ resources:
           EnableDnsHostnames: true
           Tags:
             - Key: Name
-              Value: ${self:service}-${opt:stage, self:provider.stage-VPC}
+              Value: ${self:service}-${opt:stage, self:provider.stage}-VPC
       InternetGateway:
         Type: AWS::EC2::InternetGateway
       RouteTable:
@@ -281,7 +281,7 @@ resources:
           AvailabilityZone: ${self:provider.region}a # match availability zone for EFS One Zone
           Tags:
             - Key: Name
-              Value: ${self:service}-${opt:stage, self:provider.stage-Subnet}
+              Value: ${self:service}-${opt:stage, self:provider.stage}-Subnet
       Route:
         Type: AWS::EC2::Route
         Properties:
@@ -429,9 +429,9 @@ resources:
                 Action: "elasticfilesystem:Client*"
                 Principal:
                   AWS: "*"
-          Tags:
+          FileSystemTags:
             - Key: Name
-              Value: ${self:service}-${opt:stage, self:provider.stage-EFSFileSystem}
+              Value: ${self:service}-${opt:stage, self:provider.stage}-EFSFileSystem
       MountTarget:
         Type: AWS::EFS::MountTarget
         Properties:
