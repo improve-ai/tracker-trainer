@@ -348,7 +348,7 @@ resources:
       ComputeEnvironment:
         Type: AWS::Batch::ComputeEnvironment
         Properties:
-          ComputeEnvironmentName: '${self:service}-${opt:stage, self:provider.stage}-ComputeEnvironment'
+          ComputeEnvironmentName: ${self:service}-${opt:stage, self:provider.stage}
           Type: MANAGED
           ServiceRole: 
             Ref: BatchServiceRole
