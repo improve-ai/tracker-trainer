@@ -8,7 +8,7 @@
 region: us-east-1
 organization: acme # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
 project: demo # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
-contact: example@example.com # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
+contact: your_email@example.com # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
 
 #
 # decision models to train
