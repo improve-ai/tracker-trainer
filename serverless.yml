@@ -231,6 +231,9 @@ resources:
         Properties:
           CidrBlock: 10.0.0.0/16
           EnableDnsHostnames: true
+          Tags:
+            - Key: Name
+              Value: ${self:service}-${opt:stage, self:provider.stage-VPC}
       InternetGateway:
         Type: AWS::EC2::InternetGateway
       RouteTable:
@@ -364,7 +367,7 @@ resources:
       JobQueue:
         Type: AWS::Batch::JobQueue
         Properties:
-          JobQueueName: '${self:service}-${opt:stage, self:provider.stage}-JobQueue'
+          JobQueueName: '${self:service}-${opt:stage, self:provider.stage}'
           ComputeEnvironmentOrder:
             - Order: 1
               ComputeEnvironment: 
@@ -375,7 +378,7 @@ resources:
         Type: "AWS::Batch::JobDefinition"
         Properties:
           Type: Container
-          JobDefinitionName: '${self:service}-${opt:stage, self:provider.stage}-IngestFirehoseJobDefinition'
+          JobDefinitionName: '${self:service}-${opt:stage, self:provider.stage}-IngestFirehose'
           ContainerProperties: 
             Memory: 1024 # enough memory to hold a max size (128MB) firehose file
             Vcpus: 1
@@ -393,7 +396,7 @@ resources:
         Type: "AWS::Batch::JobDefinition"
         Properties:
           Type: Container
-          JobDefinitionName: '${self:service}-${opt:stage, self:provider.stage}-AssignRewardsJobDefinition'
+          JobDefinitionName: '${self:service}-${opt:stage, self:provider.stage}-AssignRewards'
           ContainerProperties: 
             Memory: 2048
             Vcpus: 1

@@ -33,7 +33,7 @@ def worker():
                           grouped_incoming_history_files))  # list() forces evaluation of generator
 
     print(
-        f'uploaded {config.stats.rewarded_decision_count} rewarded decision records to {config.TRAIN_BUCKET}')
+        f'uploaded {config.stats.rewarded_decision_count} rewarded decision records to s3://{config.TRAIN_BUCKET}')
     print(config.stats)
     print(f'finished reward assignment job node {config.NODE_ID}')
 
