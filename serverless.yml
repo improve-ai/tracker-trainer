@@ -50,10 +50,8 @@ provider:
     MODELS_BUCKET: !Ref ModelsS3Bucket
 
 package:
-  exclude:
-    - ./**
-    - ./src/assign_rewards/customize.py
-  include:
+  patterns:
+    - '!./**'
     - node_modules/**
     - src/**
     - config/**
