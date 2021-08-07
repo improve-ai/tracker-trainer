@@ -52,8 +52,7 @@ def assign_rewards_to_decisions(records):
     """
     rewarded_decisions_by_model = {}
 
-    records.sort(
-        key=lambda x: (x['timestamp'], utils.make_decision_type_first(x['type'])))
+    utils.sort_records_by_timestamp(records)
 
     decision_records_by_reward_key = {}
     for record in records:

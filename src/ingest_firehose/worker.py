@@ -36,9 +36,14 @@ def worker():
                 invalid_record_count += 1
                 continue
             
+            # check if record is of expected type (dict)
+            if not isinstance(record, dict):
+                invalid_record_count += 1
+                continue
+
             record = customize.customize_record(record)
 
-            # check if record is of expected type (dict)
+            # check type again, also handling None type record from customize
             if not isinstance(record, dict):
                 invalid_record_count += 1
                 continue
