@@ -7,6 +7,8 @@ import hashlib
 import uuid
 from pathlib import Path
 
+import customize
+
 s3 = boto3.resource('s3')
 
 S3_BUCKET = os.environ['S3_BUCKET']
@@ -33,6 +35,8 @@ def worker():
             except Exception as exc:
                 invalid_record_count += 1
                 continue
+            
+            record = customize.customize_record(record)
 
             # check if record is of expected type (dict)
             if not isinstance(record, dict):

@@ -1,17 +1,8 @@
 # !!! NOTICE: Modify config/config.yml to customize deployment
 custom:
   config: ${file(config/config.yml)}
-  # Hooks are responsible for including customize.py in the assign_rewards
-  #  image and removing it after stack deploy is complete
-  scriptable:
-    hooks:
-      before:package:createDeploymentArtifacts: cp ./config/customize.py ./src/assign_rewards/customize.py
-      after:deploy:finalize: rm ./src/assign_rewards/customize.py
 
 service: improveai-${self:custom.config.organization}-${self:custom.config.project}
-
-plugins:
-  - serverless-scriptable-plugin
 
 provider:
   lambdaHashingVersion: 20201221 # can be removed in serverless v3

@@ -1,9 +1,9 @@
 {
   "name": "improve",
-  "version": "0.0.1",
+  "version": "6.0.0",
   "description": "A Serverless Project and its Serverless Plugin dependencies.",
-  "author": "me",
-  "license": "MIT",
+  "author": "Justin Chapweske",
+  "license": "proprietary",
   "private": false,
   "repository": {
     "type": "git",
@@ -13,7 +13,6 @@
     "date-format": "^3.0.0",
     "js-yaml": "^3.13.0",
     "lodash": "^4.0.0",
-    "serverless-scriptable-plugin": "^1.2.1",
     "sha.js": "^2.4.0",
     "tar-stream": "^2.1.0",
     "uuid": "^3.2.1"
