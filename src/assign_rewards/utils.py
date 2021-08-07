@@ -256,11 +256,13 @@ def serialize_datetime(obj):
     if isinstance(obj, datetime):
         return obj.isoformat()
     raise TypeError(f'{type(obj)} not serializable')
+    
 
 def sort_records_by_timestamp(records):
     # sort by timestamp. On tie, records of type 'decision' are sorted earlier
     records.sort(
         key=lambda x: (x['timestamp'], 0 if x['type'] == constants.DECISION_TYPE else 1))
+        
 
 def hash_history_id(history_id):
     return hashlib.sha256(history_id.encode()).hexdigest()
