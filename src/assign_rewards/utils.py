@@ -217,7 +217,7 @@ def upload_gzipped_jsonlines(s3_bucket, s3_key, records):
 
 def drop_needless_keys_from_records(rewarded_decisions):
     rewarded_decisions_with_desired_keys = \
-        [{k: rd[k] for k in rd if k in constants.REWARDED_DECISIONS_S3_KEYS}
+        [{k: rd[k] for k in rd if k in constants.REWARDED_DECISION_KEYS}
          for rd in rewarded_decisions]
 
     return rewarded_decisions_with_desired_keys
@@ -257,29 +257,14 @@ def serialize_datetime(obj):
         return obj.isoformat()
     raise TypeError(f'{type(obj)} not serializable')
 
+def sort_records_by_timestamp(records):
+    # sort by timestamp. On tie, records of type 'decision' are sorted earlier
+    records.sort(
+        key=lambda x: (x['timestamp'], 0 if x['type'] == constants.DECISION_TYPE else 1))
 
 def hash_history_id(history_id):
     return hashlib.sha256(history_id.encode()).hexdigest()
 
 
-def sort_records_by_timestamp(records):
-    def sort_key(x):
-        timestamp = datetime.strptime(x['timestamp'], config.DATETIME_FORMAT)
-        if x['type'] in ('rewards', 'event'):
-            timestamp += timedelta(seconds=1)
-        return timestamp
-
-    records.sort(key=sort_key)
-
-    return records
-
-
 def deepcopy(o):
     return json.loads(json.dumps(o))
-
-
-def make_decision_type_first(event_type):
-    if event_type == constants.DECISION_TYPE:
-        return 0
-    else:
-        return 1

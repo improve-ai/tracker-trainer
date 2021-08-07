@@ -19,7 +19,7 @@ UUID4_FILE_NAME_REGEXP = "^[\w\-]+$"
 JSONLINES_FILENAME_EXTENSION_REGEXP = '.*\.jsonl.gz$'
 
 
-REWARDED_DECISIONS_S3_KEYS = \
+REWARDED_DECISION_KEYS = \
     ('timestamp', 'reward', 'variant', 'given', 'count', 'runners_up', 'sample')
 
 SHA_256_LEN = 64
