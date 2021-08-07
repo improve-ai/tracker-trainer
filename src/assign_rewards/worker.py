@@ -44,7 +44,11 @@ def process_incoming_history_file_group(file_group):
     # get the hashed history id
     hashed_history_id = utils.hashed_history_id_from_file(file_group[0])
 
-    # add any previously saved history files for this hashed history id
+    # add any previously saved history files for this hashed history id to
+    # the end of the file group. In the event of duplicate message_ids,
+    # the incoming history files will take precedence because they are
+    # earlier in the file group. Behavior of duplicate message_ids among
+    # multiple incoming history files is undefined.
     file_group.extend(
         utils.history_files_for_hashed_history_id(hashed_history_id))
 

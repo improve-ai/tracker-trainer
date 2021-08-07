@@ -17,7 +17,7 @@ from itertools import groupby
 import config
 import constants
 
-
+# load the history by iterating the file_group. Later records with duplicate message_ids will be ignored
 def load_history(file_group):
     records = []
     message_ids = set()
