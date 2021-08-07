@@ -4,7 +4,7 @@
 # parameters:
 #  - record - the loaded record to modify
 # returns:
-#  - the customized record or None
+#  - the customized record or None to skip the record
 #
 # customize_record() is called immediately after record load from the Firehose S3, before validation, and before saving the record to the histories EFS.
 # Records that fail validation will be skipped and not saved to EFS. Exceptions raised here will cause the job to fail.

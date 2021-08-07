@@ -108,8 +108,7 @@ def hashed_history_id_from_file(file):
 
 def history_dir_for_hashed_history_id(hashed_history_id):
     # returns a path like /mnt/histories/1c/aa
-    return config.HISTORIES_PATH / hashed_history_id[0:2] / hashed_history_id[
-                                                            2:4]
+    return config.HISTORIES_PATH / hashed_history_id[0:2] / hashed_history_id[2:4]
 
 
 def history_files_for_hashed_history_id(hashed_history_id):
@@ -236,8 +235,7 @@ def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):
         # 'Malformed `model` name
         return
 
-    # TODO does this return statement have eny effect ?
-    return upload_gzipped_jsonlines(
+    upload_gzipped_jsonlines(
         config.TRAIN_BUCKET,
         rewarded_decisions_s3_key(
             model, hashed_history_id), rewarded_decisions)
