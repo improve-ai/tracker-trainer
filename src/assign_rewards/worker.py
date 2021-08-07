@@ -52,7 +52,7 @@ def process_incoming_history_file_group(file_group):
     file_group.extend(
         utils.history_files_for_hashed_history_id(hashed_history_id))
 
-    # load all records
+    # load all records, ignoring subsequent duplicate message_ids
     records = utils.load_history(file_group)
 
     # write the consolidated records to a new history file
