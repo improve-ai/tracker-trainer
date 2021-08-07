@@ -237,6 +237,7 @@ resources:
       SecurityGroup:
         Type: AWS::EC2::SecurityGroup
         Properties:
+          GroupName: ${self:service}-${opt:stage, self:provider.stage}-SecurityGroup
           GroupDescription: Improve AI Gym SecurityGroup
           VpcId: !Ref VPC
           SecurityGroupIngress:
