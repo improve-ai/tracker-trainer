@@ -226,14 +226,10 @@ def upload_rewarded_decisions(model, hashed_history_id, rewarded_decisions):
     # TODO double check model name and hashed_history_id to ensure valid characters
 
     # check hashed_historyid for sha256
-    if re.match(constants.HISTORY_FILE_NAME_REGEXP, hashed_history_id) is None:
-        # Malformed `hashed_history_id`
-        return
+    assert re.match(constants.HISTORY_FILE_NAME_REGEXP, hashed_history_id) is not None
 
     # check model name
-    if re.match(constants.MODEL_NAME_REGEXP, model) is None:
-        # 'Malformed `model` name
-        return
+    assert re.match(constants.MODEL_NAME_REGEXP, model) is not None
 
     upload_gzipped_jsonlines(
         config.TRAIN_BUCKET,
