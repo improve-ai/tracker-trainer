@@ -16,8 +16,8 @@ proejct = module.exports.config['project'];
 
 if(organization == 'acme'){
   console.warn(
-      'Please set the organization in the config.yml - currently detected ' +
-      'organization == `acme`')
+      '\n[WARNING] Please change the organization in the config.yml - ' +
+      'currently detected default organization => `acme`\n')
 }
 
 assert(!(organization == null), 'Organization name is null or undefined');
