@@ -1,19 +1,12 @@
 # Built-in imports
 import io
 import json
-import re
-import sys
 import gzip
-import zlib
 import shutil
-from uuid import uuid4
 from datetime import datetime
-from pathlib import Path
 
 import config
 import constants
-import utils
-
 
 def ensure_parent_dir(file):
     parent_dir = file.parent
