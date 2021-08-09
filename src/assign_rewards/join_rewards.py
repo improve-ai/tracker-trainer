@@ -1,61 +1,21 @@
-import threading
-from datetime import datetime, timedelta
-import logging
-from numbers import Number
+from datetime import timedelta
 import re
-import sys
-import signal
-import subprocess
 
 import constants
 import config
 import utils
+import customize
 
 # Time window to add to a timestamp
 window = timedelta(seconds=config.REWARD_WINDOW)
 
-
-def update_listeners(listeners, record_timestamp, reward):
-    if not isinstance(listeners, list):
-        raise TypeError("Expecting a list for the 'listeners' arg.")
-
-    if not isinstance(record_timestamp, datetime):
-        raise TypeError(
-            "Expecting a datetime.datetime timestamp for the 'record_timestamp' arg.")
-
-    if not (isinstance(reward, int) or isinstance(reward, float)):
-        raise TypeError("Expecting int, float or bool.")
-
-    # Loop backwards to be able to remove an item in place
-    for i in range(len(listeners) - 1, -1, -1):
-        listener = listeners[i]
-        listener_timestamp = listener[constants.TIMESTAMP_KEY]
-        if listener_timestamp + window < record_timestamp:
-            del listeners[i]
-        else:
-            listener['reward'] = listener.get('reward', 0.0) + float(reward)
-
-
-def assign_rewards_to_decisions(records):
+def assign_rewards(history: list):
     """
-    1) Collect all records of type "decision" in a dictionary.
-    2) Assign the rewards of records of type "rewards" to all the "decision"
-    records that match two criteria:
-      - reward_key
-      - a time window
-    3) Assign the value of records of type "event" to all "decision" records
-    within a time window.
-
     Args:
-        records: a list of records (dicts)
-
+        history: a list of records (dicts) (in/out)
     """
     rewarded_decisions_by_model = {}
-
-    utils.sort_records_by_timestamp(records)
-
-    decision_records_by_reward_key = {}
-    for record in records:
+    for record in history:
         if record.get(constants.TYPE_KEY) == constants.DECISION_TYPE:
             rewarded_decision = record.copy()
 
@@ -65,26 +25,21 @@ def assign_rewards_to_decisions(records):
 
             rewarded_decisions_by_model[model].append(rewarded_decision)
 
-            reward_key = record.get('reward_key', 'reward')
-            listeners = decision_records_by_reward_key.get(reward_key, [])
-            decision_records_by_reward_key[reward_key] = listeners
-            listeners.append(rewarded_decision)
-
-        elif record.get(constants.TYPE_KEY) == 'rewards':
-            for reward_key, reward in record['rewards'].items():
-                listeners = decision_records_by_reward_key.get(reward_key, [])
-                update_listeners(
-                    listeners, record[constants.TIMESTAMP_KEY], reward)
-
-        # Event type records get summed to all decisions within the time window regardless of reward_key
+    rewardable_decisions = []
+    
+    for record in history:
+        if record.get(constants.TYPE_KEY) == constants.DECISION_TYPE:
+            rewardable_decisions.append(record)
         elif record.get(constants.TYPE_KEY) == constants.EVENT_TYPE:
-            reward = record.get(constants.PROPERTIES_KEY, {}) \
-                .get(constants.VALUE_KEY, config.DEFAULT_EVENT_REWARD_VALUE)
-            for reward_key, listeners in decision_records_by_reward_key.items():
-                update_listeners(
-                    listeners, record[constants.TIMESTAMP_KEY], reward)
-
-    return rewarded_decisions_by_model
+            reward = record.get(constants.PROPERTIES_KEY, {}).get(constants.VALUE_KEY, config.DEFAULT_EVENT_REWARD_VALUE)
+            # Loop backwards to be able to remove an item in place
+            for i in range(len(rewardable_decisions) - 1, -1, -1):
+                listener = rewardable_decisions[i]
+                listener_timestamp = listener[constants.TIMESTAMP_KEY]
+                if listener_timestamp + window < record_timestamp:
+                    del rewardable_decisions[i]
+                else:
+                    listener['reward'] = listener.get('reward', 0.0) + float(reward)
 
 
 def filter_valid_records(hashed_history_id, records):
@@ -149,3 +104,5 @@ def validate_record(record, history_id, hashed_history_id):
         # Record`s history_id mismatches hashed_history_id (?)
         return False
     return True
+    
+    # TODO validate 'reward', 'properties.value'
