@@ -1,11 +1,14 @@
 const assert = require('assert')
 const fs = require('fs');
-const yaml = require('js-yaml');
+const yaml = require('yaml');
+//const yaml = require('js-yaml');
 
 const orgAndProjNameRegex = '^[a-z0-9]+$'
 const modelNameRegex = /^[\w\- .]+$/i
 
-module.exports.config = yaml.safeLoad(fs.readFileSync('./config/config.yml', 'utf8'));
+const config_file = fs.readFileSync('./config/config.yml', 'utf8');
+module.exports.config = yaml.parse(config_file);
+// module.exports.config = yaml.safeLoad(fs.readFileSync('./config/config.yml', 'utf8'));
 
 module.exports.config_json = JSON.stringify(module.exports.config);
 
@@ -14,14 +17,14 @@ module.exports.config_json = JSON.stringify(module.exports.config);
 organization = module.exports.config['organization'];
 proejct = module.exports.config['project'];
 
-if(organization == 'acme'){
-  console.warn(
-      'Please set the organization in the config.yml - currently detected ' +
-      'organization == `acme`')
-}
-
 assert(!(organization == null), 'Organization name is null or undefined');
 assert(!(proejct == null), 'Project name is null or undefined');
+
+if(organization == 'acme'){
+  console.warn(
+      '\n[WARNING] Please change the organization in the config.yml - ' +
+      'currently detected default organization => `acme`\n')
+}
 
 assert(organization.match(orgAndProjNameRegex), 'Organization name contains illegal characters');
 assert(proejct.match(orgAndProjNameRegex), 'Project name contains illegal characters');

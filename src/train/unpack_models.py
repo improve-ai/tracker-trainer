@@ -44,7 +44,7 @@ def unpack(event, context):
         filenames = tar_gz_models_file.getnames()
 
         for filename in filenames:
-            upload_extension = None
+
             if filename == 'model.xgb':
                 upload_extension = '.xgb.gz'
             elif filename == 'model.mlmodel':
@@ -57,7 +57,7 @@ def unpack(event, context):
             latest_key = get_latest_s3_key(model_name=s3_model_name, extension=upload_extension)
 
             model_member = tar_gz_models_file.getmember(filename)
-            model = tar_gz_models_file.extractfile(model_member)
+            model = tar_gz_models_file.extractfile(model_member).read()
 
             upload_model(
                 key=key, latest_key=latest_key, s3_client=s3_client,
@@ -69,7 +69,7 @@ def upload_model(
 
     # upload gzipped compressed model
     write_params = {
-        'Fileobj': gzip.compress(model_fileobject),
+        'Fileobj': BytesIO(gzip.compress(model_fileobject)),
         'Bucket': os.getenv(tc.MODELS_BUCKET_ENVVAR),
         'Key': key,
         'ExtraArgs': {
