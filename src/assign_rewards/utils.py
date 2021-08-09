@@ -45,7 +45,3 @@ def serialize_datetime(obj):
     if isinstance(obj, datetime):
         return obj.isoformat()
     raise TypeError(f'{type(obj)} not serializable')
-
-
-def deepcopy(o):
-    return json.loads(json.dumps(o))
