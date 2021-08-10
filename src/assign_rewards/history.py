@@ -14,7 +14,7 @@ import config
 import utils
 import customize
 
-LOWER_HEX_REGEXP = "^[a-f0-9]+$"
+HASHED_HISTORY_ID_REGEXP = "^[a-f0-9]+$"
 MODEL_NAME_REGEXP = "^[\w\- .]+$"
 
 HASHED_HISTORY_ID_LEN = 64
@@ -66,13 +66,13 @@ class History:
     
 
     def save(self):
-        assert not self.mutated # double check that we're not persisting modified records
+        assert not self.mutated # double check that we're not persisting modified or filtered records
         
         output_file = history_dir_for_hashed_history_id(self.hashed_history_id) / f'{self.hashed_history_id}-{uuid4()}.jsonl.gz'
     
         utils.ensure_parent_dir(output_file)
     
-        # save all records, including invalid ones
+        # save all records
         utils.save_gzipped_jsonlines(output_file.absolute(), self.records)
         
         
@@ -288,7 +288,7 @@ def is_valid_hashed_history_id(hashed_history_id):
     # illegal chars or bad length of sha256 chunk
     if not isinstance(hashed_history_id, str) \
             or len(hashed_history_id) != HASHED_HISTORY_ID_LEN \
-            or not re.match(LOWER_HEX_REGEXP, hashed_history_id):
+            or not re.match(HASHED_HISTORY_ID_REGEXP, hashed_history_id):
         return False
         
     return True
