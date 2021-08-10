@@ -16,9 +16,10 @@ def lambda_handler(event, context):
         jobDefinition=os.environ['JOB_DEFINITION'],
         containerOverrides={
             'environment': [
-                {'name': 'WORKER_COUNT', 'value':
-                    str(worker_count)},
-                {'name': 'TRAIN_BUCKET', 'value': os.environ['TRAIN_BUCKET']}
+                {'name': 'WORKER_COUNT', 'value': str(worker_count)},
+                {'name': 'TRAIN_BUCKET', 'value': os.environ['TRAIN_BUCKET']},
+                {'name': 'REWARD_WINDOW', 'value': os.environ['REWARD_WINDOW']},
+                {'name': 'DEFAULT_EVENT_VALUE', 'value': os.environ['DEFAULT_EVENT_VALUE']}
             ],
         },
         arrayProperties={
