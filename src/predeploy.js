@@ -23,7 +23,7 @@ assert(!(project == null), 'config/config.yml:project is null or undefined');
 if(organization == 'acme'){
   console.warn(
       "\n[WARNING] Please change 'organization' in config/config.yml - " +
-      'currently detected default organization => `acme`\n')
+      'currently detected example organization => `acme`\n')
 }
 
 assert(organization.match(orgAndProjNameRegex), 'config/config.yml:organization may contain only lowercase letters and numbers');

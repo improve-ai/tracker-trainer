@@ -6,7 +6,6 @@ from uuid import uuid4
 from itertools import groupby
 import dateutil
 from datetime import datetime
-from datetime import timedelta
 from operator import itemgetter
 
 import constants
@@ -226,10 +225,8 @@ def select_files_for_node(input_dir, glob):
     files_to_process = []
     file_count = 0
     for f in input_dir.glob(glob):
-        if not is_valid_history_filename(f.name):
+        if not is_valid_hashed_history_id(hashed_history_id_from_file(f)):
             print(f'skipping bad file name {f.name}')
-            # increment  bad file names stats
-            # config.stats.incrementUnrecoverableFileCount()
             continue
 
         file_count += 1
@@ -255,7 +252,6 @@ def unique_hashed_history_file_name(hashed_history_id):
 def hashed_history_id_from_file(file):
     return file.name.split('-')[0]
 
-
 def history_dir_for_hashed_history_id(hashed_history_id):
     # returns a path like /mnt/histories/1c/aa
     return config.HISTORIES_PATH / hashed_history_id[0:2] / hashed_history_id[2:4]
@@ -268,34 +264,6 @@ def history_files_for_hashed_history_id(hashed_history_id):
                 .glob(f'{hashed_history_id}-*.jsonl.gz'))
     return results
 
-
-def is_valid_history_filename(checked_filename: str):
-    """
-    Checks:
-     - if extension jsonl.gz is present
-     - length of first 'chunk' of name split by '-' (sha256 check)
-     - length of all remaining chunks (uuid4) check
-     length and allows only for alnum characters in provided filename
-    Desired name pattern looks as follows:
-    00eda666cee662eef503f3ab4b7d6375ceda6549821265fa4a5081ce46d4cbb1-202342f0-ee10-40d5-9207-7ab785187f0a.jsonl.gz
-    """
-
-    # bad extension
-    if not re.match(JSONLINES_FILENAME_EXTENSION_REGEXP, checked_filename):
-        # Filename has no jsonl.gz suffix
-        return False
-
-    sha_filename_chunk = checked_filename.split('-')[0]
-
-    if not is_valid_hashed_history_id(sha_filename_chunk):
-        return False
-
-    uuid4_filename_chunk = '-'.join(checked_filename.split('-')[1:]).split('.')[0]
-    if not utils.is_valid_uuid(uuid4_filename_chunk):
-        return False
-
-    return True
-    
 def is_valid_hashed_history_id(hashed_history_id):
     # illegal chars or bad length of sha256 chunk
     if not isinstance(hashed_history_id, str) \
