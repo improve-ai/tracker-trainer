@@ -1,3 +1,4 @@
+import os
 import json
 import re
 import gzip
@@ -106,8 +107,7 @@ class History:
     def sort_records(self):
         self.mutated = True
         # sort by timestamp. On tie, records of type 'decision' are sorted earlier
-        self.records.sort(
-            key=lambda x: (x[constants.TIMESTAMP_KEY], 0 if is_decision_record(x) else 1))
+        self.records.sort(key=lambda x: (x[constants.TIMESTAMP_KEY], 0 if is_decision_record(x) else 1))
 
         
     def before_assign_rewards(self):
@@ -159,6 +159,38 @@ class History:
             config.stats.addModel(model_name)
             config.stats.incrementRewardedDecisionCount(len(rewarded_decisions))
                 
+    
+def histories_to_process():
+    histories = []
+    
+    # identify the portion of incoming history files to process in this node
+    incoming_history_files = select_incoming_history_files_for_node()
+    for hashed_history_id, incoming_file_group in \
+            groupby(sorted(incoming_history_files, key=hashed_history_id_from_file), hashed_history_id_from_file):
+    
+        files = list(incoming_file_group)
+        
+        # sort the newest incoming files to the beginning of the list so that they get
+        # precedence for duplicate message ids
+        files.sort(key=os.path.getctime, reverse=True)
+
+        # list the previously saved history files for this hashed_history_id
+        history_files = history_files_for_hashed_history_id(hashed_history_id)
+
+        # independently sort the newest history files to the beginning of their list so that they get
+        # precedence for duplicate message ids
+        history_files.sort(key=os.path.getctime, reverse=True)
+        
+        # add any previously saved history files for this hashed history id to
+        # the end of the file group. In the event of duplicate message_ids,
+        # the incoming history files will take precedence because they are
+        # earlier in the file group. 
+        files.extend(history_files)
+    
+        histories.append(History(hashed_history_id, files))
+
+    return histories
+
 
 def load_records(file, message_ids):
     """
@@ -211,38 +243,27 @@ def load_records(file, message_ids):
     config.stats.incrementHistoryRecordCount(line_count)
 
     return records
-    
 
-def select_incoming_history_files():
-    # hash based on the first 8 characters of the hashed history id
-    # return select_files_for_node(config.INCOMING_PATH, '*.jsonl.gz')
-    # TODO check valid file name & hashed history id chars
-    files_for_node = select_files_for_node(config.INCOMING_PATH, '*.jsonl.gz')
-    return files_for_node
-
-
-def select_files_for_node(input_dir, glob):
-    files_to_process = []
+def select_incoming_history_files_for_node():
+    files = []
     file_count = 0
-    for f in input_dir.glob(glob):
+    glob = '*.jsonl.gz'
+    for f in config.INCOMING_PATH.glob(glob):
         if not is_valid_hashed_history_id(hashed_history_id_from_file(f)):
             print(f'skipping bad file name {f.name}')
+            config.stats.incrementBadFileNameCount()
             continue
 
         file_count += 1
         # convert first 8 hex chars (32 bit) to an int
-        # the file name starts with a uuidv4
+        # the file name starts with the hashed history id
         # check if int mod node_count matches our node
         if (int(f.name[:8], 16) % config.NODE_COUNT) == config.NODE_ID:
-            files_to_process.append(f)
+            files.append(f)
 
-    print(f'selected {len(files_to_process)} of {file_count} files from {input_dir}/{glob} to process')
+    print(f'selected {len(files)} of {file_count} files from {config.INCOMING_PATH}/{glob} to process')
 
-    return files_to_process
-
-
-def group_files_by_hashed_history_id(files):
-    return groupby(sorted(files, key=hashed_history_id_from_file),hashed_history_id_from_file)
+    return files
 
 
 def unique_hashed_history_file_name(hashed_history_id):

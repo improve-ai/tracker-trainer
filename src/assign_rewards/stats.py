@@ -8,6 +8,7 @@ class Stats:
         self.validated_record_count = 0
         self.rewarded_decision_count = 0
         self.duplicate_message_id_count = 0
+        self.bad_file_name_count = 0
         self.unrecoverable_file_count = 0
         self.models = set()
 
@@ -27,6 +28,10 @@ class Stats:
         with self._lock:
             self.duplicate_message_id_count += increment
 
+    def incrementBadFileNameCount(self, increment=1):
+        with self._lock:
+            self.bad_file_name_count += increment
+
     def incrementUnrecoverableFileCount(self, increment=1):
         with self._lock:
             self.unrecoverable_file_count += increment
@@ -41,5 +46,6 @@ class Stats:
                     f'total records: {self.history_record_count}\n'
                     f'rewarded decision records: {self.rewarded_decision_count}\n'
                     f'duplicate message ids: {self.duplicate_message_id_count}\n'
+                    f'bad file names: {self.bad_file_name_count}\n'
                     f'unrecoverable files: {self.unrecoverable_file_count}\n'
                     f'models: {self.models}\n')
