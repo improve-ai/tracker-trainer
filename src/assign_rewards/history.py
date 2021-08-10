@@ -132,7 +132,7 @@ class History:
         
         # validate the final decision records, raise exception if invalid to fail job
         if not all_valid_records(decision_records):
-            raise ValueError('invalid rewarded decision records found prior to upload')
+            raise ValueError('invalid rewarded decision records found, likely due to a customize.py bug')
         
         # sort by model for groupby
         decision_records.sort(key = itemgetter(constants.MODEL_KEY))
