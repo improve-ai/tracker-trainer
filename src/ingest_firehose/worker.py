@@ -32,7 +32,6 @@ def worker():
     with gzip.GzipFile(fileobj=obj.get()[BODY_KEY]) as gzf:
         for line in gzf.readlines():
 
-            # try-catch json.loads
             try:
                 record = json.loads(line)
             except Exception as exc:
@@ -44,7 +43,7 @@ def worker():
                 invalid_record_count += 1
                 continue
 
-            record = customize.customize_record(record)
+            record = customize.before_validation(record)
 
             # check type again, also handling None type record from customize
             if not isinstance(record, dict):

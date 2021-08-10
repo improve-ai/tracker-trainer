@@ -14,5 +14,5 @@
 # only affects the final rewarded decision records uploaded to the train S3 bucket. When mistakes are made, it is generally easier to clean up the train S3 bucket
 # than it is to clean up the EFS volume.
 #
-def customize_record(record: dict):
+def before_validation(record: dict):
     return record
