@@ -159,21 +159,21 @@ def histories_to_process():
     
         files = list(incoming_history_file_group)
         
-        # sort the newest incoming files to the beginning of the list so that they get
-        # precedence for duplicate message ids
+        # sort in reverse chronological order so the newest incoming files are at the beginning 
+        # of the list so that they get precedence for duplicate message ids
         files.sort(key=os.path.getctime, reverse=True)
 
         # list the previously saved history files for this hashed_history_id
         history_files = history_files_for_hashed_history_id(hashed_history_id)
 
-        # independently sort the newest history files to the beginning of their list so that they get
-        # precedence for duplicate message ids
+        # seperately sort the previously saved history files in reverse chronological order so
+        # that the most recent saved history files get precedence for duplicate message ids
         history_files.sort(key=os.path.getctime, reverse=True)
         
         # add any previously saved history files for this hashed history id to
         # the end of the file group. In the event of duplicate message_ids,
         # the incoming history files will take precedence because they are
-        # earlier in the file group. 
+        # earlier in the file group.
         files.extend(history_files)
     
         histories.append(History(hashed_history_id, files))
@@ -181,12 +181,14 @@ def histories_to_process():
     return histories
 
 
-def load_records(file, message_ids):
+def load_records(file, message_ids: set) -> list:
     """
-    Load a gzipped jsonlines file
+    Load records from a gzipped jsonlines file
 
     Args:
         file: Path of the input gzipped jsonlines file to load
+        message_ids: previously loaded message_ids to filter out
+        in the event of duplicates
 
     Returns:
         A list of records
