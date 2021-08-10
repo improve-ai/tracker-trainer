@@ -292,10 +292,14 @@ def is_valid_hashed_history_id(hashed_history_id):
             or not re.match(LOWER_HEX_REGEXP, hashed_history_id):
         return False
         
+    return True
+        
 def is_valid_model_name(model_name):
     if not isinstance(model_name, str) \
             or not re.match(MODEL_NAME_REGEXP, model_name):
         return False
+        
+    return True
 
 def hash_history_id(history_id):
     return hashlib.sha256(history_id.encode()).hexdigest()
