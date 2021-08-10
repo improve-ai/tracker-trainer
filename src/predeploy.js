@@ -11,11 +11,11 @@ function get(object, key, default_value) {
 
 function set_train_scheduling_events(scheduleEventPattern){
   //defaults
-  var defaultScheduleString = module.exports.config['schedule'];
-  var defaultWorkerInstanceType = module.exports.config['worker_instance_type'];
-  var defaultWorkerCount = module.exports.config['worker_count'];
-  var defaultMaxRecordsPerWorker = module.exports.config['max_records_per_worker'];
-  var defaultMaxRuntimeInSeconds = module.exports.config['max_runtime_in_seconds'];
+  var defaultScheduleString = module.exports.config['training']['schedule'];
+  var defaultWorkerInstanceType = module.exports.config['training']['worker_instance_type'];
+  var defaultWorkerCount = module.exports.config['training']['worker_count'];
+  var defaultMaxRecordsPerWorker = module.exports.config['training']['max_records_per_worker'];
+  var defaultMaxRuntimeInSeconds = module.exports.config['training']['max_runtime_in_seconds'];
 
   var currentScheduleEventDef = null;
   var currentModelTrainingConfig = {};
@@ -23,7 +23,11 @@ function set_train_scheduling_events(scheduleEventPattern){
 
   for (const [modelName, modelConfig] of Object.entries(module.exports.config['models'])) {
 
-      currentModelTrainingConfig = modelConfig['training']
+      if (modelConfig == null) {
+          currentModelTrainingConfig = {};
+      } else {
+          currentModelTrainingConfig = get(modelConfig, 'training', {});
+      }
 
       // deep copy dict
       currentScheduleEventDef = JSON.parse(JSON.stringify(scheduleEventPattern))
@@ -100,7 +104,3 @@ for (const [key, value] of Object.entries(module.exports.config['models'])) {
 
 module.exports.train_scheduling_events = [];
 set_train_scheduling_events(scheduleEventPattern)
-
-
-
-
