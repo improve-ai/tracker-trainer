@@ -15,22 +15,22 @@ module.exports.config_json = JSON.stringify(module.exports.config);
 // assert organization and project may contain only lowercase letters and
 // numbers and must be non-null, non-empty strings
 organization = module.exports.config['organization'];
-proejct = module.exports.config['project'];
+project = module.exports.config['project'];
 
-assert(!(organization == null), 'Organization name is null or undefined');
-assert(!(proejct == null), 'Project name is null or undefined');
+assert(!(organization == null), 'config/config.yml:organization is null or undefined');
+assert(!(project == null), 'config/config.yml:project is null or undefined');
 
 if(organization == 'acme'){
   console.warn(
-      '\n[WARNING] Please change the organization in the config.yml - ' +
+      "\n[WARNING] Please change 'organization' in config/config.yml - " +
       'currently detected default organization => `acme`\n')
 }
 
-assert(organization.match(orgAndProjNameRegex), 'Organization name contains illegal characters');
-assert(proejct.match(orgAndProjNameRegex), 'Project name contains illegal characters');
+assert(organization.match(orgAndProjNameRegex), 'config/config.yml:organization may contain only lowercase letters and numbers');
+assert(project.match(orgAndProjNameRegex), 'config/config.yml:project may contain only lowercase letters and numbers');
 
-assert(organization != '', 'Organization name is an empty string');
-assert(proejct != '', 'Project name is an empty string');
+assert(organization != '', 'config/config.yml:organization is an empty string');
+assert(project != '', 'config/config.yml:project is an empty string');
 
 // model names should be validated according to model naming rules
 for (const [key, value] of Object.entries(module.exports.config['models'])) {
