@@ -28,7 +28,7 @@ def worker():
 
 def process_history(history: History):
     if SIGTERM:
-        print(f'Quitting due to SIGTERM signal (node {config.NODE_ID}).')
+        print(f'quitting due to SIGTERM signal (node {config.NODE_ID}).')
         sys.exit()  # raises SystemExit, so worker threads should have a chance to finish up
 
     history.process()

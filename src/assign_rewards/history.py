@@ -250,7 +250,7 @@ def select_incoming_history_files_for_node():
     glob = '*.jsonl.gz'
     for f in config.INCOMING_PATH.glob(glob):
         if not is_valid_hashed_history_id(hashed_history_id_from_file(f)):
-            print(f'skipping bad file name {f.name}')
+            print(f'skipping bad file name {f}')
             config.stats.incrementBadFileNameCount()
             continue
 
