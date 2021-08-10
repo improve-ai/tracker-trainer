@@ -136,10 +136,10 @@ class History:
         
         # sort by model for groupby
         decision_records.sort(key = itemgetter(constants.MODEL_KEY))
-        for model_name, decision_group in groupby(decision_records, itemgetter(constants.MODEL_KEY)):
+        for model_name, decision_record_group in groupby(decision_records, itemgetter(constants.MODEL_KEY)):
     
             # filter out any keys that don't need to be used in training
-            rewarded_decisions = list(map(copy_rewarded_decision_keys, decision_group))
+            rewarded_decisions = list(map(copy_rewarded_decision_keys, decision_record_group))
 
             s3_key = rewarded_decisions_s3_key(model_name, self.hashed_history_id)
             
