@@ -15,7 +15,7 @@ def worker():
 
     histories = history.histories_to_process()
     
-    print(f'processing {len(histories)} histories')
+    print(f'processing {len(histories)} histories...')
     
     # process each history, perform reward assignment, and upload rewarded decisions to s3
     with concurrent.futures.ThreadPoolExecutor(max_workers=config.THREAD_WORKER_COUNT) as executor:
