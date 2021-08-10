@@ -16,11 +16,8 @@ import customize
 
 LOWER_HEX_REGEXP = "^[a-f0-9]+$"
 MODEL_NAME_REGEXP = "^[\w\- .]+$"
-HISTORY_FILE_NAME_REGEXP = '^[\w]+$'
-JSONLINES_FILENAME_EXTENSION_REGEXP = '.*\.jsonl.gz$'
 
-SHA_256_LEN = 64
-UUID4_LENGTH = 36
+HASHED_HISTORY_ID_LEN = 64
 
 class History:
     
@@ -273,6 +270,7 @@ def unique_hashed_history_file_name(hashed_history_id):
 def hashed_history_id_from_file(file):
     return file.name.split('-')[0]
 
+
 def history_dir_for_hashed_history_id(hashed_history_id):
     # returns a path like /mnt/histories/1c/aa
     return config.HISTORIES_PATH / hashed_history_id[0:2] / hashed_history_id[2:4]
@@ -288,7 +286,7 @@ def history_files_for_hashed_history_id(hashed_history_id):
 def is_valid_hashed_history_id(hashed_history_id):
     # illegal chars or bad length of sha256 chunk
     if not isinstance(hashed_history_id, str) \
-            or len(hashed_history_id) != SHA_256_LEN \
+            or len(hashed_history_id) != HASHED_HISTORY_ID_LEN \
             or not re.match(LOWER_HEX_REGEXP, hashed_history_id):
         return False
         
