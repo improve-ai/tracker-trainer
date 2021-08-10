@@ -9,7 +9,7 @@ function get(object, key, default_value) {
 }
 
 
-function set_train_scheduling_events(scheduleEventPattern){
+function setTrainSchedulingEvents(scheduleEventPattern){
   //defaults
   var defaultScheduleString = module.exports.config['training']['schedule'];
   var defaultWorkerInstanceType = module.exports.config['training']['worker_instance_type'];
@@ -54,7 +54,7 @@ function set_train_scheduling_events(scheduleEventPattern){
       currentScheduleEventDef['schedule']['input']['max_runtime_in_seconds'] =
           get(currentModelTrainingConfig, 'max_runtime_in_seconds', defaultMaxRuntimeInSeconds);
 
-      module.exports.train_scheduling_events.push(currentScheduleEventDef)
+      module.exports.trainSchedulingEvents.push(currentScheduleEventDef)
   }
 }
 
@@ -109,5 +109,5 @@ for (const [key, value] of Object.entries(module.exports.config['models'])) {
 }
 
 
-module.exports.train_scheduling_events = [];
-set_train_scheduling_events(scheduleEventPattern)
+module.exports.trainSchedulingEvents = [];
+setTrainSchedulingEvents(scheduleEventPattern)
