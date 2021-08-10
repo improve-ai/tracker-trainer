@@ -53,6 +53,7 @@ class History:
         # do this last in case there is a problem during processing that needs to be retried
         self.clean_up()
     
+    
     def load(self):
         self.records = []
         self.mutated = False
@@ -67,18 +68,18 @@ class History:
     def save(self):
         assert not self.mutated # double check that we're not persisting modified records
         
-        output_file = \
-            utils.history_dir_for_hashed_history_id(
-                self.hashed_history_id) / f'{self.hashed_history_id}-{uuid4()}.jsonl.gz'
+        output_file = history_dir_for_hashed_history_id(self.hashed_history_id) / f'{self.hashed_history_id}-{uuid4()}.jsonl.gz'
     
         utils.ensure_parent_dir(output_file)
     
         # save all records, including invalid ones
         utils.save_gzipped_jsonlines(output_file.absolute(), self.records)
         
+        
     def clean_up(self):
         # delete the incoming and history files that were processed
         utils.delete_all(self.files)
+        
         
     def filter_valid_records(self):
         self.mutated = True
