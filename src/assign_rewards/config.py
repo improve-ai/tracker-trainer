@@ -16,7 +16,9 @@ s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections
 
 # The length (timedelta) of the reward window
 # TODO load from config
-REWARD_WINDOW = timedelta(seconds=24 * 2 * 60 * 60)
+# REWARD_WINDOW = timedelta(seconds=24 * 2 * 60 * 60)
+_reward_window_in_seconds = int(os.environ['REWARD_WINDOW'])
+REWARD_WINDOW = timedelta(seconds=_reward_window_in_seconds)
 
 # The worker number of this job
 NODE_ID = int(os.environ['AWS_BATCH_JOB_ARRAY_INDEX'])
@@ -36,7 +38,8 @@ UNRECOVERABLE_PATH = EFS_PATH / 'unrecoverable'
 
 # The default reward value of a record of type 'event'
 # TODO load from config
-DEFAULT_EVENT_VALUE = 0.001
+# DEFAULT_EVENT_VALUE = 0.001
+DEFAULT_EVENT_VALUE = float(os.environ['DEFAULT_EVENT_VALUE'])
 
 # The timestamp format of the records
 DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
