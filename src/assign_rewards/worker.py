@@ -9,8 +9,7 @@ from history import History
 
 SIGTERM = False
 
-# execute the core worker loop of processing incoming firehose files then
-# processing incoming history files
+
 def worker():
     print(f'starting reward assignment job on node {config.NODE_ID} ({config.NODE_COUNT} nodes total)')
 

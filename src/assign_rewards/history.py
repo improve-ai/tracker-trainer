@@ -165,10 +165,10 @@ def histories_to_process():
     
     # identify the portion of incoming history files to process in this node
     incoming_history_files = select_incoming_history_files_for_node()
-    for hashed_history_id, incoming_file_group in \
+    for hashed_history_id, incoming_history_file_group in \
             groupby(sorted(incoming_history_files, key=hashed_history_id_from_file), hashed_history_id_from_file):
     
-        files = list(incoming_file_group)
+        files = list(incoming_history_file_group)
         
         # sort the newest incoming files to the beginning of the list so that they get
         # precedence for duplicate message ids
