@@ -84,21 +84,8 @@ class History:
     def filter_valid_records(self):
         self.mutated = True
         
-        results = []
-        validated_history_id = None
-    
-        for record in self.records:
-            if not is_valid_record(record, validated_history_id, self.hashed_history_id):
-                continue
-            
-            results.append(record)
-    
-            if not validated_history_id:
-                # history_id has been validated to hash to the hashed_history_id
-                validated_history_id = record[constants.HISTORY_ID_KEY]
-    
-        self.records = results
-
+        self.records = list(filter(is_valid_record, self.records))
+        
         config.stats.incrementValidatedRecordCount(len(self.records))
 
 
@@ -141,8 +128,12 @@ class History:
     
     def upload_rewarded_decisions(self):
         # extract decision records
-        decision_records = list(filter(lambda x: is_decision_record(x), self.records))
-
+        decision_records = list(filter(is_decision_record, self.records))
+        
+        # validate the final decision records, raise exception if invalid to fail job
+        if not all_valid_records(decision_records):
+            raise ValueError('invalid rewarded decision records found prior to upload')
+        
         # sort by model for groupby
         decision_records.sort(key = itemgetter(constants.MODEL_KEY))
         for model_name, rewarded_decisions in groupby(decision_records, itemgetter(constants.MODEL_KEY)):
@@ -310,24 +301,14 @@ def is_decision_record(record):
 def is_event_record(record):
     return record.get(constants.TYPE_KEY) == constants.EVENT_TYPE
 
+def all_valid_records(records):
+    return len(records) == len(list(filter(is_valid_record, records)))
 
-def is_valid_record(record, validated_history_id, hashed_history_id):
+def is_valid_record(record):
     # assertions should have been guaranteed by load
     assert isinstance(record, dict)
     assert isinstance(record[constants.TIMESTAMP_KEY], datetime.datetime)
 
-    history_id = record.get(constants.HISTORY_ID_KEY)
-    if not isinstance(history_id, str):
-        return False
-
-    if validated_history_id:
-        # validated history id provided, see if they match
-        if validated_history_id != history_id:
-            return False
-    elif not utils.hash_history_id(history_id) == hashed_history_id:
-        # Record`s history_id mismatches hashed_history_id
-        return False
-        
     _type = record.get(constants.TYPE_KEY)
     if not isinstance(_type, str):
         return False

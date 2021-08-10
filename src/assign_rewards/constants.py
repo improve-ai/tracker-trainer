@@ -1,5 +1,4 @@
 MESSAGE_ID_KEY = 'message_id'
-HISTORY_ID_KEY = 'history_id'
 TIMESTAMP_KEY = 'timestamp'
 TYPE_KEY = 'type'
 DECISION_TYPE = 'decision'

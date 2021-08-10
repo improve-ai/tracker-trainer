@@ -16,6 +16,9 @@ S3_KEY = os.environ['S3_KEY']
 
 INCOMING_PATH = Path('/mnt/efs/incoming')
 
+BODY_KEY = 'Body'
+HISTORY_ID_KEY = 'history_id'
+
 
 def worker():
     print(f'starting firehose ingest for s3://{S3_BUCKET}/{S3_KEY}')
@@ -26,7 +29,7 @@ def worker():
 
     # download and parse the firehose file
     obj = s3.Object(S3_BUCKET, S3_KEY)
-    with gzip.GzipFile(fileobj=obj.get()['Body']) as gzf:
+    with gzip.GzipFile(fileobj=obj.get()[BODY_KEY]) as gzf:
         for line in gzf.readlines():
 
             # try-catch json.loads
@@ -48,13 +51,15 @@ def worker():
                 invalid_record_count += 1
                 continue
             
-            history_id = record.get('history_id', None)
+            history_id = record.get(HISTORY_ID_KEY)
             if not history_id or not isinstance(history_id, str) \
                     or not len(history_id):
                 invalid_record_count += 1
                 continue
-                
-            # this might be a double check - httpApi has got identical check
+            
+            # after ingest, only the hashed history_id is used
+            del record[HISTORY_ID_KEY]
+            
             if not history_id in records_by_history_id:
                 records_by_history_id[history_id] = []
                 
