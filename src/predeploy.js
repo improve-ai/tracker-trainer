@@ -1,15 +1,79 @@
 const assert = require('assert')
 const fs = require('fs');
 const yaml = require('yaml');
-//const yaml = require('js-yaml');
+
+
+function get(object, key, default_value) {
+    var result = object[key];
+    return (typeof result !== "undefined") ? result : default_value;
+}
+
+
+function set_train_scheduling_events(scheduleEventPattern){
+  //defaults
+  var defaultScheduleString = module.exports.config['training']['schedule'];
+  var defaultWorkerInstanceType = module.exports.config['training']['worker_instance_type'];
+  var defaultWorkerCount = module.exports.config['training']['worker_count'];
+  var defaultMaxRecordsPerWorker = module.exports.config['training']['max_records_per_worker'];
+  var defaultMaxRuntimeInSeconds = module.exports.config['training']['max_runtime_in_seconds'];
+
+  var currentScheduleEventDef = null;
+  var currentModelTrainingConfig = {};
+
+
+  for (const [modelName, modelConfig] of Object.entries(module.exports.config['models'])) {
+
+      if (modelConfig == null) {
+          currentModelTrainingConfig = {};
+      } else {
+          currentModelTrainingConfig = get(modelConfig, 'training', {});
+      }
+
+      // deep copy dict
+      currentScheduleEventDef = JSON.parse(JSON.stringify(scheduleEventPattern))
+      // pass scheduling info
+      currentScheduleEventDef['schedule']['rate'] =
+          get(currentModelTrainingConfig, 'schedule', defaultScheduleString);
+      // pass schedule name
+      currentScheduleEventDef['schedule']['name'] = `${modelName}-schedule`;
+
+      // pass description
+      currentScheduleEventDef['schedule']['description'] =
+          `${currentScheduleEventDef['schedule']['rate']} schedule of ${modelName} model`;
+
+      currentScheduleEventDef['schedule']['input'] = {};
+
+      // pass env vars as parameters
+      currentScheduleEventDef['schedule']['input']['model_name'] = modelName;
+      currentScheduleEventDef['schedule']['input']['worker_instance_type'] =
+          get(currentModelTrainingConfig, 'worker_instance_type', defaultWorkerInstanceType);
+      currentScheduleEventDef['schedule']['input']['worker_count'] =
+          get(currentModelTrainingConfig, 'worker_count', defaultWorkerCount);
+      currentScheduleEventDef['schedule']['input']['max_records_per_worker'] =
+          get(currentModelTrainingConfig, 'max_records_per_worker', defaultMaxRecordsPerWorker);
+      currentScheduleEventDef['schedule']['input']['max_runtime_in_seconds'] =
+          get(currentModelTrainingConfig, 'max_runtime_in_seconds', defaultMaxRuntimeInSeconds);
+
+      module.exports.train_scheduling_events.push(currentScheduleEventDef)
+  }
+}
 
 const orgAndProjNameRegex = '^[a-z0-9]+$'
 const modelNameRegex = /^[\w\- .]+$/i
-
 const config_file = fs.readFileSync('./config/config.yml', 'utf8');
-module.exports.config = yaml.parse(config_file);
-// module.exports.config = yaml.safeLoad(fs.readFileSync('./config/config.yml', 'utf8'));
+// Apply defaults to this pattern
+const scheduleEventPattern = {
+    "schedule": {
+        "name": null,
+        "description": "default schedule",
+        "rate": null,
+        "enabled": true,
+        "input": null
+    }
+};
 
+
+module.exports.config = yaml.parse(config_file);
 module.exports.config_json = JSON.stringify(module.exports.config);
 
 // assert organization and project may contain only lowercase letters and
@@ -36,3 +100,7 @@ assert(project != '', 'config/config.yml:project is an empty string');
 for (const [key, value] of Object.entries(module.exports.config['models'])) {
   assert(key.match(modelNameRegex), `Invalid model name: ${key}`)
 }
+
+
+module.exports.train_scheduling_events = [];
+set_train_scheduling_events(scheduleEventPattern)
