@@ -80,6 +80,7 @@ module.exports.config_json = JSON.stringify(module.exports.config);
 // numbers and must be non-null, non-empty strings
 organization = module.exports.config['organization'];
 project = module.exports.config['project'];
+image = module.exports.config['training']['image']
 
 assert(!(organization == null), 'config/config.yml:organization is null or undefined');
 assert(!(project == null), 'config/config.yml:project is null or undefined');
@@ -89,6 +90,12 @@ if(organization == 'acme'){
       "\n[WARNING] Please change 'organization' in config/config.yml - " +
       'currently detected example organization => `acme`\n')
 }
+
+if(image == '' || image == null){
+  console.warn(
+      "\n[WARNING] <<Info about image subscription will be placed here shortly>>\n");
+}
+
 
 assert(organization.match(orgAndProjNameRegex), 'config/config.yml:organization may contain only lowercase letters and numbers');
 assert(project.match(orgAndProjNameRegex), 'config/config.yml:project may contain only lowercase letters and numbers');
