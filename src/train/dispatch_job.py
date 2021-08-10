@@ -3,11 +3,11 @@ import os
 
 import src.train.constants as tc
 from src.train.naming import get_train_job_name, get_training_s3_uri_for_model, \
-    get_s3_model_save_uri, get_model_names
+    get_s3_model_save_uri, is_valid_model_name
 
 
 def create_sagemaker_training_job(
-        sagemaker_client,  model_name: str, hyperparameters: dict):
+        sagemaker_client, hyperparameters: dict, event: dict):
     """
     Gets boto3 sagemaker api (client.create_training_job()) kwargs with info
     from environment
@@ -16,10 +16,10 @@ def create_sagemaker_training_job(
     ----------
     sagemaker_client: boto3.client
         boto3 sagemaker client
-    model_name: str
-        name of model which will be trained
     hyperparameters: dict
         hyperparameters for desired model train job
+    event: dict
+        event dict provided by scheduler
 
     Returns
     -------
@@ -28,17 +28,20 @@ def create_sagemaker_training_job(
 
     """
 
+    model_name = event[tc.EVENT_MODEL_NAME_KEY]
+
     role = os.getenv(tc.IAM_ROLE_EVVAR)
 
     image_uri = os.getenv(tc.IMAGE_URI_ENVVAR)
 
-    instance_count = int(os.getenv(tc.INSTANCE_COUNT_ENVVAR))
-    instance_type = os.getenv(tc.INSTANCE_TYPE_ENVVAR)
+    instance_count = event[tc.EVENT_WORKER_COUNT_KEY]
+    instance_type = event[tc.EVENT_WORKER_INSTANCE_TYPE_KEY]
+
     subnets = [os.getenv(tc.SUBNET_ENVVAR)]
     security_groups_ids = \
         [os.getenv(tc.SECURITY_GROUP_BATCH_ENVVAR)]
 
-    training_max_runtime_s = int(os.getenv(tc.MAX_RUNTIME_IN_SECONDS_ENVVAR))
+    training_max_runtime_s = event[tc.EVENT_MAX_RUNTIME_IN_SECONDS_KEY]
 
     training_job_name = get_train_job_name(model_name=model_name)
     training_s3_uri = get_training_s3_uri_for_model(model_name=model_name)
@@ -107,29 +110,40 @@ def get_hyperparameters_for_model(model_name: str):
     return {}
 
 
+def check_v6_train_job_properties(event: dict):
+    """
+    Checks if event dict contains all expected / desired keys and that they are
+    not None
+
+    Parameters
+    ----------
+    event: dict
+
+    """
+
+    job_parameters = [event.get(param, None) for param in tc.EXPECTED_EVENT_ENTRIES]
+
+    for param_name, param_value in zip(tc.EXPECTED_EVENT_ENTRIES, job_parameters):
+        if param_value is None:
+            raise ValueError(
+                '`{}` parameter must be provided and must not be None'.format(param_name))
+
+
 def lambda_handler(event, context):
 
-    # get sagemaker_client
-    s3_client = boto3.client('s3')
     sagemaker_client = boto3.client('sagemaker')
 
-    # get all model names
-    model_names = get_model_names(s3_client=s3_client)
+    check_v6_train_job_properties(event=event)
 
-    if not model_names:
-        print(
-            'No valid model names found in the training bucket: {}'
-            .format(os.getenv(tc.TRAINING_INPUT_BUCKET_ENVVAR)))
-        return
+    model_name = event.get(tc.EVENT_MODEL_NAME_KEY)
+    assert is_valid_model_name(model_name=model_name)
 
-    for model_name in model_names:
+    hyperparameters = get_hyperparameters_for_model(model_name=model_name)
 
-        hyperparameters = get_hyperparameters_for_model(model_name=model_name)
+    print(f'creating training job for model: {model_name}')
+    response = \
+        create_sagemaker_training_job(
+            sagemaker_client=sagemaker_client, hyperparameters=hyperparameters, event=event)
 
-        print(f'creating training job for model: {model_name}')
-        response = \
-            create_sagemaker_training_job(
-                sagemaker_client=sagemaker_client, model_name=model_name,
-                hyperparameters=hyperparameters)
-        print('Sagemaker`s response was:')
-        print(response)
+    print('Sagemaker`s response was:')
+    print(response)

@@ -45,7 +45,6 @@ provider:
   environment:
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
-    IMPROVE_CONFIG: ${file(src/predeploy.js):config_json} # JSON encoded string of the config
     TRAIN_BUCKET: !Ref TrainS3Bucket
     MODELS_BUCKET: !Ref ModelsS3Bucket
 
@@ -90,8 +89,7 @@ functions:
   dispatchTrainingJobs:
     description: Dispatch Decision Model Training Jobs
     handler: src/train/dispatch_job.lambda_handler
-    events:
-      - schedule: ${self:custom.config.training.schedule}
+    events: ${file(src/predeploy.js):train_scheduling_events}
     environment:
       TRAINING_IMAGE: ${self:custom.config.training.image}
       TRAINING_INSTANCE_TYPE: ${self:custom.config.training.worker_instance_type}
