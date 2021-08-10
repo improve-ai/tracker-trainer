@@ -42,10 +42,10 @@ class Stats:
 
     def __str__(self):
         with self._lock:
-            return (f'validated records: {self.validated_record_count}\n'
-                    f'total records: {self.history_record_count}\n'
-                    f'rewarded decision records: {self.rewarded_decision_count}\n'
+            return (f'total records: {self.history_record_count}\n'
                     f'duplicate message ids: {self.duplicate_message_id_count}\n'
+                    f'validated records: {self.validated_record_count}\n'
+                    f'rewarded decision records: {self.rewarded_decision_count}\n'
                     f'bad file names: {self.bad_file_name_count}\n'
                     f'unrecoverable files: {self.unrecoverable_file_count}\n'
                     f'models: {self.models}\n')
