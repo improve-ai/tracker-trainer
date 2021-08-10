@@ -321,13 +321,14 @@ def is_valid_record(record):
     if _type == constants.EVENT_TYPE:
         # ensure any properties are a dict
         properties = record.get(constants.PROPERTIES_KEY)
-        if properties and not isinstance(properties, dict):
-            return False
+        if properties:
+            if not isinstance(properties, dict):
+                return False
         
-        # ensure any properties.value is a number
-        value = properties.get(constants.VALUE_KEY)
-        if value and not isinstance(value, (int, float)):
-            return False
+            # ensure any properties.value is a number
+            value = properties.get(constants.VALUE_KEY)
+            if value and not isinstance(value, (int, float)):
+                return False
             
     # ensure any givens are a dict
     givens = record.get(constants.GIVEN_KEY)
