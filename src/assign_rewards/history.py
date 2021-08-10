@@ -307,7 +307,7 @@ def all_valid_records(records):
 def is_valid_record(record):
     # assertions should have been guaranteed by load
     assert isinstance(record, dict)
-    assert isinstance(record[constants.TIMESTAMP_KEY], datetime.datetime)
+    assert isinstance(record[constants.TIMESTAMP_KEY], datetime)
 
     _type = record.get(constants.TYPE_KEY)
     if not isinstance(_type, str):
