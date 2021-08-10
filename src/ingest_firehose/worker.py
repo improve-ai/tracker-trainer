@@ -4,7 +4,7 @@ import boto3
 import gzip
 import json
 import hashlib
-import uuid
+from uuid import uuid4
 from pathlib import Path
 
 import customize
@@ -71,7 +71,7 @@ def worker():
     # save each set of records to an incoming history file
     for history_id, records in records_by_history_id.items():
         hashed_history_id = hashlib.sha256(history_id.encode()).hexdigest()
-        file = INCOMING_PATH / f'{hashed_history_id}-{uuid.uuid4()}.jsonl.gz'
+        file = INCOMING_PATH / f'{hashed_history_id}-{uuid4()}.jsonl.gz'
         
         ensure_parent_dir(file)
         
