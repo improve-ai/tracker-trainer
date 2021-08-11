@@ -36,6 +36,3 @@ UNRECOVERABLE_PATH = EFS_PATH / 'unrecoverable'
 
 # The default reward value of a record of type 'event'
 DEFAULT_EVENT_VALUE = float(os.environ['DEFAULT_EVENT_VALUE'])
-
-# The timestamp format of the records
-DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"

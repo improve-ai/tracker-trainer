@@ -1,3 +1,5 @@
+from history_record import HistoryRecord
+
 def before_assign_rewards(history_records: list):
     """
     Implement record customization that occurs before reward assignment here.
@@ -49,3 +51,10 @@ def after_assign_rewards(history_records: list):
         from the return value.
     """
     return history_records
+    
+def assign_rewards(assignee: dict, remaining_history: list):
+    for record in remaining_history:
+        if not assignee.reward_window_contains(record):
+            return
+        
+        assignee.reward += record.value
