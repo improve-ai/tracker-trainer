@@ -91,7 +91,7 @@ functions:
   dispatchTrainingJobs:
     description: Dispatch Decision Model Training Jobs
     handler: src/train/dispatch_job.lambda_handler
-    events: ${file(src/predeploy.js):train_scheduling_events}
+    events: ${file(src/predeploy.js):trainSchedulingEvents}
     environment:
       TRAINING_IMAGE: ${self:custom.config.training.image}
       TRAINING_INSTANCE_TYPE: ${self:custom.config.training.worker_instance_type}
