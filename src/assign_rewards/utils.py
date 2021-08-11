@@ -21,16 +21,16 @@ def copy_file(src, dest):
     shutil.copy(src.absolute(), dest.absolute())
 
 
-def save_gzipped_jsonlines(file, records):
+def save_gzipped_jsonlines(file, json_dicts):
     with gzip.open(file, mode='w') as gzf:
-        for record in records:
-            gzf.write((json.dumps(record) + '\n').encode())
+        for json_dict in json_dicts:
+            gzf.write((json.dumps(json_dict) + '\n').encode())
 
 
-def upload_gzipped_jsonlines(s3_bucket, s3_key, records):
+def upload_gzipped_jsonlines(s3_bucket, s3_key, json_dicts):
     gzipped = io.BytesIO()
 
-    save_gzipped_jsonlines(gzipped, records)
+    save_gzipped_jsonlines(gzipped, json_dicts)
 
     gzipped.seek(0)
 

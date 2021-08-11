@@ -35,7 +35,7 @@ class History:
     
         # write the consolidated records to a new history file
         # save prior to validation so that invalid records are retained
-        # save prior to customization and reward assignment since those will mutate records
+        # save prior to customization and reward assignment since those may mutate records
         self.save()
     
         # perform deeper validation before reward assignement
@@ -74,7 +74,7 @@ class History:
         utils.ensure_parent_dir(output_file)
     
         # save all records
-        utils.save_gzipped_jsonlines(output_file.absolute(), self.records)
+        utils.save_gzipped_jsonlines(output_file.absolute(), map(lambda x: x.json_dict, self.records))
         
         
     def clean_up(self):

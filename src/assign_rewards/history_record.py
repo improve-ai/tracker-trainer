@@ -30,8 +30,6 @@ class HistoryRecord:
         self.json_dict = json_dict
         
         self.message_id = json_dict.get(MESSAGE_ID_KEY)
-        if not isinstance(self.message_id, str):
-            self.message_id = None
 
         # parse the timestamp into a datetime
         try:
@@ -163,12 +161,11 @@ def _load_records(file, message_ids: set) -> list:
                 line_count += 1  # count every line as a record whether it's parseable or not
                 # Do a inner try/except to try to recover as many records as possible
                 try:
-                    record = json.loads(line)
-
-                    message_id = record[MESSAGE_ID_KEY]
-                    assert isinstance(message_id, str)
-                    if message_id not in message_ids:
-                        message_ids.add(message_id)
+                    record = HistoryRecord(json.loads(line))
+                    
+                    assert isinstance(record.message_id, str)
+                    if record.message_id not in message_ids:
+                        message_ids.add(record.message_id)
                         records.append(record)
                     else:
                         config.stats.incrementDuplicateMessageIdCount()
