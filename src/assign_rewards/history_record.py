@@ -27,7 +27,7 @@ class HistoryRecord:
     
     def __init__(self, json_dict: dict):
         assert isinstance(json_dict, dict)
-        self.json_dict = json_dict
+        self.loaded_json_dict = json_dict
         
         self.message_id = json_dict.get(MESSAGE_ID_KEY)
 

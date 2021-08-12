@@ -35,7 +35,7 @@ def lambda_handler(event, context):
     batch = boto3.client('batch')
 
     r = batch.submit_job(
-        jobName=f"{os.environ['SERVICE']}-{os.environ['STAGE']}-ingest-firehose", 
+        jobName=f"{os.environ['SERVICE']}-{os.environ['STAGE']}-IngestFirehose", 
         jobQueue=os.environ['JOB_QUEUE'], 
         jobDefinition=os.environ['JOB_DEFINITION'],
         containerOverrides={

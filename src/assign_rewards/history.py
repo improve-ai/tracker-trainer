@@ -74,7 +74,7 @@ class History:
         utils.ensure_parent_dir(output_file)
     
         # save all records
-        utils.save_gzipped_jsonlines(output_file.absolute(), map(lambda x: x.json_dict, self.records))
+        utils.save_gzipped_jsonlines(output_file.absolute(), map(lambda x: x.loaded_json_dict, self.records))
         
         
     def clean_up(self):
@@ -127,14 +127,14 @@ class History:
         for model_name, decision_record_group in groupby(decision_records, lambda x: x.model):
     
             # filter out any keys that don't need to be used in training
-            rewarded_decisions = list(map(lambda x: x.to_rewarded_decision_dict(), decision_record_group))
+            rewarded_decision_dicts = list(map(lambda x: x.to_rewarded_decision_dict(), decision_record_group))
 
             s3_key = rewarded_decisions_s3_key(model_name, self.hashed_history_id)
             
-            utils.upload_gzipped_jsonlines(config.TRAIN_BUCKET, s3_key, rewarded_decisions)
+            utils.upload_gzipped_jsonlines(config.TRAIN_BUCKET, s3_key, rewarded_decision_dicts)
             
             config.stats.addModel(model_name)
-            config.stats.incrementRewardedDecisionCount(len(rewarded_decisions))
+            config.stats.incrementRewardedDecisionCount(len(rewarded_decisions_dicts))
                 
     
 def histories_to_process():

@@ -45,6 +45,7 @@ provider:
   environment:
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
+    IMPROVE_CONFIG: ${file(src/predeploy.js):config_json} # JSON encoded string of the config
     TRAIN_BUCKET: !Ref TrainS3Bucket
     MODELS_BUCKET: !Ref ModelsS3Bucket
 
@@ -84,14 +85,13 @@ functions:
       - schedule: ${self:custom.config.reward_assignment.schedule}
     environment:
       WORKER_COUNT: ${self:custom.config.reward_assignment.worker_count}
-      REWARD_WINDOW: ${self:custom.config.reward_assignment.reward_window_in_seconds}
-      DEFAULT_EVENT_VALUE: ${self:custom.config.reward_assignment.default_event_value}
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref AssignRewardsJobDefinition
   dispatchTrainingJobs:
     description: Dispatch Decision Model Training Jobs
     handler: src/train/dispatch_job.lambda_handler
-    events: ${file(src/predeploy.js):trainSchedulingEvents}
+    events:
+      - schedule: ${self:custom.config.training.schedule}
     environment:
       TRAINING_IMAGE: ${self:custom.config.training.image}
       TRAINING_INSTANCE_TYPE: ${self:custom.config.training.worker_instance_type}
