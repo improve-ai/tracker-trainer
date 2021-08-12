@@ -183,7 +183,7 @@ resources:
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose
           IntelligentTieringConfigurations:
-            - Id: '${self:service}-${opt:stage, self:provider.stage}-firehose-intelligent-tiering'
+            - Id: '${self:service}-${opt:stage, self:provider.stage}-FirehoseIntelligentTiering'
               Status: Enabled
               Tierings: # After 30 days intelligent tiering automatically moves to infrequent access tier
                 - AccessTier: ARCHIVE_ACCESS
