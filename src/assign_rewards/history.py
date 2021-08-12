@@ -8,7 +8,6 @@ from itertools import groupby
 from datetime import datetime
 from operator import itemgetter
 
-import constants
 import config
 import utils
 import customize

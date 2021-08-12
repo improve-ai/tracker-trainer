@@ -45,6 +45,13 @@ class HistoryRecord:
         if not _is_valid_model_name(self.model):
             self.model = None
 
+        self.properties = json_dict.get(PROPERTIES_KEY)
+        self.value = 0.0
+        if self.is_event_record():
+            self.value = config.DEFAULT_EVENT_VALUE
+            if isinstance(self.properties, dict):
+                self.value = self.properties.get(VALUE_KEY, self.value)
+
         self.reward = json_dict.get(REWARD_KEY)
         if not isinstance(self.reward, (int, float)):
             self.reward = 0.0
@@ -55,7 +62,10 @@ class HistoryRecord:
         self.given = json_dict.get(GIVEN_KEY)
         if not isinstance(self.given, dict):
             self.givens = None
-
+        
+        # strict validation of count, samples, and runners_up
+        # is intentionally not done here since it is not
+        # necessary for reward assignment
         self.count = json_dict.get(COUNT_KEY)
         if not isinstance(self.count, int):
             self.count = None
@@ -67,13 +77,6 @@ class HistoryRecord:
         if not isinstance(self.runners_up, list):
             self.runners_up = None
 
-        self.properties = json_dict.get(PROPERTIES_KEY)
-        self.value = 0.0
-        if self.is_event_record():
-            self.value = config.DEFAULT_EVENT_VALUE
-            if isinstance(self.properties, dict):
-                self.value = self.properties.get(VALUE_KEY, self.value)
-                
 
     def is_valid(self):
         if self.message_id is None or self.timestamp is None or self.type is None:

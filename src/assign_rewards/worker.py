@@ -37,11 +37,11 @@ def process_history(history: History):
 def signal_handler(signalNumber, frame):
     global SIGTERM
     SIGTERM = True
-    print(f"SIGTERM received (node {config.NODE_ID}).")
+    print(f'SIGTERM received (node {config.NODE_ID}).')
     return
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
     worker()

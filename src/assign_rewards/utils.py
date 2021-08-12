@@ -7,7 +7,6 @@ from uuid import UUID
 from datetime import datetime
 
 import config
-import constants
 
 
 def ensure_parent_dir(file):
