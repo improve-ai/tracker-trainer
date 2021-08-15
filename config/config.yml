@@ -33,3 +33,4 @@ reward_assignment:
   worker_count: 10
   spot_bid_percentage: 100
   reward_window_in_seconds: 172800 # 48 hours
+  default_event_value: 0.001

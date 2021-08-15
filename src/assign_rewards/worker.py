@@ -15,7 +15,7 @@ def worker():
 
     histories = history.histories_to_process()
     
-    print(f'processing {len(histories)} histories')
+    print(f'processing {len(histories)} updated histories...')
     
     # process each history, perform reward assignment, and upload rewarded decisions to s3
     with concurrent.futures.ThreadPoolExecutor(max_workers=config.THREAD_WORKER_COUNT) as executor:
@@ -37,11 +37,11 @@ def process_history(history: History):
 def signal_handler(signalNumber, frame):
     global SIGTERM
     SIGTERM = True
-    print(f"SIGTERM received (node {config.NODE_ID}).")
+    print(f'SIGTERM received (node {config.NODE_ID}).')
     return
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
     worker()

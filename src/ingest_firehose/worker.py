@@ -7,8 +7,6 @@ import hashlib
 from uuid import uuid4
 from pathlib import Path
 
-import customize
-
 s3 = boto3.resource('s3')
 
 S3_BUCKET = os.environ['S3_BUCKET']
@@ -43,13 +41,6 @@ def worker():
                 invalid_record_count += 1
                 continue
 
-            record = customize.before_validation(record)
-
-            # check type again, also handling None type record from customize
-            if not isinstance(record, dict):
-                invalid_record_count += 1
-                continue
-            
             history_id = record.get(HISTORY_ID_KEY)
             if not history_id or not isinstance(history_id, str) \
                     or not len(history_id):

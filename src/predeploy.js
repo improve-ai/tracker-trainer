@@ -9,7 +9,11 @@ function get(object, key, default_value) {
 }
 
 
+<<<<<<< HEAD
 function set_train_scheduling_events(scheduleEventPattern){
+=======
+function setTrainSchedulingEvents(scheduleEventPattern){
+>>>>>>> dev
   //defaults
   var defaultScheduleString = module.exports.config['training']['schedule'];
   var defaultWorkerInstanceType = module.exports.config['training']['worker_instance_type'];
@@ -54,7 +58,11 @@ function set_train_scheduling_events(scheduleEventPattern){
       currentScheduleEventDef['schedule']['input']['max_runtime_in_seconds'] =
           get(currentModelTrainingConfig, 'max_runtime_in_seconds', defaultMaxRuntimeInSeconds);
 
+<<<<<<< HEAD
       module.exports.train_scheduling_events.push(currentScheduleEventDef)
+=======
+      module.exports.trainSchedulingEvents.push(currentScheduleEventDef)
+>>>>>>> dev
   }
 }
 
@@ -80,6 +88,7 @@ module.exports.config_json = JSON.stringify(module.exports.config);
 // numbers and must be non-null, non-empty strings
 organization = module.exports.config['organization'];
 project = module.exports.config['project'];
+image = module.exports.config['training']['image']
 
 assert(!(organization == null), 'config/config.yml:organization is null or undefined');
 assert(!(project == null), 'config/config.yml:project is null or undefined');
@@ -89,6 +98,12 @@ if(organization == 'acme'){
       "\n[WARNING] Please change 'organization' in config/config.yml - " +
       'currently detected example organization => `acme`\n')
 }
+
+if(image == '' || image == null){
+  console.warn(
+      "\n[WARNING] <<Info about image subscription will be placed here shortly>>\n");
+}
+
 
 assert(organization.match(orgAndProjNameRegex), 'config/config.yml:organization may contain only lowercase letters and numbers');
 assert(project.match(orgAndProjNameRegex), 'config/config.yml:project may contain only lowercase letters and numbers');
@@ -102,5 +117,10 @@ for (const [key, value] of Object.entries(module.exports.config['models'])) {
 }
 
 
+<<<<<<< HEAD
 module.exports.train_scheduling_events = [];
 set_train_scheduling_events(scheduleEventPattern)
+=======
+module.exports.trainSchedulingEvents = [];
+setTrainSchedulingEvents(scheduleEventPattern)
+>>>>>>> dev

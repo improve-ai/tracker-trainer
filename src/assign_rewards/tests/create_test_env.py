@@ -25,9 +25,11 @@ import json
 import pytz
 
 # Local imports
-from config import DATETIME_FORMAT
 from config import HISTORIES_PATH
 
+
+# The timestamp format of the records
+DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 
 RECORD_TYPES = ['decision', 'rewards']
 REWARD_KEYS =  ['reward_key_a', 'reward_key_b', 'reward_key_c']
