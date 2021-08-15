@@ -7,7 +7,6 @@ from uuid import uuid4
 from itertools import groupby
 from datetime import datetime
 from operator import itemgetter
-import assign_rewards
 
 import config
 import utils
@@ -96,8 +95,10 @@ class History:
     def assign_rewards(self):
         self.mutated = True
 
-        assign_rewards.assign_rewards(self.records)
-
+        for i in range(len(history_records)):
+            record = history_records[i]
+            if record.is_decision_record():
+                record.assign_rewards(history_records[j] for j in range(i+1, len(history_records))))
     
     def upload_rewarded_decisions(self):
         # extract decision records
