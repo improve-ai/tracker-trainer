@@ -10,7 +10,6 @@ from operator import itemgetter
 
 import config
 import utils
-import customize
 from history_record import _all_valid_records
 from history_record import _is_valid_model_name
 from history_record import _load_records
@@ -99,6 +98,7 @@ class History:
             record = history_records[i]
             if record.is_decision_record():
                 record.assign_rewards(history_records[j] for j in range(i+1, len(history_records)))
+                
     
     def upload_rewarded_decisions(self):
         # extract decision records

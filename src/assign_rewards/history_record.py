@@ -112,11 +112,6 @@ class HistoryRecord:
             
         
     def to_rewarded_decision_dict(self):
-
-        # validate the final record, raise exception if invalid to fail job
-        if not self.is_valid():
-            raise ValueError('invalid rewarded decision record, likely due to a customize.py bug')
-            
         result = {}
         
         result[TIMESTAMP_KEY] = self.timestamp.isoformat()
