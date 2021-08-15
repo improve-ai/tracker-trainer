@@ -7,6 +7,7 @@ from uuid import uuid4
 from itertools import groupby
 from datetime import datetime
 from operator import itemgetter
+import assign_rewards
 
 import config
 import utils
@@ -40,13 +41,11 @@ class History:
         # perform deeper validation before reward assignement
         self.filter_valid_records()
 
-        self.before_assign_rewards()
-    
+        self.sort_records()
+
         # assign rewards to decision records.
         self.assign_rewards()
-    
-        self.after_assign_rewards()
-    
+
         self.upload_rewarded_decisions()
     
         # delete processed incoming and history files.
@@ -90,32 +89,15 @@ class History:
 
 
     def sort_records(self):
-        self.mutated = True
         # sort by timestamp. On tie, records of type 'decision' are sorted earlier
         self.records.sort(key=lambda x: (x.timestamp, 0 if x.is_decision_record() else 1))
 
         
-    def before_assign_rewards(self):
-        self.mutated = True
-        self.sort_records()
-        self.records = customize.before_assign_rewards(self.records)
-
-        
-    def after_assign_rewards(self):
-        self.mutated = True
-        self.sort_records()
-        self.records = customize.after_assign_rewards(self.records)
-
-        
     def assign_rewards(self):
         self.mutated = True
-        self.sort_records()
 
-        for i in range(len(self.records)):
-            record = self.records[i]
-            if record.is_decision_record():
-                customize.assign_rewards(record, (self.records[j] for j in range(i+1, len(self.records))))
-                
+        assign_rewards.assign_rewards(self.records)
+
     
     def upload_rewarded_decisions(self):
         # extract decision records
@@ -133,7 +115,7 @@ class History:
             utils.upload_gzipped_jsonlines(config.TRAIN_BUCKET, s3_key, rewarded_decision_dicts)
             
             config.stats.addModel(model_name)
-            config.stats.incrementRewardedDecisionCount(len(rewarded_decisions_dicts))
+            config.stats.incrementRewardedDecisionCount(len(rewarded_decision_dicts))
                 
     
 def histories_to_process():

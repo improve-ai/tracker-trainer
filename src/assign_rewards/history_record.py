@@ -102,11 +102,7 @@ class HistoryRecord:
     def reward_window_contains(self, other):
         return other.timestamp >= self.timestamp and other.timestamp <= self.timestamp + config.REWARD_WINDOW
         
-    
-    def retention_bonus_window_contains(self, other):
-        pass
-    
-    
+        
     def to_rewarded_decision_dict(self):
 
         # validate the final record, raise exception if invalid to fail job
