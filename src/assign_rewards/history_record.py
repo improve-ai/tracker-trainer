@@ -104,7 +104,7 @@ class HistoryRecord:
         return other.timestamp >= self.timestamp and other.timestamp <= self.timestamp + config.REWARD_WINDOW
         
     
-    def assign_rewards(self, remaining_history: Iterator[HistoryRecord]):
+    def assign_rewards(self, remaining_history: Iterator):
         for record in remaining_history:
             if not self.reward_window_contains(record):
                 return

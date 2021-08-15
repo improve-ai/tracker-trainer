@@ -94,10 +94,10 @@ class History:
     def assign_rewards(self):
         self.mutated = True
 
-        for i in range(len(history_records)):
-            record = history_records[i]
+        for i in range(len(self.records)):
+            record = self.records[i]
             if record.is_decision_record():
-                record.assign_rewards(history_records[j] for j in range(i+1, len(history_records)))
+                record.assign_rewards(self.records[j] for j in range(i+1, len(self.records)))
                 
     
     def upload_rewarded_decisions(self):
