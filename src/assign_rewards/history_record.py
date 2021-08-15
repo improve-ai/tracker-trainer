@@ -101,6 +101,7 @@ class HistoryRecord:
         
     def reward_window_contains(self, other):
         return other.timestamp >= self.timestamp and other.timestamp <= self.timestamp + config.REWARD_WINDOW
+        
     
     def assign_rewards(self, remaining_history: Iterator[HistoryRecord]):
         for record in remaining_history:
@@ -108,6 +109,7 @@ class HistoryRecord:
                 return
             
             self.reward += record.value
+            
         
     def to_rewarded_decision_dict(self):
 
