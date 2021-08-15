@@ -25,6 +25,10 @@ VALUE_KEY = 'value'
 MODEL_NAME_REGEXP = "^[\w\- .]+$"
 
 class HistoryRecord:
+    # slots are faster and use much less memory than dicts
+    __slots__ = ['loaded_json_dict', MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY, MODEL_KEY, PROPERTIES_KEY, 
+            VALUE_KEY, REWARD_KEY, VARIANT_KEY, GIVEN_KEY, COUNT_KEY, RUNNERS_UP_KEY, SAMPLE_KEY]
+
     
     def __init__(self, json_dict: dict):
         assert isinstance(json_dict, dict)
@@ -62,7 +66,7 @@ class HistoryRecord:
         
         self.given = json_dict.get(GIVEN_KEY)
         if not isinstance(self.given, dict):
-            self.givens = None
+            self.given = None
         
         # strict validation of count, samples, and runners_up
         # is intentionally not done here since it is not
