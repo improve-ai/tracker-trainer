@@ -138,6 +138,8 @@ class HistoryRecord:
             result[RUNNERS_UP_KEY] = self.runners_up
         if self.sample is not None:
             result[SAMPLE_KEY] = self.sample
+            
+        return result
 
 
 def _is_valid_model_name(model_name):
