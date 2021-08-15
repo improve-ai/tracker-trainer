@@ -115,6 +115,9 @@ class HistoryRecord:
     def assign_rewards(self, remaining_history: Iterator):
         for record in remaining_history:
             if not self.reward_window_contains(record):
+                # a record occured after the reward window. add the retention bonus and return to
+                # finish processing
+                self.reward += config.RETENTION_BONUS
                 return
             
             self.reward += record.value

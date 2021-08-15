@@ -33,4 +33,5 @@ reward_assignment:
   worker_count: 10
   spot_bid_percentage: 100
   reward_window_in_seconds: 172800 # 48 hours
-  default_event_value: 0.001
+  default_event_value: 0.001 # the reward value for any event without a 'value' property
+  retention_bonus: 0.01 # one time bonus per decision for any activity after the reward window
