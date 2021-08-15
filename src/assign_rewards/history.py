@@ -98,7 +98,7 @@ class History:
         for i in range(len(history_records)):
             record = history_records[i]
             if record.is_decision_record():
-                record.assign_rewards(history_records[j] for j in range(i+1, len(history_records))))
+                record.assign_rewards(history_records[j] for j in range(i+1, len(history_records)))
     
     def upload_rewarded_decisions(self):
         # extract decision records
