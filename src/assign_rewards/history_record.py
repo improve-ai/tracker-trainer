@@ -2,6 +2,7 @@ import json
 import dateutil
 import re
 import gzip
+from collections.abc import Iterator
 
 import config
 import utils
