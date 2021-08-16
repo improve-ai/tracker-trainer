@@ -89,7 +89,7 @@ functions:
       RETENTION_BONUS: ${self:custom.config.reward_assignment.retention_bonus}
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref AssignRewardsJobDefinition
-  dispatchTrainingJobs:
+  dispatchTrainingJob:
     description: Dispatch Decision Model Training Jobs
     handler: src/train/dispatch_job.lambda_handler
     events: ${file(src/predeploy.js):trainSchedulingEvents}
@@ -202,7 +202,7 @@ resources:
               - - 'arn:aws:s3:::'
                 - Ref: FirehoseS3Bucket
             BufferingHints:
-              IntervalInSeconds: 90 # max value is 900
+              IntervalInSeconds: 900 # max value is 900
               SizeInMBs: 128 # max value is 128
             CompressionFormat: "GZIP"
             RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }

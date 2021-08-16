@@ -21,17 +21,17 @@ models:
 training:
   # get your training image URL by subscribing to the decision model trainer at 
   # XXX
-  image: https://docker.example.com/decision_trainer:latest # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
+  image: XXX.dkr.ecr.us-east-1.amazonaws.com/improveai-trainer:latest # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
   schedule: rate(24 hours)
   worker_instance_type: ml.m5.large
-  worker_count: 3 
+  worker_count: 4
   max_records_per_worker: 500000 # limited by worker instance memory
   max_runtime_in_seconds: 172800 # 48 hours
 
 reward_assignment:
   schedule: rate(4 hours)
-  worker_count: 10
+  worker_count: 16
   spot_bid_percentage: 100
   reward_window_in_seconds: 172800 # 48 hours
   default_event_value: 0.001 # the reward value for any event without a 'value' property
-  retention_bonus: 0.01 # one time bonus per decision for any activity after the reward window
+  retention_bonus: 0.01 # one time bonus per decision for any tracked activity after the reward window
