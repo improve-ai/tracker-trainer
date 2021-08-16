@@ -89,7 +89,7 @@ functions:
       RETENTION_BONUS: ${self:custom.config.reward_assignment.retention_bonus}
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref AssignRewardsJobDefinition
-  dispatchTrainingJobs:
+  dispatchTrainingJob:
     description: Dispatch Decision Model Training Jobs
     handler: src/train/dispatch_job.lambda_handler
     events: ${file(src/predeploy.js):trainSchedulingEvents}
