@@ -12,6 +12,7 @@ TIMESTAMP_KEY = 'timestamp'
 TYPE_KEY = 'type'
 DECISION_TYPE = 'decision'
 EVENT_TYPE = 'event'
+EVENT_KEY = EVENT_TYPE
 MODEL_KEY = 'model'
 REWARD_KEY = 'reward'
 VARIANT_KEY = 'variant'
@@ -26,7 +27,7 @@ MODEL_NAME_REGEXP = "^[\w\- .]+$"
 
 class HistoryRecord:
     # slots are faster and use much less memory than dicts
-    __slots__ = ['loaded_json_dict', MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY, MODEL_KEY, PROPERTIES_KEY, 
+    __slots__ = ['loaded_json_dict', MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY, MODEL_KEY, EVENT_KEY, PROPERTIES_KEY, 
             VALUE_KEY, REWARD_KEY, VARIANT_KEY, GIVEN_KEY, COUNT_KEY, RUNNERS_UP_KEY, SAMPLE_KEY]
 
     
@@ -49,8 +50,11 @@ class HistoryRecord:
         self.model = json_dict.get(MODEL_KEY)
         if not _is_valid_model_name(self.model):
             self.model = None
+            
+        self.event = json_dict.get(EVENT_KEY)
 
         self.properties = json_dict.get(PROPERTIES_KEY)
+        
         self.value = 0.0
         if self.is_event_record():
             self.value = config.DEFAULT_EVENT_VALUE
@@ -111,6 +115,9 @@ class HistoryRecord:
     def assign_rewards(self, remaining_history: Iterator):
         for record in remaining_history:
             if not self.reward_window_contains(record):
+                # a record occured after the reward window. add the retention bonus and return to
+                # finish processing
+                self.reward += config.RETENTION_BONUS
                 return
             
             self.reward += record.value
@@ -131,6 +138,8 @@ class HistoryRecord:
             result[RUNNERS_UP_KEY] = self.runners_up
         if self.sample is not None:
             result[SAMPLE_KEY] = self.sample
+            
+        return result
 
 
 def _is_valid_model_name(model_name):

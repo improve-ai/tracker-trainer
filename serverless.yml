@@ -84,8 +84,9 @@ functions:
       - schedule: ${self:custom.config.reward_assignment.schedule}
     environment:
       WORKER_COUNT: ${self:custom.config.reward_assignment.worker_count}
-      REWARD_WINDOW: ${self:custom.config.reward_assignment.reward_window_in_seconds}
+      REWARD_WINDOW_IN_SECONDS: ${self:custom.config.reward_assignment.reward_window_in_seconds}
       DEFAULT_EVENT_VALUE: ${self:custom.config.reward_assignment.default_event_value}
+      RETENTION_BONUS: ${self:custom.config.reward_assignment.retention_bonus}
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref AssignRewardsJobDefinition
   dispatchTrainingJobs:

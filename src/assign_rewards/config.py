@@ -15,7 +15,7 @@ THREAD_WORKER_COUNT = 20
 s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections=THREAD_WORKER_COUNT))
 
 # The length (timedelta) of the reward window
-_reward_window_in_seconds = int(os.environ['REWARD_WINDOW'])
+_reward_window_in_seconds = int(os.environ['REWARD_WINDOW_IN_SECONDS'])
 REWARD_WINDOW = timedelta(seconds=_reward_window_in_seconds)
 
 # The worker number of this job
@@ -35,4 +35,7 @@ HISTORIES_PATH = EFS_PATH / 'histories'
 UNRECOVERABLE_PATH = EFS_PATH / 'unrecoverable'
 
 # The default reward value of a record of type 'event'
-DEFAULT_EVENT_VALUE = float(os.environ['DEFAULT_EVENT_VALUE'])
+DEFAULT_EVENT_VALUE = float(os.environ.get('DEFAULT_EVENT_VALUE', 0.0))
+
+# One time bonus reward per decision for any activity (any record) after the reward window
+RETENTION_BONUS = float(os.environ.get('RETENTION_BONUS', 0.0))
