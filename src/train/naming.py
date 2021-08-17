@@ -1,6 +1,8 @@
 from datetime import datetime
 import os
+import random
 import re
+import string
 
 import src.train.constants as tc
 
@@ -89,11 +91,13 @@ def get_start_dt() -> str:
     return re.sub('\.|\-|:|\s', '', raw_dt_str)
 
 
-# TODO ask how this should be created (?)
+def generate_random_string(size, chars=string.ascii_letters + string.digits):
+    return ''.join(random.choice(chars) for _ in range(size))
+
+
 def get_train_job_name(model_name: str) -> str:
     """
-    Creates train job name for sagemaker call using datetime of train job start
-    and model name
+    Creates train job name for sagemaker
 
     Parameters
     ----------
@@ -106,7 +110,31 @@ def get_train_job_name(model_name: str) -> str:
         name of SageMaker train job
 
     """
-    start_dt = get_start_dt()
+    start_dt = get_start_dt()[2:]
 
-    return '{}-{}-{}'.format(
-        tc.JOB_NAME_PREFIX, model_name, start_dt).replace('.', '-')
+    # assume
+    # 8 chars for datetime-like string YYmmDDHHMMSS
+    # min 4 random alnum chars
+    # 3 x `-` to separate <service>-<model name>-<dt string>-<random chars>
+    # max 28 chars for service name
+    # max 20 chars for model name
+
+    truncated_service_name = os.getenv(tc.SERVICE_NAME_ENVVAR)[:28]
+    if truncated_service_name[-1] == tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR:
+        truncated_service_name = truncated_service_name[:-1]
+
+    truncated_model_name = model_name[:20]
+    if truncated_model_name[-1] == tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR:
+        truncated_model_name = truncated_model_name[:-1]
+
+    random_remainder_size = \
+        tc.SAGEMAKER_TRAIN_JOB_NAME_LENGTH - \
+        (len(truncated_service_name) + len(truncated_model_name) + len(start_dt) + 3)
+
+    random_remainder = generate_random_string(random_remainder_size)
+
+    raw_job_name = \
+        tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR\
+        .join([truncated_service_name, truncated_model_name, start_dt + random_remainder])
+
+    return re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-', raw_job_name)
