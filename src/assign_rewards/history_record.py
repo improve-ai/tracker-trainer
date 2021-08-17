@@ -3,6 +3,7 @@ import dateutil
 import re
 import gzip
 from collections.abc import Iterator
+import zlib
 
 import config
 import utils
@@ -23,7 +24,7 @@ RUNNERS_UP_KEY = 'runners_up'
 PROPERTIES_KEY = 'properties'
 VALUE_KEY = 'value'
 
-MODEL_NAME_REGEXP = "^[\w\- .]+$"
+MODEL_NAME_REGEXP = "^[\w\-.]+$"
 
 class HistoryRecord:
     # slots are faster and use much less memory than dicts

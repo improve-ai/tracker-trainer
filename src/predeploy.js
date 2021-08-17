@@ -1,6 +1,16 @@
 const assert = require('assert')
 const fs = require('fs');
-const yaml = require('yaml');
+let yaml = null;
+
+try {
+    yaml = require('yaml');
+} catch(error) {
+    console.log(
+        '#############################################################\n' +
+        '### Please run `npm install` before deploying application ###\n' +
+        '#############################################################\n');
+    throw(error);
+}
 
 
 function get(object, key, default_value) {
@@ -59,7 +69,7 @@ function setTrainSchedulingEvents(scheduleEventPattern){
 }
 
 const orgAndProjNameRegex = '^[a-z0-9]+$'
-const modelNameRegex = /^[\w\- .]+$/i
+const modelNameRegex = /^[\w\-.]+$/i
 const config_file = fs.readFileSync('./config/config.yml', 'utf8');
 // Apply defaults to this pattern
 const scheduleEventPattern = {
@@ -71,7 +81,6 @@ const scheduleEventPattern = {
         "input": null
     }
 };
-
 
 module.exports.config = yaml.parse(config_file);
 module.exports.config_json = JSON.stringify(module.exports.config);

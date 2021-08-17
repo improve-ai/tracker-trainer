@@ -16,7 +16,7 @@ TRAINING_INPUT_BUCKET_SUBDIR = 'rewarded_decisions'
 VOLUME_SIZE_IN_GB = 3  # ?
 
 JOB_NAME_PREFIX = 'improve-train-job'
-MODEL_NAME_REGEXP = "^[\w\- .]+$"
+MODEL_NAME_REGEXP = "^[\w\-.]+$"
 AWS_BUCKET_PREFIX = 's3://'
 AWS_S3_PATH_SEP = '/'
 

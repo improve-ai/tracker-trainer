@@ -44,7 +44,7 @@ def get_s3_model_save_uri(model_name: str):
         S3 uri for model save
 
     """
-    models_bucket_name = os.getenv(tc.MODELS_BUCKET_ENVVAR)
+    models_bucket_name = os.getenv(tc.TRAINING_INPUT_BUCKET_ENVVAR)
 
     return \
         tc.AWS_BUCKET_PREFIX + tc.AWS_S3_PATH_SEP.join(
