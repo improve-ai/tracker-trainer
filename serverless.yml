@@ -101,6 +101,7 @@ functions:
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
       TRAINING_SUBNET: !Ref Subnet
       TRAINING_SECURITY_GROUP: !Ref SecurityGroup
+      SERVICE_NAME: ${self:service}
       JOB_QUEUE: !Ref JobQueue
   unpackModels:
     handler: src/train/unpack_models.unpack
