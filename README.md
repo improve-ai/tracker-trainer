@@ -11,7 +11,7 @@ Visit XXX
 copy your the Docker image URL
 
 # Edit config/config.yml
-vi config/config.yml
+nano config/config.yml
 
 # Deploy the service to a new dev stage in us-east-1
 serverless deploy --stage dev

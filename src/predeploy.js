@@ -9,11 +9,7 @@ function get(object, key, default_value) {
 }
 
 
-<<<<<<< HEAD
-function set_train_scheduling_events(scheduleEventPattern){
-=======
 function setTrainSchedulingEvents(scheduleEventPattern){
->>>>>>> dev
   //defaults
   var defaultScheduleString = module.exports.config['training']['schedule'];
   var defaultWorkerInstanceType = module.exports.config['training']['worker_instance_type'];
@@ -38,8 +34,6 @@ function setTrainSchedulingEvents(scheduleEventPattern){
       // pass scheduling info
       currentScheduleEventDef['schedule']['rate'] =
           get(currentModelTrainingConfig, 'schedule', defaultScheduleString);
-      // pass schedule name
-      currentScheduleEventDef['schedule']['name'] = `${modelName}-schedule`;
 
       // pass description
       currentScheduleEventDef['schedule']['description'] =
@@ -58,11 +52,7 @@ function setTrainSchedulingEvents(scheduleEventPattern){
       currentScheduleEventDef['schedule']['input']['max_runtime_in_seconds'] =
           get(currentModelTrainingConfig, 'max_runtime_in_seconds', defaultMaxRuntimeInSeconds);
 
-<<<<<<< HEAD
-      module.exports.train_scheduling_events.push(currentScheduleEventDef)
-=======
       module.exports.trainSchedulingEvents.push(currentScheduleEventDef)
->>>>>>> dev
   }
 }
 
@@ -117,10 +107,5 @@ for (const [key, value] of Object.entries(module.exports.config['models'])) {
 }
 
 
-<<<<<<< HEAD
-module.exports.train_scheduling_events = [];
-set_train_scheduling_events(scheduleEventPattern)
-=======
 module.exports.trainSchedulingEvents = [];
 setTrainSchedulingEvents(scheduleEventPattern)
->>>>>>> dev
