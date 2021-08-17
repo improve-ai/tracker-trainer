@@ -16,7 +16,11 @@ nano config/config.yml
 # Deploy the service to a new dev stage in us-east-1
 serverless deploy --stage dev
 
-The output of the deployment will list the HTTPS URL for the Decision Tracker endpoint.
+The output of the deployment will list the HTTPS URL for the Decision Tracker endpoint like https://xxxxxxxx.execute-api.us-east-1.amazonaws.com/track
+
+Using the AWS API Gateway console, create a custom, stable DNS mapping to the track endpoint.
+
+Either configure a CDN in front of the S3 models bucket, or make the 'models' directory public to serve models directly from S3.
 
 # Overview
 
