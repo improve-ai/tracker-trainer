@@ -106,7 +106,7 @@ functions:
     handler: src/train/unpack_models.unpack
     events:
       - s3:
-          bucket: !Ref ModelsS3Bucket
+          bucket: !Ref TrainS3Bucket
           existing: true # created in resources
           event: s3:ObjectCreated:*
           rules:
