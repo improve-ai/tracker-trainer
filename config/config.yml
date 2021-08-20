@@ -25,8 +25,7 @@ training:
   schedule: rate(24 hours)
   worker_instance_type: ml.m5.large
   worker_count: 4
-  max_records_per_worker: 500000 # limited by worker instance memory
-  max_runtime_in_seconds: 172800 # 48 hours
+  max_runtime_in_seconds: 43200 # 12 hours
 
 reward_assignment:
   schedule: rate(4 hours)
