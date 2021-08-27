@@ -111,7 +111,7 @@ functions:
           existing: true # created in resources
           event: s3:ObjectCreated:*
           rules:
-            - prefix: models/
+            - prefix: train_output/
             - suffix: model.tar.gz
     environment:
       JOB_QUEUE: !Ref JobQueue

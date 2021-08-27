@@ -23,12 +23,12 @@ def get_training_s3_uri_for_model(model_name: str):
         training
 
     """
+    if not is_valid_model_name(model_name):
+        raise ValueError(f'invalid model name {model_name}')
+        
+    train_bucket_name = os.environ[tc.TRAIN_BUCKET_ENVVAR]
 
-    training_bucket_name = os.getenv(tc.TRAINING_INPUT_BUCKET_ENVVAR)
-
-    return \
-        tc.AWS_BUCKET_PREFIX + tc.AWS_S3_PATH_SEP.join(
-            [training_bucket_name, tc.TRAINING_INPUT_BUCKET_SUBDIR, model_name])
+    return f's3://{train_bucket_name}/rewarded_decisions/{model_name}'
 
 
 def get_s3_model_save_uri(model_name: str):
@@ -46,12 +46,12 @@ def get_s3_model_save_uri(model_name: str):
         S3 uri for model save
 
     """
-    models_bucket_name = os.getenv(tc.TRAINING_INPUT_BUCKET_ENVVAR)
+    if not is_valid_model_name(model_name):
+        raise ValueError(f'invalid model name {model_name}')
 
-    return \
-        tc.AWS_BUCKET_PREFIX + tc.AWS_S3_PATH_SEP.join(
-            [models_bucket_name, tc.MODELS_BUCKET_SUBDIR, model_name])
+    train_bucket_name = os.environ[tc.TRAIN_BUCKET_ENVVAR]
 
+    return f's3://{train_bucket_name}/train_output/{model_name}'
 
 def is_valid_model_name(model_name: str) -> bool:
     """
