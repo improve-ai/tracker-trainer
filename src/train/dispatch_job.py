@@ -82,9 +82,6 @@ def create_sagemaker_training_job(
         },
         OutputDataConfig={
             'S3OutputPath': model_save_s3_uri},
-        Environment={
-            tc.MODEL_NAME_ENVVAR: model_name
-        },
         EnableInterContainerTrafficEncryption=False
     )
 
@@ -107,7 +104,9 @@ def get_hyperparameters_for_model(model_name: str):
         set of hyperparameters for training job of a <model name>
 
     """
-    return {}
+    return {
+        tc.MODEL_NAME_HYPERPARAMS_KEY: model_name
+    }
 
 
 def check_v6_train_job_properties(event: dict):
