@@ -18,7 +18,7 @@ def unpack(event, context):
     s3_record = event['Records'][0]['s3']
 
     input_key = s3_record['object']['key']
-    path_parts = input_key.split(tc.AWS_S3_PATH_SEP)
+    path_parts = input_key.split('/')
 
     if path_parts[-1] != tc.EXPECTED_TRAINER_OUTPUT_FILENAME:
         raise ValueError(
@@ -79,7 +79,7 @@ def upload_model(
 
     copy_params = {
         'Bucket': os.getenv(tc.MODELS_BUCKET_ENVVAR),
-        'CopySource': os.getenv(tc.MODELS_BUCKET_ENVVAR) + tc.AWS_S3_PATH_SEP + key,
+        'CopySource': os.getenv(tc.MODELS_BUCKET_ENVVAR) + '/' + key,
         'Key': latest_key,
     }
 

@@ -105,6 +105,7 @@ functions:
       JOB_QUEUE: !Ref JobQueue
   unpackModels:
     handler: src/train/unpack_models.unpack
+    timeout: 120
     events:
       - s3:
           bucket: !Ref TrainS3Bucket
