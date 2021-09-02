@@ -13,7 +13,7 @@ contact: your_email@example.com # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
 #
 # decision models to train
 #
-# 'appconfig' is the default decision model used by the AIAppConfig classes
+# 'appconfig' is the default decision model used by the "Improve" helper class
 #
 models:
   appconfig: 
