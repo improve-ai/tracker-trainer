@@ -17,7 +17,7 @@ EVENT_KEY = EVENT_TYPE
 MODEL_KEY = 'model'
 REWARD_KEY = 'reward'
 VARIANT_KEY = 'variant'
-GIVEN_KEY = 'given'
+GIVENS_KEY = 'givens'
 COUNT_KEY = 'count'
 SAMPLE_KEY = 'sample'
 RUNNERS_UP_KEY = 'runners_up'
@@ -28,8 +28,8 @@ MODEL_NAME_REGEXP = "^[\w\-.]+$"
 
 class HistoryRecord:
     # slots are faster and use much less memory than dicts
-    __slots__ = ['loaded_json_dict', MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY, MODEL_KEY, EVENT_KEY, PROPERTIES_KEY, 
-            VALUE_KEY, REWARD_KEY, VARIANT_KEY, GIVEN_KEY, COUNT_KEY, RUNNERS_UP_KEY, SAMPLE_KEY]
+    __slots__ = ['loaded_json_dict', MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY, MODEL_KEY, EVENT_KEY, PROPERTIES_KEY,
+                 VALUE_KEY, REWARD_KEY, VARIANT_KEY, GIVENS_KEY, COUNT_KEY, RUNNERS_UP_KEY, SAMPLE_KEY]
 
     
     def __init__(self, json_dict: dict):
@@ -69,9 +69,9 @@ class HistoryRecord:
         # all variant values are valid
         self.variant = json_dict.get(VARIANT_KEY)
         
-        self.given = json_dict.get(GIVEN_KEY)
-        if not isinstance(self.given, dict):
-            self.given = None
+        self.givens = json_dict.get(GIVENS_KEY)
+        if not isinstance(self.givens, dict):
+            self.givens = None
         
         # strict validation of count, samples, and runners_up
         # is intentionally not done here since it is not
@@ -131,8 +131,8 @@ class HistoryRecord:
         result[REWARD_KEY] = self.reward
         result[VARIANT_KEY] = self.variant
         
-        if self.given is not None:
-            result[GIVEN_KEY] = self.given
+        if self.givens is not None:
+            result[GIVENS_KEY] = self.givens
         if self.count is not None:
             result[COUNT_KEY] = self.count
         if self.runners_up is not None:
