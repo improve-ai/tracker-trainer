@@ -45,12 +45,19 @@ class History:
         self.assign_rewards()
 
         self.upload_rewarded_decisions()
-    
+
         # delete processed incoming and history files.
         # do this last in case there is a problem during processing that needs to be retried
         self.clean_up()
-    
-    
+
+        # RAM cleanup
+        self._clean_memory()
+
+    def _clean_memory(self):
+        # cleanup
+        self.records = None
+        del self.records
+
     def load(self):
         self.records = []
         self.mutated = False
@@ -60,7 +67,7 @@ class History:
         # iterate the files. later records with duplicate message ids will be ignored
         for file in self.files:
             self.records.extend(_load_records(file, message_ids))
-    
+
 
     def save(self):
         assert not self.mutated # double check that we're not persisting modified or filtered records
