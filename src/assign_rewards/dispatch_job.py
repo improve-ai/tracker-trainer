@@ -20,9 +20,6 @@ def lambda_handler(event, context):
         jobName=f"{os.environ['SERVICE']}-{os.environ['STAGE']}-AssignRewards",
         jobQueue=os.environ['JOB_QUEUE'],
         jobDefinition=os.environ['JOB_DEFINITION'],
-        # containerOverrides={
-        #     'environment': [{'name': key, 'value': value} for key, value in os.environ.items()],
-        # },
         containerOverrides={
             'environment': [{'name': key, 'value': os.getenv(key)} for key in assign_rewards_envvars],
         },
