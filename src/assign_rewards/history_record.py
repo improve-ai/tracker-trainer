@@ -87,6 +87,8 @@ class HistoryRecord:
             return False
         
         if self.is_decision_record():
+            # variant may be None
+            # sample may be None
             if self.model is None:
                 return False
             if self.count is None or self.count < 1:
@@ -105,17 +107,6 @@ class HistoryRecord:
         
     def reward_window_contains(self, other):
         return other.timestamp >= self.timestamp and other.timestamp <= self.timestamp + config.REWARD_WINDOW
-        
-    
-    def assign_rewards(self, remaining_history: Iterator):
-        for record in remaining_history:
-            if not self.reward_window_contains(record):
-                # a record occured after the reward window. add the retention bonus and return to
-                # finish processing
-                self.reward += config.RETENTION_BONUS
-                return
-            
-            self.reward += record.value
             
         
     def to_rewarded_decision_dict(self):

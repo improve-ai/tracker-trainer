@@ -96,15 +96,22 @@ class History:
     def sort_records(self):
         # sort by timestamp. On tie, records of type 'decision' are sorted earlier
         self.records.sort(key=lambda x: (x.timestamp, 0 if x.is_decision_record() else 1))
-
+        self.sorted = True
         
     def assign_rewards(self):
+        assert self.sorted
         self.mutated = True
 
-        for i in range(len(self.records)):
-            record = self.records[i]
+        # store the most recent decision for each model
+        current_decision_by_model = {}
+
+        for record in self.records:
             if record.is_decision_record():
-                record.assign_rewards(self.records[j] for j in range(i+1, len(self.records)))
+                current_decision_by_model[record.model] = record # the most recent decision for each model gets the rewards
+            elif record.is_event_record():
+                for current_decision in current_decision_by_model.values():
+                    if current_decision.reward_window_contains(record):
+                        current_decision.reward += record.value
                 
     
     def upload_rewarded_decisions(self):

@@ -32,9 +32,9 @@ reward_assignment:
   worker_count: 8
   spot_bid_percentage: 100
   reward_window_in_seconds: 172800 # 48 hours
-  default_event_value: 0.001 # the reward value for any event without a 'value' property occuring within the reward window
-  retention_bonus: 0.01 # one time bonus per decision for any tracked activity after the reward window
-  
-hosting:
+  default_event_value: 0.001 # the reward value for any event without a 'value' property
+
+model_deployment:
+  schedule: rate(5 minutes)
   metadata:
     Cache-Control: max-age=172800,s-maxage=900 # 48 hours for client caches, 15 minutes for CDNs
