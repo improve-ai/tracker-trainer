@@ -93,7 +93,7 @@ class HistoryRecord:
             return False
         
         if self.model:
-            if not _is_valid_model_name(self.model):
+            if not _is_valid_model_name(self.model): # TODO maybe redundant with constructor
                 return False
         elif self.is_decision_record():
             return False
