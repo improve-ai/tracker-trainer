@@ -143,9 +143,10 @@ def histories_to_process():
     
         files = list(incoming_history_file_group)
         
-        # NOTE: have experienced FileNotFoundErrrors here, for a very large deployment the
-        # os.path.getctime may have to be done separately, filtering out ones throwing
-        # exceptions
+        # NOTE: We have experienced the occasional FileNotFoundError here. For a very large 
+        # deployment the os.path.getctime may have to be done separately, filtering out ones throwing
+        # exceptions.  For normal deployments these errors should resolve automatically
+        # the next time the job runs.
         #
         # sort in reverse chronological order so the newest incoming files are at the beginning 
         # of the list so that they get precedence for duplicate message ids
