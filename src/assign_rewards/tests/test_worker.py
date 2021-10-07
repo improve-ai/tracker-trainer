@@ -5,18 +5,21 @@ from pathlib import Path
 import json
 import gzip
 import os
+import sys
 
 # External imports
 from pytest_cases import parametrize
 from pytest_cases import parametrize_with_cases
 from pytest_cases import fixture
 
+sys.path.append(os.getenv('HOME_DIR'))
+
 # Local imports
-from src.assign_rewards.utils import deepcopy
-from src.assign_rewards.config import DATETIME_FORMAT
-from src.assign_rewards.config import REWARD_WINDOW
-from src.assign_rewards.join_rewards import update_listeners
-from src.assign_rewards.join_rewards import assign_rewards_to_decisions
+# from src.assign_rewards.utils import deepcopy
+# from src.assign_rewards.config import DATETIME_FORMAT
+# from src.assign_rewards.config import REWARD_WINDOW
+# from src.assign_rewards.join_rewards import update_listeners
+# from src.assign_rewards.join_rewards import assign_rewards_to_decisions
 
 # TODO this imports can be fixed (dev-refactor-manuel branch) but are they
 #  needed ?

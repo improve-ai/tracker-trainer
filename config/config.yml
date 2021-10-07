@@ -35,6 +35,6 @@ reward_assignment:
   default_event_value: 0.001 # the reward value for any event without a 'value' property occuring within the reward window
   retention_bonus: 0.01 # one time bonus per decision for any tracked activity after the reward window
   
-hosting:
+deployment:
   metadata:
     Cache-Control: max-age=172800,s-maxage=900 # 48 hours for client caches, 15 minutes for CDNs

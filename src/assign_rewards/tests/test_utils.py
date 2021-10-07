@@ -1,11 +1,15 @@
 # Built-in imports
 import json
 import random
+import os
 from pathlib import Path
+import sys
+
+sys.path.append(os.getenv('HOME_DIR'))
 
 # Local imports
-from src.assign_rewards.utils import load_records
-from src.assign_rewards.utils import sort_records_by_timestamp
+# from src.assign_rewards.utils import load_records
+# from src.assign_rewards.utils import sort_records_by_timestamp
 
 
 def test_sort_records_by_timestamp(all_type_records):
