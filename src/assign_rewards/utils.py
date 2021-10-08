@@ -6,7 +6,7 @@ import shutil
 from uuid import UUID
 from datetime import datetime
 
-from . import config
+import config
 
 
 def ensure_parent_dir(file):

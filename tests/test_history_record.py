@@ -5,9 +5,13 @@ import string
 from pytest_cases import parametrize
 from pytest_cases import parametrize_with_cases
 
+import sys
+for el in sys.path:
+    print(el)
+
 # Local imports
-from assign_rewards.history_record import MODEL_NAME_REGEXP
-from assign_rewards.history_record import _is_valid_model_name
+from history_record import MODEL_NAME_REGEXP
+from history_record import _is_valid_model_name
 
 
 def test__is_valid_model_name():

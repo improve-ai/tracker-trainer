@@ -8,11 +8,11 @@ from itertools import groupby
 from datetime import datetime
 from operator import itemgetter
 
-from . import config
-from . import utils
-from .history_record import _all_valid_records
-from .history_record import _is_valid_model_name
-from .history_record import _load_records
+import config
+import utils
+from history_record import _all_valid_records
+from history_record import _is_valid_model_name
+from history_record import _load_records
 
 HASHED_HISTORY_ID_REGEXP = "^[a-f0-9]+$"
 
@@ -96,15 +96,22 @@ class History:
     def sort_records(self):
         # sort by timestamp. On tie, records of type 'decision' are sorted earlier
         self.records.sort(key=lambda x: (x.timestamp, 0 if x.is_decision_record() else 1))
-
+        self.sorted = True
         
     def assign_rewards(self):
+        assert self.sorted
         self.mutated = True
 
-        for i in range(len(self.records)):
-            record = self.records[i]
+        # store the most recent decision for each model
+        current_decision_by_model = {}
+
+        for record in self.records:
             if record.is_decision_record():
-                record.assign_rewards(self.records[j] for j in range(i+1, len(self.records)))
+                current_decision_by_model[record.model] = record # the most recent decision for each model gets the rewards
+            elif record.is_event_record():
+                for current_decision in current_decision_by_model.values():
+                    if current_decision.reward_window_contains(record):
+                        current_decision.reward += record.value
                 
     
     def upload_rewarded_decisions(self):
@@ -136,9 +143,11 @@ def histories_to_process():
     
         files = list(incoming_history_file_group)
         
-        # NOTE: have experienced FileNotFoundErrrors here, for a very large deployment the
-        # os.path.getctime may have to be done separately, filtering out ones throwing
-        # exceptions
+        # NOTE: We have experienced the occasional FileNotFoundError here. For a very large 
+        # deployment the os.path.getctime may have to be done separately, filtering out ones throwing
+        # exceptions.  For normal deployments these errors should resolve automatically
+        # the next time the job runs.
+        #
         # sort in reverse chronological order so the newest incoming files are at the beginning 
         # of the list so that they get precedence for duplicate message ids
         files.sort(key=os.path.getctime, reverse=True)
