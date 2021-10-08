@@ -2,8 +2,8 @@ import sys
 import signal
 import concurrent.futures
 
-import config
-import utils
+from . import config
+from . import utils
 import history
 from history import History
 

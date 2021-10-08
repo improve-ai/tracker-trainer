@@ -8,11 +8,11 @@ from itertools import groupby
 from datetime import datetime
 from operator import itemgetter
 
-import config
-import utils
-from history_record import _all_valid_records
-from history_record import _is_valid_model_name
-from history_record import _load_records
+from . import config
+from . import utils
+from .history_record import _all_valid_records
+from .history_record import _is_valid_model_name
+from .history_record import _load_records
 
 HASHED_HISTORY_ID_REGEXP = "^[a-f0-9]+$"
 

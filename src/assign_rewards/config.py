@@ -4,7 +4,7 @@ import botocore
 import os
 from datetime import timedelta
 
-from stats import Stats
+from .stats import Stats
 
 stats = Stats()
 

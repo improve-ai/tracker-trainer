@@ -5,8 +5,8 @@ import gzip
 from collections.abc import Iterator
 import zlib
 
-import config
-import utils
+from . import config
+from . import utils
 
 MESSAGE_ID_KEY = 'message_id'
 TIMESTAMP_KEY = 'timestamp'

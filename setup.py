@@ -8,5 +8,8 @@ if __name__ == '__main__':
           author='Justin Chapweske',
           author_email='',
           url='https://github.com/improve-ai/trainer/tree/v6',
-          packages=
-          find_packages(exclude=['*tests*', '*node_modules*', '*serverless*']))
+          packages=find_packages(
+              where="src",
+              exclude=['*tests*', '*node_modules*', '*serverless*']),
+          package_dir={"": "src"},
+        )
