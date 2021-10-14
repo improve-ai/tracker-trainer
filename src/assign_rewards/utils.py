@@ -3,11 +3,36 @@ import io
 import json
 import gzip
 import shutil
-from uuid import UUID
-from datetime import datetime
+import re
 
+# Local imports
+import src.train.constants as tc
 import config
 
+
+def _all_valid_records(records):
+    """ Check if all given records are valid.
+    
+    Parameters
+    ----------
+    records : list
+        something here
+
+    Returns
+    -------
+    bool
+             
+    """
+    return len(records) == len(list(filter(lambda x: x.is_valid_record(), records)))
+
+
+def _is_valid_model_name(model_name):
+    if not isinstance(model_name, str) \
+            or len(model_name) == 0 \
+            or not re.match(tc.MODEL_NAME_REGEXP, model_name):
+        return False
+        
+    return True
 
 def ensure_parent_dir(file):
     parent_dir = file.parent

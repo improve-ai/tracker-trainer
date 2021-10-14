@@ -1,10 +1,13 @@
+# Built-in imports
 import json
 import dateutil
-import re
 import gzip
 from collections.abc import Iterator
 import zlib
+import pathlib
+import sys
 
+# Local imports
 import config
 import utils
 
@@ -24,7 +27,15 @@ RUNNERS_UP_KEY = 'runners_up'
 PROPERTIES_KEY = 'properties'
 VALUE_KEY = 'value'
 
-MODEL_NAME_REGEXP = "^[\w\-.]+$"
+class MissingTimestampError(Exception):
+    """ Raised if a timestamp is missing in a record"""
+    def __str__(self):
+        return "Missing timestamp"
+
+class InvalidTimestampError(Exception):
+    """ Raised if a timestamp couldn't be parsed"""
+    def __str__(self):
+        return "Couldn't parse timestamp"
 
 class HistoryRecord:
     # slots are faster and use much less memory than dicts
@@ -39,10 +50,16 @@ class HistoryRecord:
         
         self.message_id = json_dict.get(MESSAGE_ID_KEY)
 
-        # parse the timestamp into a datetime
         try:
             self.timestamp = dateutil.parser.parse(json_dict.get(TIMESTAMP_KEY))
-        except ValueError:
+        except dateutil.parser.ParserError as e:
+            raise InvalidTimestampError
+        except TypeError as e:
+            raise MissingTimestampError
+        except Exception as e:
+            exc_type, value, traceback = sys.exc_info()
+            print(f"exc_type: {exc_type}")
+            print(f"value: {value}")
             pass
         
         self.type = json_dict.get(TYPE_KEY)
@@ -50,7 +67,7 @@ class HistoryRecord:
             self.type = None
              
         self.model = json_dict.get(MODEL_KEY)
-        if not _is_valid_model_name(self.model):
+        if not utils._is_valid_model_name(self.model):
             self.model = None
             
         self.event = json_dict.get(EVENT_KEY)
@@ -110,6 +127,8 @@ class HistoryRecord:
             
         
     def to_rewarded_decision_dict(self):
+        """ Return a dict representation of the decision record """
+        
         result = {}
         
         result[TIMESTAMP_KEY] = self.timestamp.isoformat()
@@ -128,27 +147,21 @@ class HistoryRecord:
         return result
 
 
-def _is_valid_model_name(model_name):
-    if not isinstance(model_name, str) \
-            or len(model_name) == 0 \
-            or not re.match(MODEL_NAME_REGEXP, model_name):
-        return False
-        
-    return True
-
-def _all_valid_records(records):
-    return len(records) == len(list(filter(lambda x: x.is_valid_record(), records)))
-
-def _load_records(file, message_ids: set) -> list:
+def _load_records(file: pathlib.Path, message_ids: set) -> list:
     """
     Load records from a gzipped jsonlines file
 
-    Args:
-        file: Path of the input gzipped jsonlines file to load
-        message_ids: previously loaded message_ids to filter out
-        in the event of duplicates
+    Parameters
+    ----------
+    file : path-like
+        Path of the input gzipped jsonlines file to load
+    message_ids : an empty set ?
+        previously loaded message_ids to filter out in the event of 
+        duplicates
 
-    Returns:
+    Returns
+    -------
+    list
         A list of records
     """
 

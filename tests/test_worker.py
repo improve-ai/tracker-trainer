@@ -202,44 +202,7 @@ BASE_TIME = "2020-01-01T00:00:00.000-05:00"
 #         assert record == decision_records[i]
 
 # TODO depends on  old / deprecated import
-# def test_gzip_records(tmpdir, monkeypatch, rewarded_records, mocker):
-#     """
-#     Monkeypatch the gzip's open function with one that returns a file created
-#     in a temporary directory defined here.
-#
-#     Args:
-#         tmpdir           : a fixture provided by pytest
-#         monkeypatch      : a fixture provided by pytest
-#         rewarded_records : a crafted fixture
-#     """
-#
-#     base_input_path = Path(str(tmpdir)) / "histories"
-#     base_output_path = Path(str(tmpdir)) / "rewarded_decisions"
-#
-#     input_file = base_input_path / "aa/aaFCA4.jsonl"
-#
-#     # Create a py.path.local object (equivalent to a Path object) that refers
-#     # to a file in a temporary directory
-#     output_tmp_file = tmpdir.mkdir("aa").join("aaFCA4.jsonl.gz")
-#
-#     # Create a gzip file in write mode. THIS file will be used by gzip_records
-#     gzip_file = gzip.open(str(output_tmp_file), "wt")
-#
-#     # Mocks of the gzip's open function. Returns the above file
-#     def mock_open(*args, **kwargs): return gzip_file
-#
-#     mocker.patch('src.worker.PATH_INPUT_DIR', new=base_input_path)
-#     mocker.patch('src.worker.PATH_OUTPUT_DIR', new=base_output_path)
-#
-#     monkeypatch.setattr(gzip, 'open', mock_open)
-#     gzip_records(input_file, rewarded_records)
-#     monkeypatch.undo()
-#
-#     with gzip.open(str(output_tmp_file), "rt") as f:
-#         actual = [json.loads(record) for record in f.readlines()]
-#
-#     assert len(actual) == len(rewarded_records)
-#     assert all([a == b for a, b in zip(actual, rewarded_records)])
+
 
 # TODO depends on  old / deprecated import
 # @parametrize(node_id=range(3))
@@ -267,40 +230,40 @@ BASE_TIME = "2020-01-01T00:00:00.000-05:00"
 #     Create temp files in the input and output folder. Set all their last
 #     modification times equal, except for one input file. Is expected that only
 #     such file will be marked to modify.
-#
+
 #     Args:
 #         tmpdir is a fixture provided by pytest
 #         mocker is a fixture provided by pytest-mock
 #     """
-#
+
 #     input_path = Path(str(tmpdir)) / "histories"
 #     output_path = Path(str(tmpdir)) / "rewarded_decisions"
-#
+
 #     mocker.patch('src.worker.PATH_INPUT_DIR', new=input_path)
 #     mocker.patch('src.worker.PATH_OUTPUT_DIR', new=output_path)
-#
+
 #     (input_path/"aa").mkdir(parents=True, exist_ok=True)
 #     (output_path/"aa").mkdir(parents=True, exist_ok=True)
-#
+
 #     input_filenames = [input_path/"aa/aa1.jsonl", input_path/"aa/aa2.jsonl"]
 #     output_filenames = [output_path/"aa/aa1.jsonl.gz", output_path/"aa/aa2.jsonl.gz"]
-#
+
 #     modification_time = datetime.strptime(
 #         "2020-01-01T00:00:00.000-05:00", DATETIME_FORMAT).timestamp()
-#
+
 #     access_time = modification_time
-#
+
 #     # Create files and set all their last modification times to zero
 #     for fname in input_filenames+output_filenames:
 #         with fname.open(mode="w") as f: f.write("")
 #         os.utime(fname.absolute(), (access_time, modification_time))
-#
+
 #     # Change the last modification time of only one file
 #     os.utime(input_filenames[0].absolute(), (access_time, modification_time+99))
-#
+
 #     dirs_to_process = [ input_path/"aa" ]
 #     files_to_process = identify_files_to_process(dirs_to_process)
-#
+
 #     assert len(files_to_process) == 1
 #     assert files_to_process[0] == input_filenames[0]
 
