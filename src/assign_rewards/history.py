@@ -12,6 +12,7 @@ import config
 import utils
 from history_record import _all_valid_records
 from history_record import _load_records
+from history_record import _is_valid_model_name
 
 HASHED_HISTORY_ID_REGEXP = "^[a-f0-9]+$"
 
@@ -224,7 +225,7 @@ def hash_history_id(history_id):
     return hashlib.sha256(history_id.encode()).hexdigest()
 
 def rewarded_decisions_s3_key(model, hashed_history_id):
-    assert utils._is_valid_model_name(model)
+    assert _is_valid_model_name(model)
     assert is_valid_hashed_history_id(hashed_history_id)
 
     return f'rewarded_decisions/{model}/{hashed_history_id[0:2]}/{hashed_history_id[2:4]}/{hashed_history_id}.jsonl.gz'

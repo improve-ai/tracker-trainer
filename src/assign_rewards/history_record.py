@@ -1,5 +1,6 @@
 # Built-in imports
 import json
+import re
 import dateutil
 import gzip
 from collections.abc import Iterator
@@ -10,6 +11,8 @@ import sys
 # Local imports
 import config
 import utils
+import src.train.constants as tc
+
 
 MESSAGE_ID_KEY = 'message_id'
 TIMESTAMP_KEY = 'timestamp'
@@ -27,16 +30,6 @@ RUNNERS_UP_KEY = 'runners_up'
 PROPERTIES_KEY = 'properties'
 VALUE_KEY = 'value'
 
-class MissingTimestampError(Exception):
-    """ Raised if a timestamp is missing in a record"""
-    def __str__(self):
-        return "Missing timestamp"
-
-class InvalidTimestampError(Exception):
-    """ Raised if a timestamp couldn't be parsed"""
-    def __str__(self):
-        return "Couldn't parse timestamp"
-
 class HistoryRecord:
     # slots are faster and use much less memory than dicts
     __slots__ = ['loaded_json_dict', MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY, MODEL_KEY, EVENT_KEY, PROPERTIES_KEY,
@@ -52,14 +45,7 @@ class HistoryRecord:
 
         try:
             self.timestamp = dateutil.parser.parse(json_dict.get(TIMESTAMP_KEY))
-        except dateutil.parser.ParserError as e:
-            raise InvalidTimestampError
-        except TypeError as e:
-            raise MissingTimestampError
-        except Exception as e:
-            exc_type, value, traceback = sys.exc_info()
-            print(f"exc_type: {exc_type}")
-            print(f"value: {value}")
+        except ValueError:
             pass
         
         self.type = json_dict.get(TYPE_KEY)
@@ -67,7 +53,7 @@ class HistoryRecord:
             self.type = None
              
         self.model = json_dict.get(MODEL_KEY)
-        if not utils._is_valid_model_name(self.model):
+        if not _is_valid_model_name(self.model):
             self.model = None
             
         self.event = json_dict.get(EVENT_KEY)
@@ -201,3 +187,28 @@ def _load_records(file: pathlib.Path, message_ids: set) -> list:
     config.stats.incrementHistoryRecordCount(line_count)
 
     return records
+
+
+def _is_valid_model_name(model_name):   
+    if not isinstance(model_name, str) \
+            or len(model_name) == 0 \
+            or not re.match(tc.MODEL_NAME_REGEXP, model_name):
+        return False
+        
+    return True
+
+
+def _all_valid_records(records):
+    """ Check if all given records are valid.
+    
+    Parameters
+    ----------
+    records : list
+        something here
+
+    Returns
+    -------
+    bool
+             
+    """
+    return len(records) == len(list(filter(lambda x: x.is_valid_record(), records)))
