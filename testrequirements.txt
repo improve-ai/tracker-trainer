@@ -5,3 +5,4 @@ pytest_cases
 pytest-env
 pytest-mock
 pytest-pythonpath
+moto
