@@ -64,7 +64,6 @@ def test_is_valid_hashed_history_id(hashed_history_id, current_cases):
         assert is_valid_hashed_history_id(hashed_history_id) == True
 
 
-
 def test_hashed_history_id_from_file():
     file_path = Path("7a8b238803f3e42727996a9825a7514b4e81cd94534ddb58ecd6e13c41f93b42-0c3fa530-302c-45b3-b93a-c84a89208dcd.jsonl.gz")
     hashed_history_id = hashed_history_id_from_file(file_path)

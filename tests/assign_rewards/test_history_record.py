@@ -395,6 +395,7 @@ def test__is_valid_model_name():
         random_str = rstr.xeger(MODEL_NAME_REGEXP)
         assert _is_valid_model_name(random_str) == True
 
+
 def test__load_records():
     """
     Missing:
