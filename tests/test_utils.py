@@ -11,6 +11,7 @@ from moto import mock_s3
 # Local imports
 from utils import save_gzipped_jsonlines
 from utils import upload_gzipped_jsonlines
+from utils import copy_file, delete_all, ensure_parent_dir
 from test_history_record import get_record
 
 S3_BUCKET = "temp_bucket"
@@ -98,3 +99,59 @@ def test_test_upload_gzipped_jsonlines(s3, mocker):
             assert all([a == b for a, b in zip(original_dict.keys(), loaded_dict.keys())])
 
 
+def test_copy_file(tmp_path):
+    """
+
+    Parameters
+    ----------
+    tmp_path :  pathlib.Path
+        A fixture automatically provided by Pytest
+    """
+
+    input_path = (tmp_path / "input")
+    input_path.mkdir()
+    input_f = input_path / "tmp_input.txt"
+    input_f.write_text("CONTENT")
+    
+    output_path = (tmp_path / "output")
+    output_path.mkdir()
+    output_f = output_path / "tmp_output.txt"
+
+    copy_file(input_f, output_f)
+
+    assert output_f.read_text() == "CONTENT"
+    assert len(list(output_path.iterdir())) == 1
+
+
+def test_delete_all(tmp_path):
+    """
+
+    Parameters
+    ----------
+    tmp_path :  pathlib.Path
+        A fixture automatically provided by Pytest
+    """
+
+    files = []
+    for i in range(3):
+        f = tmp_path / f"tmp_file_{i}.txt"
+        f.write_text(f"CONTENT {i}")
+        files.append(f)
+    
+    delete_all(tmp_path.iterdir())
+
+    for f in files: assert not f.exists()
+
+
+def test_ensure_parent_dir(tmp_path):
+    """
+
+    Parameters
+    ----------
+    tmp_path :  pathlib.Path
+        A fixture automatically provided by Pytest
+    """
+
+    f = (tmp_path / "not_existent" / "tmp.txt")
+    ensure_parent_dir(f)
+    assert (tmp_path / "not_existent").exists()
