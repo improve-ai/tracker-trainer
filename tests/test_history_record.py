@@ -4,7 +4,6 @@ from datetime import datetime
 
 # External imports
 import pytest
-from pytest_cases import fixture
 from pytest_cases import parametrize_with_cases
 from pytest_cases import parametrize
 from dateutil.parser import parse
@@ -18,7 +17,7 @@ from history_record import _is_valid_model_name
 from history_record import MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY
 from history_record import MODEL_KEY
 from history_record import REWARD_KEY, VARIANT_KEY, GIVENS_KEY, COUNT_KEY, RUNNERS_UP_KEY, SAMPLE_KEY
-from history_record import MissingTimestampError, InvalidTimestampError
+from history_record import PROPERTIES_KEY, VALUE_KEY
 import config
 
 
@@ -358,6 +357,8 @@ def test_history_record():
     r[PROPERTIES_KEY] = {VALUE_KEY : 1}
     record = HistoryRecord(r)
     assert record.value == 1
+
+
 def test__is_valid_model_name():
     """ """
 
