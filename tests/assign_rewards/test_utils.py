@@ -3,11 +3,6 @@ import gzip
 import json
 import os
 
-# External imports
-import pytest
-import boto3
-from moto import mock_s3
-
 # Local imports
 from utils import save_gzipped_jsonlines
 from utils import upload_gzipped_jsonlines
@@ -16,21 +11,6 @@ from test_history_record import get_record
 
 S3_BUCKET = "temp_bucket"
 S3_KEY    = "temp_key"
-
-
-@pytest.fixture(scope='function')
-def aws_credentials():
-    """Mocked AWS Credentials for moto."""
-    os.environ['AWS_ACCESS_KEY_ID'] = 'testing'
-    os.environ['AWS_SECRET_ACCESS_KEY'] = 'testing'
-    os.environ['AWS_SECURITY_TOKEN'] = 'testing'
-    os.environ['AWS_SESSION_TOKEN'] = 'testing'
-
-
-@pytest.fixture(scope='function')
-def s3(aws_credentials):
-    with mock_s3():
-        yield boto3.client('s3', region_name='us-east-1')
 
 
 def test_save_gzipped_jsonlines(tmp_path):
@@ -62,7 +42,6 @@ def test_save_gzipped_jsonlines(tmp_path):
             assert all([a == b for a, b in zip(original_dict.keys(), loaded_dict.keys())])
 
 
-
 def test_test_upload_gzipped_jsonlines(s3, mocker):
     """
 
@@ -70,7 +49,7 @@ def test_test_upload_gzipped_jsonlines(s3, mocker):
     ----------
     s3 : boto3.client
         Custom fixture which provides a mocked S3 client
-    mocker : pytest_mock.plugin.MockerFixture
+    mocker : pytest_mock.MockerFixture
         Fixture provided by pytest-mocker
     """
 

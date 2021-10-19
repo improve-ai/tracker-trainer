@@ -1,6 +1,7 @@
 # Built-in imports
-import string
+from pathlib import Path
 from datetime import datetime
+import string
 
 # External imports
 import pytest
@@ -14,6 +15,7 @@ import rstr
 from src.train.constants import MODEL_NAME_REGEXP
 from history_record import HistoryRecord
 from history_record import _is_valid_model_name
+from history_record import _load_records
 from history_record import MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY
 from history_record import MODEL_KEY
 from history_record import REWARD_KEY, VARIANT_KEY, GIVENS_KEY, COUNT_KEY, RUNNERS_UP_KEY, SAMPLE_KEY
@@ -286,7 +288,7 @@ class CasesValidInvalidRecords:
     @parametrize("type_val", ["decision", "event"])
     def case_valid(self, type_val):
         return get_record(type_val=type_val)
-
+    
     @parametrize("ts_val", [
         '2021-01-27T00:00:00.000000-0500',
         '2021-01-27T00:00:00.000001',
@@ -342,8 +344,8 @@ def test_is_valid(r, current_cases):
                 diff = record.timestamp - datetime(2021, 1, 27, 0, 0, 0)
                 assert diff.total_seconds() == 0
         else:
-        record = HistoryRecord(r)
-        assert record.is_valid() == True
+            record = HistoryRecord(r)
+            assert record.is_valid() == True
 
 
 def test_history_record():
@@ -352,10 +354,12 @@ def test_history_record():
     r = get_record(type_val="event")
     
     record = HistoryRecord(r)
+    assert isinstance(record.value, int) or isinstance(record.value, float)
     assert record.value == config.DEFAULT_EVENT_VALUE
 
     r[PROPERTIES_KEY] = {VALUE_KEY : 1}
     record = HistoryRecord(r)
+    assert isinstance(record.value, int) or isinstance(record.value, float)
     assert record.value == 1
 
 
@@ -390,3 +394,20 @@ def test__is_valid_model_name():
     for i in range(1000):
         random_str = rstr.xeger(MODEL_NAME_REGEXP)
         assert _is_valid_model_name(random_str) == True
+
+def test__load_records():
+    """
+    Missing:
+    - If a bad Gzip is passed, make sure a file in /unrecoverable is written out.
+    - config.stats is incremented by one
+    """
+    
+    synthetic_data = Path("./tests/test_data/dummy_incoming/incoming").glob("*.jsonl.gz")
+
+    for f in synthetic_data:
+        records = _load_records(f, set())
+        assert isinstance(records, list)
+        for r in records:
+            assert isinstance(r, HistoryRecord)
+
+
