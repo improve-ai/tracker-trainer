@@ -1,7 +1,5 @@
 # Built-in imports
-from pathlib import Path
-from copy import deepcopy
-from assign_rewards.history_record import PROPERTIES_KEY, VALUE_KEY
+import string
 
 # External imports
 import pytest
@@ -9,10 +7,12 @@ from pytest_cases import fixture
 from pytest_cases import parametrize_with_cases
 from pytest_cases import parametrize
 from dateutil.parser import parse
+import rstr
 
 # Local imports
 from src.train.constants import MODEL_NAME_REGEXP
 from history_record import HistoryRecord
+from history_record import _is_valid_model_name
 from history_record import MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY
 from history_record import MODEL_KEY
 from history_record import REWARD_KEY, VARIANT_KEY, GIVENS_KEY, COUNT_KEY, RUNNERS_UP_KEY, SAMPLE_KEY
@@ -328,3 +328,34 @@ def test_history_record():
     r[PROPERTIES_KEY] = {VALUE_KEY : 1}
     record = HistoryRecord(r)
     assert record.value == 1
+def test__is_valid_model_name():
+    """ """
+
+    # Assert that non-str and empty strings are not valid
+    for i in [-1, 0, 1, [], {}, set(), None, "", " "]:
+        assert _is_valid_model_name(i) == False
+    
+    # Assert that punctuation signs are not accepted
+    chars = list(string.punctuation)
+    chars.remove(".")
+    chars.remove("-")
+    chars.remove("_")
+
+    for i in chars:
+        assert _is_valid_model_name(i) == False
+        assert _is_valid_model_name(f"{i}a") == False
+        assert _is_valid_model_name(f"a{i}") == False
+        assert _is_valid_model_name(f"a{i}a") == False
+    
+    # Assert some simple valid model name examples are valid
+    for i in ["a", "aa", "a-a", "a_a", "a.a", "a-", "a_", "a."]:
+        assert _is_valid_model_name(i) == True
+
+    # Assert some real model name examples are valid
+    for i in ["messages-2.0", "songs-2.0", "stories-2.0", "appconfig"]:
+        assert _is_valid_model_name(i) == True
+
+    # Assert some randomly generated model names are valid 
+    for i in range(1000):
+        random_str = rstr.xeger(MODEL_NAME_REGEXP)
+        assert _is_valid_model_name(random_str) == True
