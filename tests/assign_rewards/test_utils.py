@@ -7,17 +7,19 @@ import os
 from utils import save_gzipped_jsonlines
 from utils import upload_gzipped_jsonlines
 from utils import copy_file, delete_all, ensure_parent_dir
-from test_history_record import get_record
+
 
 S3_BUCKET = "temp_bucket"
 S3_KEY    = "temp_key"
 
 
-def test_save_gzipped_jsonlines(tmp_path):
+def test_save_gzipped_jsonlines(get_record, tmp_path):
     """
     
     Parameters
     ----------
+    get_record : function
+        Custom fixture which returns a record
     tmp_path :  pathlib.Path
         A fixture automatically provided by Pytest
     """
@@ -42,11 +44,13 @@ def test_save_gzipped_jsonlines(tmp_path):
             assert all([a == b for a, b in zip(original_dict.keys(), loaded_dict.keys())])
 
 
-def test_test_upload_gzipped_jsonlines(s3, mocker):
+def test_test_upload_gzipped_jsonlines(get_record, s3, mocker):
     """
 
     Parameters
     ----------
+    get_record : function
+        Custom fixture which returns a record
     s3 : boto3.client
         Custom fixture which provides a mocked S3 client
     mocker : pytest_mock.MockerFixture

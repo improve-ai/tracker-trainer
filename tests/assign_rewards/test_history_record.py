@@ -23,64 +23,12 @@ from history_record import PROPERTIES_KEY, VALUE_KEY
 import config
 
 
-def get_record(
-    msg_val   = "A",
-    ts_val    = "2021-10-07T07:24:06.126+02:00",
-    type_val  = "decision",
-    model_val = "messages-2.0",
-    count_val = 1):
-    """Return a default valid record """
-
-    return {
-        MESSAGE_ID_KEY : msg_val,
-        TIMESTAMP_KEY  : ts_val,
-        TYPE_KEY       : type_val,
-        MODEL_KEY      : model_val,
-        COUNT_KEY      : count_val,
-        VARIANT_KEY    : { "text": "Have the courage to surrender to what happens next." },
-        GIVENS_KEY     : {
-            "app"                      : "#Mindful",
-            "device"                   : "iPhone",
-            "since_session_start"      : 323723.807,
-            "since_midnight"           : 26646.122,
-            "improve_version"          : 6000,
-            "screen_height"            : 2532,
-            "language"                 : "nb",
-            "app_version"              : 7009,
-            "country"                  : "NO",
-            "device_version"           : 13003,
-            "share_ratio"              : 0.0030716722831130028,
-            "os"                       : "ios",
-            "screen_width"             : 1170,
-            "session_count"            : 1,
-            "build_version"            : 2574000,
-            "screen_pixels"            : 2962440,
-            "carrier"                  : "Telenor",
-            "since_born"               : 792140.915,
-            "timezone"                 : 2,
-            "os_version"               : 14007.001,
-            "page"                     : 2462,
-            "weekday"                  : 4.3084,
-            "decision_count"           : 25,
-            "since_last_session_start" : 792140.914,
-            "shared" : {
-                "This moment is happening anyway. Stop trying to control it.": 1,
-                "There's no need to try so hard.": 1,
-                "Don't forget to love yourself.": 1,
-                "This is it.": 1
-            },
-        },
-        RUNNERS_UP_KEY  : [ { "text": "You are safe." } ],
-        SAMPLE_KEY      : { "text": "Remember when you wanted what you now have?" },
-    }
-
-
 class CasesRecords:
 
-    def case_valid_record(self):
+    def case_valid_record(self, get_record):
         return get_record()
     
-    def case_missing_variant(self):
+    def case_missing_variant(self, get_record):
         r = get_record()
         del r[VARIANT_KEY]
         return r
@@ -209,7 +157,7 @@ def test_reward_window_contains(r, current_cases):
         assert record1.reward_window_contains(record2) == False
 
 
-def test_record_type():
+def test_record_type(get_record):
     """ Test is_event_record and is_decision_record for different types"""
 
     r = get_record(type_val="decision")
@@ -241,52 +189,52 @@ class CasesValidInvalidRecords:
         return {}
     
     @parametrize("msg_val", [None])
-    def case_invalid_msg(self,msg_val):
+    def case_invalid_msg(self, get_record, msg_val):
         return get_record(msg_val=msg_val)
 
     @parametrize("ts_val", [None, "2021-99-99T07:24:06.126+02:00"])
-    def case_invalid_timestamp(self, ts_val):
+    def case_invalid_timestamp(self, get_record, ts_val):
         return get_record(ts_val=ts_val)
 
     @parametrize("type_val", [None])
-    def case_invalid_type(self, type_val):
+    def case_invalid_type(self, get_record, type_val):
         return get_record(type_val=type_val)
 
     @parametrize("model_val", ["", None])
-    def case_invalid_model(self, model_val):
+    def case_invalid_model(self, get_record, model_val):
         return get_record(type_val="decision", model_val=model_val)
 
     @parametrize("count_val", ["", None, -1.1, -1, 0, 0.0, 0.1, 1.1, "1", "0"])
-    def case_invalid_count(self, count_val):
+    def case_invalid_count(self, get_record, count_val):
         return get_record(type_val="decision", count_val=count_val)
 
-    def case_invalid_missing_timestamp(self):
+    def case_invalid_missing_timestamp(self, get_record):
         r = get_record()
         del r[TIMESTAMP_KEY]
         return r
 
-    def case_invalid_missing_message(self):
+    def case_invalid_missing_message(self, get_record):
         r = get_record()
         del r[MESSAGE_ID_KEY]
         return r
 
-    def case_invalid_missing_type(self):
+    def case_invalid_missing_type(self, get_record):
         r = get_record()
         del r[TYPE_KEY]
         return r
 
-    def case_invalid_missing_count(self):
+    def case_invalid_missing_count(self, get_record):
         r = get_record(type_val="decision")
         del r[COUNT_KEY]
         return r
 
-    def case_invalid_missing_type(self):
+    def case_invalid_missing_type(self, get_record):
         r = get_record(type_val="decision")
         del r[MODEL_KEY]
         return r
 
     @parametrize("type_val", ["decision", "event"])
-    def case_valid(self, type_val):
+    def case_valid(self, get_record, type_val):
         return get_record(type_val=type_val)
     
     @parametrize("ts_val", [
@@ -294,7 +242,7 @@ class CasesValidInvalidRecords:
         '2021-01-27T00:00:00.000001',
         '2021-01-27T00:00:00'
     ])
-    def case_valid_timestamps(self, ts_val):
+    def case_valid_timestamps(self, get_record, ts_val):
         return get_record(ts_val=ts_val)
 
 
@@ -348,7 +296,7 @@ def test_is_valid(r, current_cases):
             assert record.is_valid() == True
 
 
-def test_history_record():
+def test_history_record(get_record):
     """Test other internal properties of HistoryRecord"""
     
     r = get_record(type_val="event")
