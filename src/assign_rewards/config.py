@@ -36,6 +36,3 @@ UNRECOVERABLE_PATH = EFS_PATH / 'unrecoverable'
 
 # The default reward value of a record of type 'event'
 DEFAULT_EVENT_VALUE = float(os.environ.get('DEFAULT_EVENT_VALUE', 0.0))
-
-# One time bonus reward per decision for any activity (any record) after the reward window
-RETENTION_BONUS = float(os.environ.get('RETENTION_BONUS', 0.0))

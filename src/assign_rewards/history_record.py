@@ -35,6 +35,7 @@ class HistoryRecord:
     def __init__(self, json_dict: dict):
         assert isinstance(json_dict, dict)
         self.loaded_json_dict = json_dict
+        self.reward = 0.0
         
         self.message_id = json_dict.get(MESSAGE_ID_KEY)
 
@@ -62,10 +63,6 @@ class HistoryRecord:
             if isinstance(self.properties, dict):
                 self.value = self.properties.get(VALUE_KEY, self.value)
 
-        self.reward = json_dict.get(REWARD_KEY)
-        if not isinstance(self.reward, (int, float)):
-            self.reward = 0.0
-
         # all variant values are valid
         self.variant = json_dict.get(VARIANT_KEY)
         
@@ -73,9 +70,6 @@ class HistoryRecord:
         if not isinstance(self.givens, dict):
             self.givens = None
         
-        # strict validation of count, samples, and runners_up
-        # is intentionally not done here since it is not
-        # necessary for reward assignment
         self.count = json_dict.get(COUNT_KEY)
         if not isinstance(self.count, int):
             self.count = None
@@ -92,11 +86,13 @@ class HistoryRecord:
         if self.message_id is None or self.timestamp is None or self.type is None:
             return False
         
-        if self.model:
-            if not _is_valid_model_name(self.model):
+        if self.is_decision_record():
+            # variant may be None
+            # sample may be None
+            if self.model is None:
                 return False
-        elif self.is_decision_record():
-            return False
+            if self.count is None or self.count < 1:
+                return False
 
         return True
 
@@ -111,17 +107,6 @@ class HistoryRecord:
         
     def reward_window_contains(self, other):
         return other.timestamp >= self.timestamp and other.timestamp <= self.timestamp + config.REWARD_WINDOW
-        
-    
-    def assign_rewards(self, remaining_history: Iterator):
-        for record in remaining_history:
-            if not self.reward_window_contains(record):
-                # a record occured after the reward window. add the retention bonus and return to
-                # finish processing
-                self.reward += config.RETENTION_BONUS
-                return
-            
-            self.reward += record.value
             
         
     def to_rewarded_decision_dict(self):

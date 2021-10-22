@@ -8,8 +8,7 @@ assign_rewards_envvars = [
     'REWARD_WINDOW_IN_SECONDS',
     'WORKER_COUNT',
     'TRAIN_BUCKET',
-    'DEFAULT_EVENT_VALUE',
-    'RETENTION_BONUS']
+    'DEFAULT_EVENT_VALUE']
 
 
 # Launch a reward assignment AWS Batch Job
