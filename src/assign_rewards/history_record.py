@@ -1,12 +1,18 @@
+# Built-in imports
 import json
-import dateutil
 import re
+import dateutil
 import gzip
 from collections.abc import Iterator
 import zlib
+import pathlib
+import sys
 
+# Local imports
 import config
 import utils
+import src.train.constants as tc
+
 
 MESSAGE_ID_KEY = 'message_id'
 TIMESTAMP_KEY = 'timestamp'
@@ -24,8 +30,6 @@ RUNNERS_UP_KEY = 'runners_up'
 PROPERTIES_KEY = 'properties'
 VALUE_KEY = 'value'
 
-MODEL_NAME_REGEXP = "^[\w\-.]+$"
-
 class HistoryRecord:
     # slots are faster and use much less memory than dicts
     __slots__ = ['loaded_json_dict', MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY, MODEL_KEY, EVENT_KEY, PROPERTIES_KEY,
@@ -39,7 +43,6 @@ class HistoryRecord:
         
         self.message_id = json_dict.get(MESSAGE_ID_KEY)
 
-        # parse the timestamp into a datetime
         try:
             self.timestamp = dateutil.parser.parse(json_dict.get(TIMESTAMP_KEY))
         except ValueError:
@@ -110,6 +113,8 @@ class HistoryRecord:
             
         
     def to_rewarded_decision_dict(self):
+        """ Return a dict representation of the decision record """
+        
         result = {}
         
         result[TIMESTAMP_KEY] = self.timestamp.isoformat()
@@ -128,27 +133,21 @@ class HistoryRecord:
         return result
 
 
-def _is_valid_model_name(model_name):
-    if not isinstance(model_name, str) \
-            or len(model_name) == 0 \
-            or not re.match(MODEL_NAME_REGEXP, model_name):
-        return False
-        
-    return True
-
-def _all_valid_records(records):
-    return len(records) == len(list(filter(lambda x: x.is_valid_record(), records)))
-
-def _load_records(file, message_ids: set) -> list:
+def _load_records(file: pathlib.Path, message_ids: set) -> list:
     """
     Load records from a gzipped jsonlines file
 
-    Args:
-        file: Path of the input gzipped jsonlines file to load
-        message_ids: previously loaded message_ids to filter out
-        in the event of duplicates
+    Parameters
+    ----------
+    file : path-like
+        Path of the input gzipped jsonlines file to load
+    message_ids : an empty set ?
+        previously loaded message_ids to filter out in the event of 
+        duplicates
 
-    Returns:
+    Returns
+    -------
+    list
         A list of records
     """
 
@@ -188,3 +187,28 @@ def _load_records(file, message_ids: set) -> list:
     config.stats.incrementHistoryRecordCount(line_count)
 
     return records
+
+
+def _is_valid_model_name(model_name):   
+    if not isinstance(model_name, str) \
+            or len(model_name) == 0 \
+            or not re.match(tc.MODEL_NAME_REGEXP, model_name):
+        return False
+        
+    return True
+
+
+def _all_valid_records(records):
+    """ Check if all given records are valid.
+    
+    Parameters
+    ----------
+    records : list
+        something here
+
+    Returns
+    -------
+    bool
+             
+    """
+    return len(records) == len(list(filter(lambda x: x.is_valid_record(), records)))

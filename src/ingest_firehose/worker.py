@@ -19,6 +19,11 @@ HISTORY_ID_KEY = 'history_id'
 
 
 def worker():
+    """
+    Download a gzipped JSONL file from S3, where each line is a record. 
+    Generate a new gzipped JSONL file for each different HISTORY_ID_KEY
+    where each line is a record.
+    """
     print(f'starting firehose ingest for s3://{S3_BUCKET}/{S3_KEY}')
 
     records_by_history_id = {}
