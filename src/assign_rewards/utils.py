@@ -101,8 +101,7 @@ def list_s3_keys_containing(bucket_name, start_key, end_key):
     ValueError
         If `start_key` > `end_key`
     
-    """
-    from config import s3client
+    """    
 
     if not isinstance(bucket_name, str) or \
        not isinstance(start_key, str) or \
@@ -116,7 +115,7 @@ def list_s3_keys_containing(bucket_name, start_key, end_key):
 
     keys = []
     while True:
-        resp = s3client.list_objects_v2(**kwargs)
+        resp = config.s3client.list_objects_v2(**kwargs)
         
         if not 'Contents' in resp:
             return []
