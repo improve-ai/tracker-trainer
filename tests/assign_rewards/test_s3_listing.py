@@ -147,7 +147,7 @@ class CasesS3Keys:
         ("0", "9", ["a"]),
         ("9", "0", "will raise exception"),
     ])
-    def case_requested_keys_are_after_available(self, start, end, expected):
+    def case_requested_keys_are_before_available(self, start, end, expected):
         return string.ascii_lowercase
 
 
@@ -155,9 +155,13 @@ class CasesS3Keys:
         (None, "}"),
         ("}", None),
         (None, None),
-        (None, None),
-        (1, 1),
-        (1, 1),
+        ([], "a"),
+        ("a", []),
+        ({}, "a"),
+        ("a", {}),
+        (1, "a"),
+        ("a", 1),
+        (1.1, 1.2),
     ])
     def case_wrong_types(self, start, end):
         return string.ascii_lowercase
@@ -169,15 +173,45 @@ class CasesS3Keys:
     @parametrize("start,end,expected", [
         ("c", "c", ["c"]),
     ])
-    def case_requested_keys_are_the_same(self, start, end, expected):
+    def case_requested_keys_are_the_same1(self, start, end, expected):
         return string.ascii_lowercase
     
 
+    # Keys: ----|||||||||||||||||||||||---------
+    #        ^
+    #   start == end
     @parametrize("start,end,expected", [
-        ("aa", "c", ["aa", "aac", "b", "z"]),
+        ("0", "0", ["a"]),
+    ])
+    def case_requested_keys_are_the_same2(self, start, end, expected):
+        return string.ascii_lowercase
+    
+    
+    # Keys: ----|||||||||||||||||||||||---------
+    #                                     ^
+    #                               start == end
+    @parametrize("start,end,expected", [
+        ("}", "}", []),
+    ])
+    def case_requested_keys_are_the_same3(self, start, end, expected):
+        return string.ascii_lowercase
+
+
+    # Keys: ----|||||||||-------|||||||||---------
+    #                      ^
+    #                 start == end
+    @parametrize("start,end,expected", [
+        ("m", "m", ["o"]),
+    ])
+    def case_requested_keys_are_the_same4(self, start, end, expected):
+        return ['i', 'j', 'k', 'l', 'o', 'p']
+
+
+    @parametrize("start,end,expected", [
+        ("aa", "c", ["aa", "aac", "abcd", "b", "z"]),
     ])
     def case_simple_longer_keys(self, start, end, expected):
-        return ['a', 'aa', 'b', 'aac', 'z']
+        return ['a', 'aa', 'b', 'aac', 'z', 'abcd']
 
 
     @parametrize("start,end,expected", [
