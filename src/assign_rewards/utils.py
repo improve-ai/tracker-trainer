@@ -97,7 +97,8 @@ def list_s3_keys_containing(bucket_name, start_key, end_key):
     ------
 
     TypeError
-        If something different than a str is passed to the start_key, end_key or bucket_name
+        If something different than a str is passed to the start_key, 
+        end_key or bucket_name
     ValueError
         If `start_key` > `end_key`
     
