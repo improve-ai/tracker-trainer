@@ -47,9 +47,8 @@ github, not the one that gets installed with pip,
 
 
 def get_min_max_datetime(min_or_max):
-    """ Return the maximum possible timestamp representable with KSUIDs
-    in ISO8601 format.
-    """
+    """ Return the min/max possible datetime representable with KSUIDs"""
+
     if min_or_max == "min":
         base62_str = MIN_STRING_ENCODED
     elif min_or_max =="max":
@@ -64,7 +63,8 @@ def get_min_max_datetime(min_or_max):
 
 
 def get_min_max_payload_bytes(min_or_max):
-    """ Return the maximum possible payload representable with KSUIDs """
+    """ Return the min/max possible payload representable with KSUIDs """
+
     if min_or_max == "min":
         base62_str = MIN_STRING_ENCODED
         return b"\x00" * BODY_LENGTH
@@ -176,11 +176,9 @@ if __name__ == "__main__":
 
     # Get the min payload
     min_payload_bytes = get_min_max_payload_bytes("min")
-    print("min payload:", min_payload_bytes)
     
     # Generate ksuid based on the above inputs
     ksuid_base62 = gen_ksuid(ts, min_payload_bytes)
-    print("ksuid_base62:", ksuid_base62)
     #assert ksuid_base62 == MIN_STRING_ENCODED
 
     triplets.append({
