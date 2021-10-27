@@ -36,7 +36,7 @@ class History:
         # save prior to customization and reward assignment since those may mutate records
         self.save()
     
-        # perform deeper validation before reward assignement
+        # perform deeper validation before reward assignment
         self.filter_valid_records()
 
         self.sort_records()
