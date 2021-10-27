@@ -12,6 +12,7 @@ MESSAGE_ID_KEY = 'message_id'
 TIMESTAMP_KEY = 'timestamp'
 TYPE_KEY = 'type'
 DECISION_TYPE = 'decision'
+REWARD_TYPE = 'reward'
 EVENT_TYPE = 'event'
 EVENT_KEY = EVENT_TYPE
 MODEL_KEY = 'model'
@@ -104,6 +105,10 @@ class HistoryRecord:
     def is_event_record(self):
         return self.type == EVENT_TYPE
         
+        
+    def is_reward_record(self):
+        return self.type == REWARD_TYPE
+
         
     def reward_window_contains(self, other):
         return other.timestamp >= self.timestamp and other.timestamp <= self.timestamp + config.REWARD_WINDOW
