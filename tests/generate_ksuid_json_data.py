@@ -1,7 +1,7 @@
 # Built-in imports
 import base64
 import json
-from datetime import datetime, time, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 import os
 
 # External imports
@@ -48,7 +48,18 @@ github, not the one that gets installed with pip,
 
 
 def get_min_max_datetime(min_or_max):
-    """ Return the min/max possible datetime representable with KSUIDs"""
+    """
+    Return the min/max possible datetime representable with KSUIDs.
+    
+    This is really here only to show how to extract the timestamp from 
+    a base62-encoded KSUID string, because it may just return one of 
+    these:
+
+        MIN_KSUID_DATETIME = parse("2014-05-13T16:53:20+00:00")
+        MAX_KSUID_DATETIME = parse("2150-06-19T23:21:35+00:00")
+    """
+
+    assert min_or_max in ("min", "max")
 
     if min_or_max == "min":
         base62_str = MIN_STRING_ENCODED
@@ -59,7 +70,7 @@ def get_min_max_datetime(min_or_max):
     unixTime = int_from_bytes(ts_bytes, byteorder="big")
     
     ts = unixTime + EPOCH_TIME
-    dt = datetime.utcfromtimestamp(ts)
+    dt = datetime.utcfromtimestamp(ts).replace(tzinfo=timezone.utc)
     return dt
 
 
@@ -67,12 +78,9 @@ def get_min_max_payload_bytes(min_or_max):
     """ Return the min/max possible payload representable with KSUIDs """
 
     if min_or_max == "min":
-        base62_str = MIN_STRING_ENCODED
         return b"\x00" * BODY_LENGTH
     elif min_or_max =="max":
-        base62_str = MAX_STRING_ENCODED
-        payload_bytes = decodebytes(base62_str)[TIME_STAMP_LENGTH:]
-        return payload_bytes
+        return b"\xFF" * BODY_LENGTH
 
 
 def gen_ksuid(timestamp, payload):
@@ -92,21 +100,61 @@ def gen_ksuid(timestamp, payload):
     str
         A base62-encoded ksuid string
     """
-    # if not isinstance(timestamp, int) or not isinstance(payload, bytes):
-    #     raise TypeError
-    
-    # if (timestamp < 0) or (timestamp > MAX_INT_4_BYTES+EPOCH_TIME) or len(payload) > BODY_LENGTH:
-    #     if timestamp < 0:
-    #         print(f"timestamp < 0: {timestamp}")
-    #     elif timestamp > MAX_INT_4_BYTES:
-    #         print(f"timestamp > MAX_INT_4_BYTES: {timestamp}")
-    #     elif len(payload) > BODY_LENGTH:
-    #         print(f"len(payload) > BODY_LENGTH: {len(payload)}")
-    #     raise ValueError
     
     ts_bytes = int_to_bytes(int(timestamp - EPOCH_TIME), 4,  "big")
     uid = list(ts_bytes) + list(payload)
     return encodebytes(bytes(uid))
+
+
+def gen_custom_triplet(min_or_max, seconds):
+    """
+    Generate a triplet with a timestamp, uid and ksuid. Depending on
+    the value of `min_or_max`, an extreme valid KSUID timestamp will
+    be used with either the minimum or maximum value allowed by KSUID.
+    Such extreme timestamp will be offset by `seconds` seconds.
+    Depending on the value of `min_or_max`, the payload used will be
+    either the minimum or maximum allowed by KSUID.
+
+    Parameters
+    ----------
+    min_or_max : str
+        Either "min" or "max"; used to select which KSUID timestamp 
+        extreme to use in the triplet generation.
+    seconds : int
+        Number of seconds to offset the generated extreme timestamp
+
+    Returns
+    -------
+    dict of str
+        Triplet with timestamp, uid in base64 and ksuid in base62
+    """
+
+    assert min_or_max in ("min", "max")
+    assert isinstance(seconds, int)
+
+    # Get a timestamp second below the epoch
+    extreme_dt = get_min_max_datetime(min_or_max)
+
+    # Offset the datetime
+    dt = extreme_dt + timedelta(seconds=seconds)
+    
+    # Simulate the clipping towards the min or max
+    if (dt < get_min_max_datetime("min")) or (dt > get_min_max_datetime("max")):
+        ts = int(extreme_dt.timestamp())
+    else:
+        ts = dt.timestamp()
+
+    # The KSUID payload
+    payload_bytes = get_min_max_payload_bytes(min_or_max)
+
+    # Generate ksuid based on the above inputs
+    ksuid_base62 = gen_ksuid(ts, payload_bytes)
+
+    return {
+        "timestamp" : dt.isoformat(),
+        "uid_base64" : base64.b64encode(payload_bytes).decode("utf-8"),
+        "ksuid_base62" : ksuid_base62.zfill(27)
+    }
 
 
 if __name__ == "__main__": 
@@ -141,104 +189,39 @@ if __name__ == "__main__":
         triplet = {
             "timestamp" : ts_str,
             "uid_base64" : b64_uid,
-            "ksuid_base62" : x.toBase62()
+            "ksuid_base62" : (x.toBase62()).zfill(27)
         }
 
         triplets.append(triplet)
 
 
     ##########################################################################
-    # Add custom case for min timestamp and min payload
+    # Custom cases around the min timestamp
     ##########################################################################
-
-    # Get min possible timestamp for KSUID
-    dt = get_min_max_datetime("min").replace(tzinfo=timezone.utc)
-    ts = int(dt.timestamp())
-
-    # Get the min payload
-    min_payload_bytes = get_min_max_payload_bytes("min")
+    triplet = gen_custom_triplet(min_or_max="min", seconds=-1)
+    assert triplet.get('ksuid_base62') == MIN_STRING_ENCODED
+    triplets.append(triplet)
     
-    # Generate ksuid based on the above inputs
-    ksuid_base62 = gen_ksuid(ts, min_payload_bytes)
-    #assert ksuid_base62 == MIN_STRING_ENCODED
-
-    triplets.append({
-        "timestamp" : dt.isoformat(),
-        "uid_base64" : base64.b64encode(min_payload_bytes).decode("utf-8"),
-        "ksuid_base62" : ksuid_base62.zfill(27) # Manually zeropad for length of 27
-    })
+    triplet = gen_custom_triplet(min_or_max="min", seconds=0)
+    assert triplet.get('ksuid_base62') == MIN_STRING_ENCODED
+    triplets.append(triplet)
+    
+    triplets.append(gen_custom_triplet(min_or_max="min", seconds=1))
 
 
     ##########################################################################
-    # Add custom case for the max timestamp and max payload
+    # Custom cases around the max timestamp
     ##########################################################################
-    
-    # Get max possible timestamp for KSUID
-    dt = get_min_max_datetime("max").replace(tzinfo=timezone.utc)
-    ts = int(dt.timestamp())
+    triplets.append(gen_custom_triplet(min_or_max="max", seconds=-1))
 
-    # Get the max payload
-    max_payload_bytes = get_min_max_payload_bytes("max")
-    
-    # Generate ksuid based on the above inputs
-    ksuid_base62 = gen_ksuid(ts, max_payload_bytes)
-    assert ksuid_base62 == MAX_STRING_ENCODED
+    triplet = gen_custom_triplet(min_or_max="max", seconds=0)
+    assert triplet.get('ksuid_base62') == MAX_STRING_ENCODED
+    triplets.append(triplet)
 
-    triplets.append({
-        "timestamp" : dt.isoformat(),
-        "uid_base64" : base64.b64encode(max_payload_bytes).decode("utf-8"),
-        "ksuid_base62" : ksuid_base62
-    })
+    triplet = gen_custom_triplet(min_or_max="max", seconds=1)
+    assert triplet.get('ksuid_base62') == MAX_STRING_ENCODED
+    triplets.append(triplet)
 
-
-    ##########################################################################
-    # Add custom case a timestamp below the EPOCH
-    # The result should be to use the minimum timestamp
-    ##########################################################################
-    
-    # Get a timestamp second below the epoch
-    min_dt = get_min_max_datetime("min").replace(tzinfo=timezone.utc)
-    dt = min_dt - timedelta(seconds=1)
-    
-    # Simulate the clipping towards the minimum
-    ts = int(min_dt.timestamp())
-
-    # Get a random payload
-    payload_bytes = os.urandom(BODY_LENGTH)
-
-    # Generate ksuid based on the above inputs
-    ksuid_base62 = gen_ksuid(ts, payload_bytes)
-
-    triplets.append({
-        "timestamp" : dt.isoformat(),
-        "uid_base64" : base64.b64encode(payload_bytes).decode("utf-8"),
-        "ksuid_base62" : ksuid_base62
-    })
-    
-
-    ##########################################################################
-    # Add custom case a timestamp above the max possible timestamp
-    # The result should be to use the maximum timestamp
-    ##########################################################################
-    
-    # Get a timestamp second below the epoch
-    max_dt = get_min_max_datetime("max").replace(tzinfo=timezone.utc)
-    dt = max_dt + timedelta(seconds=1)
-    
-    # Simulate the clipping towards the maximum
-    ts = int(max_dt.timestamp())
-
-    # Get a random payload
-    payload_bytes = os.urandom(BODY_LENGTH)
-
-    # Generate ksuid based on the above inputs
-    ksuid_base62 = gen_ksuid(ts, payload_bytes)
-
-    triplets.append({
-        "timestamp" : dt.isoformat(),
-        "uid_base64" : base64.b64encode(payload_bytes).decode("utf-8"),
-        "ksuid_base62" : ksuid_base62
-    })
 
     ##########################################################################
     # Write triplets
