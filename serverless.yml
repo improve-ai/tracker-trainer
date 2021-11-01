@@ -15,8 +15,6 @@ provider:
     images:
       ingest-firehose:
         path: ./src/ingest_firehose/
-      assign-rewards:
-        path: ./src/assign_rewards/
   httpApi: # have to specify cors globally for httpApi as of 20210303
     cors: true
   iam:
@@ -57,7 +55,7 @@ package:
 
 functions:
   track:
-    description: Decision/Event Tracker HTTPS API
+    description: Decision & Reward Tracker HTTPS API
     handler: src/track/http_api.track
     runtime: nodejs14.x
     events:
@@ -77,17 +75,6 @@ functions:
     environment:
       JOB_QUEUE: !Ref JobQueue
       JOB_DEFINITION: !Ref IngestFirehoseJobDefinition
-  dispatchAssignRewardsJob:
-    description: Dispatch Reward Assignment Batch Array Job
-    handler: src/assign_rewards/dispatch_job.lambda_handler
-    events:
-      - schedule: ${self:custom.config.reward_assignment.schedule}
-    environment:
-      WORKER_COUNT: ${self:custom.config.reward_assignment.worker_count}
-      REWARD_WINDOW_IN_SECONDS: ${self:custom.config.reward_assignment.reward_window_in_seconds}
-      DEFAULT_EVENT_VALUE: ${self:custom.config.reward_assignment.default_event_value}
-      JOB_QUEUE: !Ref JobQueue
-      JOB_DEFINITION: !Ref AssignRewardsJobDefinition
   dispatchTrainingJob:
     description: Dispatch Decision Model Training Jobs
     handler: src/train/dispatch_job.lambda_handler
@@ -120,11 +107,6 @@ functions:
     description: Force Serverless to Push Docker Image to ECR
     image:
       name: ingest-firehose
-
-  forceDockerPushAssignRewards: # Serverless wants the image to be used to deploy it
-    description: Force Serverless to Push Docker Image to ECR
-    image:
-      name: assign-rewards
 
 resources:
   Resources:
@@ -378,60 +360,8 @@ resources:
             Memory: 1024 # enough memory to hold a max size (128MB) firehose file
             Vcpus: 1
             Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-${self:service}-${opt:stage, self:provider.stage}:ingest-firehose'
-            MountPoints:
-              - SourceVolume: efs
-                ContainerPath: /mnt/efs
-            Volumes:
-              - Name: efs
-                EfsVolumeConfiguration:
-                  FileSystemId: !Ref FileSystemResource
           RetryStrategy: 
             Attempts: 5
-      AssignRewardsJobDefinition:
-        Type: "AWS::Batch::JobDefinition"
-        Properties:
-          Type: Container
-          JobDefinitionName: '${self:service}-${opt:stage, self:provider.stage}-AssignRewards'
-          ContainerProperties: 
-            Memory: 2048
-            Vcpus: 1
-            Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-${self:service}-${opt:stage, self:provider.stage}:assign-rewards'
-            MountPoints:
-              - SourceVolume: efs
-                ContainerPath: /mnt/efs
-            Volumes:
-              - Name: efs
-                EfsVolumeConfiguration:
-                  FileSystemId: !Ref FileSystemResource
-          RetryStrategy: 
-            Attempts: 2 # if the job fails, it will pick up where it left off on the next scheduled execution
-      FileSystemResource:
-        Type: 'AWS::EFS::FileSystem'
-        Properties:
-          AvailabilityZoneName: ${self:provider.region}a # EFS One Zone for lower cost
-          BackupPolicy:
-            Status: DISABLED # data can be re-ingested from Firehose by doing a nop "Edit Metadata" in S3
-          Encrypted: true
-          LifecyclePolicies:
-            - TransitionToIA: AFTER_14_DAYS # when events stop arriving for a history it will transition to infrequent access
-          FileSystemPolicy:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action: "elasticfilesystem:Client*"
-                Principal:
-                  AWS: "*"
-          FileSystemTags:
-            - Key: Name
-              Value: ${self:service}-${opt:stage, self:provider.stage}-histories
-      MountTarget:
-        Type: AWS::EFS::MountTarget
-        Properties:
-          FileSystemId: !Ref FileSystemResource
-          SecurityGroups:
-            - Ref: SecurityGroup
-          SubnetId: !Ref Subnet
-        DependsOn: Subnet
       S3Endpoint:
         Type: AWS::EC2::VPCEndpoint
         Properties:
