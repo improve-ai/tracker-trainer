@@ -3,9 +3,9 @@ import io
 import json
 import gzip
 import shutil
-from uuid import UUID
-from datetime import datetime
+import re
 
+# Local imports
 import config
 
 

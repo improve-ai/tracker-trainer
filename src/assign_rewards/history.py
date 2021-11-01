@@ -11,8 +11,8 @@ from operator import itemgetter
 import config
 import utils
 from history_record import _all_valid_records
-from history_record import _is_valid_model_name
 from history_record import _load_records
+from history_record import _is_valid_model_name
 
 HASHED_HISTORY_ID_REGEXP = "^[a-f0-9]+$"
 
