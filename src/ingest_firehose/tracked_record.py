@@ -31,15 +31,14 @@ RUNNERS_UP_KEY = 'runners_up'
 PROPERTIES_KEY = 'properties'
 VALUE_KEY = 'value'
 
-class HistoryRecord:
+class TrackedRecord:
     # slots are faster and use much less memory than dicts
-    __slots__ = ['loaded_json_dict', MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY, MODEL_KEY, EVENT_KEY, PROPERTIES_KEY,
+    __slots__ = [MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY, MODEL_KEY, EVENT_KEY, PROPERTIES_KEY,
                  VALUE_KEY, REWARD_KEY, VARIANT_KEY, GIVENS_KEY, COUNT_KEY, RUNNERS_UP_KEY, SAMPLE_KEY]
 
     
     def __init__(self, json_dict: dict):
         assert isinstance(json_dict, dict)
-        self.loaded_json_dict = json_dict
         self.reward = 0.0
         
         self.message_id = json_dict.get(MESSAGE_ID_KEY)

@@ -40,6 +40,7 @@ def lambda_handler(event, context):
         jobDefinition=os.environ['JOB_DEFINITION'],
         containerOverrides={
             'environment':[
+                {'name': 'TRAIN_BUCKET', 'value': os.getenv('TRAIN_BUCKET')},
                 {'name': 'S3_BUCKET', 'value': s3_bucket},
                 {'name': 'S3_KEY', 'value': s3_key}
             ],
