@@ -1,5 +1,7 @@
+# Built-in imports
 import os
 
+# External imports
 import pytest
 import boto3
 from moto import mock_s3
