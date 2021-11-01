@@ -87,10 +87,10 @@ def upload_model(
     s3_client.copy_object(**copy_params)
 
 def get_latest_s3_key(model_name: str, extension: str) -> str:
-    return f'models/latest/improveai-{model_name}{extension}'
+    return f'models/latest/{model_name}{extension}'
 
 def get_timestamped_s3_key(
         model_name: str, extension: str, model_uuid: str = None) -> str:
     date_str = datetime.now().strftime('%Y-%m-%d-%M-%H-%S')
 
-    return f'models/archive/{model_name}/improveai-{model_name}-{date_str}-{uuid4()}{extension}'
+    return f'models/archive/{model_name}/{model_name}-{date_str}-{uuid4()}{extension}'
