@@ -3,7 +3,6 @@ import orjson as json
 import re
 import dateutil
 import gzip
-from collections.abc import Iterator
 import zlib
 import pathlib
 import sys
@@ -106,13 +105,13 @@ class TrackedRecord:
 
         
     def to_rewarded_decision_dict(self):
-        """ Return a dict representation of the decision record """
+        """ Return a dict representation of the rewarded decision record """
         
         result = {}
         
         if self.is_decision_record():
             result[DECISION_ID_KEY] = self.message_id
-            result[TIMESTAMP_KEY] = self.timestamp.isoformat()
+            result[TIMESTAMP_KEY] = self.timestamp
             result[VARIANT_KEY] = json.dumps(self.variant)
             
             if self.givens is not None:
@@ -131,6 +130,7 @@ class TrackedRecord:
                 result[SAMPLE_KEY] = json.dumps(self.sample)
                 
         elif self.is_reward_record():
+            # do NOT copy timestamp for reward record
             result[DECISION_ID_KEY] = self.decision_id
             result[REWARDS_KEY] = { self.message_id: self.reward }
             
