@@ -1,7 +1,9 @@
 import json
 import os 
 
+
 import boto3
+
 
 RECORDS_KEY = 'Records'
 S3_KEY = 's3'
@@ -9,6 +11,11 @@ BUCKET_KEY = 'bucket'
 NAME_KEY = 'name'
 OBJECT_KEY = 'object'
 KEY_KEY = 'key'
+
+
+FIREHOSE_BUCKET = os.getenv('FIREHOSE_BUCKET')
+TRAIN_BUCKET = os.getenv('TRAIN_BUCKET')
+
 
 # Launch a reward assignment AWS Batch Job
 def lambda_handler(event, context):
@@ -31,6 +38,8 @@ def lambda_handler(event, context):
 
     s3_bucket = bucket[NAME_KEY]
     s3_key = object_[KEY_KEY]
+    
+    assert(s3_bucket == FIREHOSE_BUCKET)
         
     batch = boto3.client('batch')
 
@@ -40,8 +49,8 @@ def lambda_handler(event, context):
         jobDefinition=os.environ['JOB_DEFINITION'],
         containerOverrides={
             'environment':[
-                {'name': 'TRAIN_BUCKET', 'value': os.getenv('TRAIN_BUCKET')},
-                {'name': 'S3_BUCKET', 'value': s3_bucket},
+                {'name': 'TRAIN_BUCKET', 'value': TRAIN_BUCKET},
+                {'name': 'FIREHOSE_BUCKET', 'value': FIREHOSE_BUCKET},
                 {'name': 'S3_KEY', 'value': s3_key}
             ],
         }

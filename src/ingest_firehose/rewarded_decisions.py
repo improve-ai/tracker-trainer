@@ -1,13 +1,18 @@
 import pandas as pd
 from ksuid import ksuid
+from uuid import uuidv4
 
 from config import TRAIN_BUCKET, s3client
+from firehose_records import _is_valid_model_name
 
-class RewardedDecisions:
+class RewardedDecisionGroup:
 
-    def __init__(self, df, s3_key=None):
+
+    def __init__(self, model_name, df, s3_key=None):
+        assert(_is_valid_model_name(model_name))
         assert(df)
 
+        self.model_name = model_name
         self.df = df
         self.s3_key = s3_key
         self.sort()
@@ -15,8 +20,8 @@ class RewardedDecisions:
 
     def process(self):
 
-        # load the existing parquet from s3
         if self.s3_key:
+            # load the existing .parq from s3
             self.load()
 
         assert(self.sorted)
@@ -26,9 +31,9 @@ class RewardedDecisions:
         
         self.save()
 
-        # delete the previous .parq from s3
-        # do this last in case there is a problem during processing that needs to be retried
         if self.s3_key:
+            # delete the previous .parq from s3
+            # do this last in case there is a problem during processing that needs to be retried
             self.clean_up()
 
         # RAM cleanup
@@ -42,10 +47,11 @@ class RewardedDecisions:
         self.df = pd.concat([self.df, s3_df], ignore_index=True)
         self.sorted = False
         self.sort()
+        
 
     def save(self):
         # write the conslidated parquet file to a unique key
-        self.df.write_parquet(f's3://{TRAIN_BUCKET}/{s3_key_for_decisions(df)}')
+        self.df.write_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, self.first_decision_id(), self.last_decision_id())}')
 
         
     def clean_up(self):
@@ -58,6 +64,7 @@ class RewardedDecisions:
 
         self.sorted = True
         
+        
     def merge(self):
         assert self.sorted
         
@@ -68,15 +75,21 @@ class RewardedDecisions:
         # cleanup
         self.df = None
         del self.df
+        
 
     def first_decision_id(self):
         assert(self.sorted)
         #TODO
         pass
     
+    
     def last_decision_id(self):
         assert(self.sorted)
         #TODO
+        pass
+    
+    @staticmethod
+    def groups_from_firehose_record_group(firehose_record_group):
         pass
 
 def decision_id_range_from_groups(groups):
@@ -84,8 +97,9 @@ def decision_id_range_from_groups(groups):
     pass
 
 
-def s3_key_prefix(model, last_decision_id):
-    return f'/rewarded_decisions/{model}/parq/{yyyy}/{mm}/{dd}/{yyyy}{mm}{dd}-{last_decision_id[:9]}'
+def s3_key_prefix(model_name, last_decision_id):
+    return f'/rewarded_decisions/{model_name}/parq/{yyyy}/{mm}/{dd}/{yyyy}{mm}{dd}-{last_decision_id[:9]}'
     
-def s3_key(model, first_decision_id, last_decision_id):
-    return f'{s3_key_prefix(model,last_decision_id)}-{first_decision_id[:9]}.parq'
+    
+def s3_key(model_name, first_decision_id, last_decision_id):
+    return f'{s3_key_prefix(model_name,last_decision_id)}-{first_decision_id[:9]}-{uuidv4()}.parq'
