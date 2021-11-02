@@ -4,26 +4,22 @@ import concurrent.futures
 import pandas as pd 
 
 import firehose
-from config import FIREHOSE_BUCKET, INCOMING_FIREHOSE_S3_KEY, TRAIN_BUCKET, THREAD_WORKER_COUNT, s3client
+from config import FIREHOSE_BUCKET, INCOMING_FIREHOSE_S3_KEY, TRAIN_BUCKET, THREAD_WORKER_COUNT, s3client, stats
 
 SIGTERM = False
 
 
 def worker():
-    """
-    Download a gzipped JSONL file from S3, where each line is a record. 
-    """
+    print(f'starting firehose ingest')
     
-    print(f'starting firehose ingest for s3://{FIREHOSE_BUCKET}/{INCOMING_FIREHOSE_S3_KEY}')
-    
-    # load the incoming tracked records from firehose
+    # load the incoming firehose file
     firehose_records = firehose.load_records(FIREHOSE_BUCKET, INCOMING_FIREHOSE_S3_KEY)
     
     # convert the tracked records to rewarded decision record dicts
-    records = map(lambda x: x.to_rewarded_decision_dict(), tracked_records)
+    records = map(lambda x: x.to_rewarded_decision_dict(), firehose_records)
     
     # group the records with existing rewarded decision s3 keys
-    grouped_records, s3_keys = group_records_with_s3_keys(decision_records)
+    grouped_records, s3_keys = group_records_with_s3_keys(records)
     
     print(f'processing {len(grouped_records)} groups of records...')
     
@@ -34,7 +30,7 @@ def worker():
     # TODO repair_overlapping_keys(from:, to: )
 
     print(f'uploaded {config.stats.rewarded_decision_count} rewarded decision records to s3://{TRAIN_BUCKET}')
-    print(config.stats)
+    print(stats)
     print(f'finished firehose ingest')
 
 
