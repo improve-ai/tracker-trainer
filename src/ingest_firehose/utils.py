@@ -4,10 +4,22 @@ import json
 import gzip
 import shutil
 import re
+import datetime
 
 # Local imports
 import config
 
+ZERO = datetime.timedelta(0)
+
+class UTC(datetime.tzinfo):
+    def utcoffset(self, dt):
+        return ZERO
+    def tzname(self, dt):
+        return "UTC"
+    def dst(self, dt):
+        return ZERO
+
+utc = UTC()
 
 def upload_gzipped_jsonlines(s3_bucket, s3_key, json_dicts):
     gzipped = io.BytesIO()
@@ -156,8 +168,8 @@ def list_s3_keys_containing(bucket_name, start_key, end_key):
     return result
 
 
-def s3_key_prefix(last_decision_id):
-    return f'/{yyyy}/{mm}/{dd}/{yyyy}{mm}{dd}-{last_decision_id[:9]}'
+def s3_key_prefix(model, last_decision_id):
+    return f'/rewarded_decisions/{model}/parq/{yyyy}/{mm}/{dd}/{yyyy}{mm}{dd}-{last_decision_id[:9]}'
     
-def s3_key(first_decision_id, last_decision_id):
-    return f'{s3_key_prefix(last_decision_id)}-{first_decision_id[:9]}.parq'
+def s3_key(model, first_decision_id, last_decision_id):
+    return f'{s3_key_prefix(model,last_decision_id)}-{first_decision_id[:9]}.parq'
