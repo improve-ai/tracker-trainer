@@ -6,7 +6,7 @@ import gzip
 from ksuid import ksuid
 
 # Local imports
-from config import s3client
+from config import s3client, FIREHOSE_BUCKET
 import utils
 import src.train.constants as tc
 
@@ -25,6 +25,53 @@ GIVENS_KEY = 'givens'
 COUNT_KEY = 'count'
 SAMPLE_KEY = 'sample'
 RUNNERS_UP_KEY = 'runners_up'
+
+class FirehoseRecords:
+    
+    def __init__(self, s3_key):
+        assert(s3_key)
+        self.s3_key = s3_key
+        
+        
+    def load(self):
+        """
+        Load records from a gzipped jsonlines file
+        """
+        
+        records = []
+        invalid_records = []
+        
+        print(f'loading s3://{FIREHOSE_BUCKET}/{self.s3_key}')
+    
+        # download and parse the firehose file
+        s3obj = s3client.get_object(FIREHOSE_BUCKET, self.s3_key)['Body']
+        with gzip.GzipFile(fileobj=s3obj) as gzf:
+            for line in gzf.readlines():
+    
+                try:
+                    records.append(FirehoseRecord(json.loads(line)))
+                except Exception as exc:
+                    invalid_records.append(line)
+                    continue
+    
+        if len(invalid_records):
+            print(f'skipped {len(invalid_records)} invalid records')
+            # TODO write invalid records to /uncrecoverable
+    
+        print(f'loaded {len(records)} records from firehose')
+        
+        self.records = records
+
+
+    def _to_rewarded_decision_dicts(self):
+        assert(self.records)
+        return list(map(lambda x: x.to_rewarded_decision_dict(), self.records))
+
+
+    def to_rewarded_decisions_groups(self):
+        #TODO
+        return []
+
 
 
 class FirehoseRecord:
@@ -210,32 +257,3 @@ def _get_sample_pool_size(count, runners_up):
     assert sample_pool_size >= 0
     return sample_pool_size
     
-
-def load_records(s3_bucket: str, s3_key: str) -> list:
-    """
-    Load records from a gzipped jsonlines file
-    """
-    
-    records = []
-    invalid_records = []
-    
-    print(f'loading s3://{s3_bucket}/{s3_key}')
-
-    # download and parse the firehose file
-    s3obj = s3client.get_object(s3_bucket, s3_key)['Body']
-    with gzip.GzipFile(fileobj=s3obj) as gzf:
-        for line in gzf.readlines():
-
-            try:
-                records.append(FirehoseRecord(json.loads(line)))
-            except Exception as exc:
-                invalid_records.append(line)
-                continue
-
-    if len(invalid_records):
-        print(f'skipped {len(invalid_records)} invalid records')
-        # TODO write invalid records to /uncrecoverable
-
-    print(f'loaded {len(records)} records from firehose')
-    
-    return records
