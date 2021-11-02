@@ -3,7 +3,7 @@ import sys
 import concurrent.futures
 import pandas as pd 
 
-from firehose import load_firehose_records
+import firehose
 from config import FIREHOSE_BUCKET, INCOMING_FIREHOSE_S3_KEY, TRAIN_BUCKET, THREAD_WORKER_COUNT, s3client
 
 SIGTERM = False
@@ -17,7 +17,7 @@ def worker():
     print(f'starting firehose ingest for s3://{FIREHOSE_BUCKET}/{INCOMING_FIREHOSE_S3_KEY}')
     
     # load the incoming tracked records from firehose
-    tracked_records = load_tracked_records(FIREHOSE_BUCKET, INCOMING_FIREHOSE_S3_KEY)
+    firehose_records = firehose.load_records(FIREHOSE_BUCKET, INCOMING_FIREHOSE_S3_KEY)
     
     # convert the tracked records to rewarded decision record dicts
     records = map(lambda x: x.to_rewarded_decision_dict(), tracked_records)
@@ -31,7 +31,7 @@ def worker():
     with concurrent.futures.ThreadPoolExecutor(max_workers=THREAD_WORKER_COUNT) as executor:
         list(executor.map(process_group, grouped_records, s3_keys))  # list() forces evaluation of generator
         
-    # TODO cleanup_inconsistent_keys(grouped_records)
+    # TODO repair_overlapping_keys(from:, to: )
 
     print(f'uploaded {config.stats.rewarded_decision_count} rewarded decision records to s3://{TRAIN_BUCKET}')
     print(config.stats)
@@ -51,7 +51,9 @@ def process_group(records: list, s3_key: str):
     if s3_key is not None:
         # load the existing parquet file
         s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}')
-        df = consolidate_dataframes(records_df, s3_df)
+        df = pd.concat([df, s3_df], ignore_index=True)
+        
+    df = merge_decisions(df)
 
     # write the conslidated parquet file to a unique key
     df.write_parquet(f's3://{TRAIN_BUCKET}/{s3_key_for_dataframe(df)}')

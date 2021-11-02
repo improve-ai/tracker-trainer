@@ -3,12 +3,9 @@ import orjson as json
 import re
 import dateutil
 import gzip
-import zlib
-import pathlib
-import sys
 
 # Local imports
-import config
+from config import s3client
 import utils
 import src.train.constants as tc
 
@@ -29,14 +26,13 @@ SAMPLE_KEY = 'sample'
 RUNNERS_UP_KEY = 'runners_up'
 
 
-class TrackedRecord:
+class FirehoseRecord:
     # slots are faster and use much less memory than dicts
     __slots__ = [MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY, MODEL_KEY, DECISION_ID_KEY, REWARD_KEY, VARIANT_KEY, GIVENS_KEY, COUNT_KEY, RUNNERS_UP_KEY, SAMPLE_KEY]
     
     def __init__(self, json_dict: dict):
         assert isinstance(json_dict, dict)
-        self.reward = 0.0
-        
+
         self.message_id = json_dict.get(MESSAGE_ID_KEY)
 
         try:
@@ -161,3 +157,41 @@ def _all_valid_records(records):
              
     """
     return len(records) == len(list(filter(lambda x: x.is_valid_record(), records)))
+    
+
+
+def load_records(s3_bucket: str, s3_key: str) -> list:
+    """
+    Load records from a gzipped jsonlines file
+    """
+    
+    records = []
+    invalid_records = []
+    
+    print(f'loading s3://{s3_bucket}/{s3_key}')
+
+    # download and parse the firehose file
+    s3obj = s3client.get_object(s3_bucket, s3_key)['Body']
+    with gzip.GzipFile(fileobj=s3obj) as gzf:
+        for line in gzf.readlines():
+
+            try:
+                records.append(FirehoseRecord(json.loads(line)))
+            except Exception as exc:
+                invalid_records.append(line)
+                continue
+
+    if len(invalid_records):
+        print(f'skipped {len(invalid_records)} invalid records')
+        # TODO write invalid records to /uncrecoverable
+
+    print(f'loaded {len(records)} records from firehose')
+    
+    return records
+    
+
+def rewarded_decisions_s3_key(model, hashed_history_id):
+    assert _is_valid_model_name(model)
+    assert is_valid_hashed_history_id(hashed_history_id)
+
+    return f'rewarded_decisions/{model}/parq/{hashed_history_id[0:2]}/{hashed_history_id[2:4]}/{hashed_history_id}.parq'
