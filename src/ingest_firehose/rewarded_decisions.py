@@ -67,12 +67,14 @@ class RewardedDecisionGroup:
         self._max_decision_id = self.df[DECISION_ID_KEY].max()
 
         self.sorted = True
+        
     
     @property    
     def min_decision_id(self):
         assert self.sorted
         # use instance variable because it will be accessed after dataframe cleanup
         return self._min_decision_id
+        
     
     @property
     def max_decision_id(self):
