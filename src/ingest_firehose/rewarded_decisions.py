@@ -96,7 +96,7 @@ class RewardedDecisionGroup:
     def groups_from_firehose_record_group(firehose_record_group):
         # TODO list against S3 to find existing s3_keys that need to be loaded.  Split the record
         # group into groupus by S3 key.
-        return []
+        return [firehose_record_group]
 
 
 def min_max_decision_ids(decision_groups):
