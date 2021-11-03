@@ -106,7 +106,7 @@ def min_max_decision_ids(decision_groups):
 
 def repair_overlapping_keys(model_name, decision_groups):
     for decision_group in decision_groups:
-        assert decision_groups.model_name == model_name
+        assert decision_group.model_name == model_name
         
     min_decision_id, max_decision_id = min_max_decision_ids(decision_groups)
     
