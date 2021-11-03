@@ -26,15 +26,3 @@ training:
   worker_instance_type: ml.m5.xlarge
   worker_count: 2
   max_runtime_in_seconds: 7200 # 2 hours
-
-reward_assignment:
-  schedule: rate(4 hours)
-  worker_count: 8
-  spot_bid_percentage: 100
-  reward_window_in_seconds: 172800 # 48 hours
-  default_event_value: 0.001 # the reward value for any event without a 'value' property
-
-model_deployment:
-  schedule: rate(5 minutes)
-  metadata:
-    Cache-Control: max-age=172800,s-maxage=900 # 48 hours for client caches, 15 minutes for CDNs

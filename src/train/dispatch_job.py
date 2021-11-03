@@ -53,7 +53,7 @@ def create_sagemaker_training_job(
         HyperParameters=hyperparameters,
         AlgorithmSpecification={
             'TrainingImage': image_uri,
-            'TrainingInputMode': 'Pipe'
+            'TrainingInputMode': 'FastFile'
         },
         RoleArn=role,
         InputDataConfig=[
@@ -62,13 +62,8 @@ def create_sagemaker_training_job(
                 'DataSource': {
                     'S3DataSource': {
                         'S3DataType': 'S3Prefix',
-                        'S3Uri': training_s3_uri,
-                        'S3DataDistributionType': 'ShardedByS3Key'
+                        'S3Uri': training_s3_uri
                     },
-                },
-                'CompressionType': 'Gzip',
-                'ShuffleConfig': {
-                    'Seed': random.randint(0, int(1e9))
                 }
             },
         ],

@@ -28,7 +28,7 @@ def get_training_s3_uri_for_model(model_name: str):
         
     train_bucket_name = os.environ[tc.TRAIN_BUCKET_ENVVAR]
 
-    return f's3://{train_bucket_name}/rewarded_decisions/{model_name}'
+    return f's3://{train_bucket_name}/rewarded_decisions/{model_name}/parquet'
 
 
 def get_s3_model_save_uri(model_name: str):
