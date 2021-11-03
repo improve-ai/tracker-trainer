@@ -1,6 +1,6 @@
 import pandas as pd
 from ksuid import Ksuid
-from uuid import uuidv4
+from uuid import uuid4
 
 from config import TRAIN_BUCKET, s3client
 from firehose_records import _is_valid_model_name
@@ -104,4 +104,4 @@ def s3_key_prefix(model_name, last_decision_id):
     
     
 def s3_key(model_name, first_decision_id, last_decision_id):
-    return f'{s3_key_prefix(model_name,last_decision_id)}-{first_decision_id[:9]}-{uuidv4()}.parq'
+    return f'{s3_key_prefix(model_name,last_decision_id)}-{first_decision_id[:9]}-{uuid4()}.parq'
