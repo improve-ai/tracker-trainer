@@ -4,7 +4,6 @@ import concurrent.futures
 import pandas as pd
 import itertools
 
-
 from firehose_record import FirehoseRecordGroup
 from rewarded_decisions import RewardedDecisionGroup, repair_overlapping_keys
 from config import INCOMING_FIREHOSE_S3_KEY, TRAIN_BUCKET, THREAD_WORKER_COUNT, s3client, stats

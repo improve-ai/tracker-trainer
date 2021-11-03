@@ -9,7 +9,9 @@ import datetime
 # Local imports
 import config
 
+
 ZERO = datetime.timedelta(0)
+
 
 class UTC(datetime.tzinfo):
     def utcoffset(self, dt):

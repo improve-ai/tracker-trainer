@@ -5,6 +5,7 @@ from uuid import uuid4
 from config import TRAIN_BUCKET, s3client
 from firehose_records import _is_valid_model_name
 
+
 class RewardedDecisionGroup:
 
 

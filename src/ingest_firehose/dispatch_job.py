@@ -1,7 +1,6 @@
 import json
 import os 
 
-
 import boto3
 
 
@@ -11,7 +10,6 @@ BUCKET_KEY = 'bucket'
 NAME_KEY = 'name'
 OBJECT_KEY = 'object'
 KEY_KEY = 'key'
-
 
 FIREHOSE_BUCKET = os.getenv('FIREHOSE_BUCKET')
 TRAIN_BUCKET = os.getenv('TRAIN_BUCKET')
