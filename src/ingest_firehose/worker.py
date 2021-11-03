@@ -30,7 +30,8 @@ def worker():
     print(f'uploaded {stats.rewarded_decision_count} rewarded decision records to s3://{TRAIN_BUCKET}')
 
     # if multiple ingests happen simultaneously it is possible for keys to overlap, which must be fixed
-    for model_name, model_decision_groups in itertools.groupby(sorted(decision_groups, key=lambda x: x.get_model_name()), lambda x: x.get_model_name()):
+    sort_key = lambda x: x.get_model_name()
+    for model_name, model_decision_groups in itertools.groupby(sorted(decision_groups, key=sort_key), sort_key):
         repair_overlapping_keys(model_name, model_decision_groups)
 
     print(stats)
