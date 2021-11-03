@@ -1,5 +1,5 @@
 import pandas as pd
-from ksuid import ksuid
+from ksuid import Ksuid
 from uuid import uuidv4
 
 from config import TRAIN_BUCKET, s3client
@@ -98,6 +98,8 @@ def decision_id_range_from_groups(groups):
 
 
 def s3_key_prefix(model_name, last_decision_id):
+    ksuid = Ksuid.from_base62(last_decision_id)
+    yyyy, mm, dd = ksuid.datetime.strftime("%Y-%m-%d").split('-')
     return f'/rewarded_decisions/{model_name}/parq/{yyyy}/{mm}/{dd}/{yyyy}{mm}{dd}-{last_decision_id[:9]}'
     
     
