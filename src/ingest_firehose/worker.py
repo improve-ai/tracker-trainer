@@ -24,12 +24,12 @@ def worker():
     
     # process each group. download the s3_key, consolidate records, upload rewarded decisions to s3, and delete old s3_key
     with concurrent.futures.ThreadPoolExecutor(max_workers=THREAD_WORKER_COUNT) as executor:
-        list(executor.map(process_decisions, decision_groups))  # list() forces evaluation of generator
-    
+        decision_ids = list(itertools.chain.from_iterable(executor.map(process_decisions, decision_groups)))  # list() forces evaluation of generator
+    # TODO decision_ids not going to work because it must be by model
     # if multiple ingests happen simultaneously it is possible for keys to overlap, which must be fixed
-    repair_overlapping_keys(decision_groups)
+    repair_overlapping_keys(min(decision_ids), max(decision_ids))
 
-    print(f'uploaded {stats.rewarded_decision_count} rewarded decision records to s3://{TRAIN_BUCKET}')
+    print(f'uploaded {len(decision_ids)} rewarded decision records to s3://{TRAIN_BUCKET}')
     print(stats)
     print(f'finished firehose ingest')
 
