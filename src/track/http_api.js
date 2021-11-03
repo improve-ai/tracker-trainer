@@ -16,12 +16,6 @@ module.exports.track = async function(event, context) {
 
   const record = JSON.parse(event.body)
 
-  const historyId = record.history_id
-  
-  if (!isValidId(historyId)) {
-    return errorResponse('history_id field is required')
-  }
-  
   const messageId = record.message_id
   
   if (!isValidId(messageId)) {
