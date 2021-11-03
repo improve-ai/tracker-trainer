@@ -38,6 +38,7 @@ class RewardedDecisionGroup:
 
     def load(self):
         if not self.s3_key:
+            # nothing to load, just use the incoming firehose records
             return
 
         # TODO split load into s3 request and parse.  If fail on s3 then throw exception
