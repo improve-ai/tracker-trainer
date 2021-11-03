@@ -21,15 +21,6 @@ class UTC(datetime.tzinfo):
 
 utc = UTC()
 
-def upload_gzipped_jsonlines(s3_bucket, s3_key, json_dicts):
-    gzipped = io.BytesIO()
-
-    save_gzipped_jsonlines(gzipped, json_dicts)
-
-    gzipped.seek(0)
-
-    config.s3client.put_object(Bucket=s3_bucket, Body=gzipped, Key=s3_key)
-
 
 def find_first_gte(x, l):
     """
@@ -168,11 +159,3 @@ def list_s3_keys_containing(bucket_name, start_key, end_key):
     return result
 
 
-    
-def repair_overlapping_keys(first_decision_id: str, last_decision_id: str):
-    # should only be called on the original incoming RewardedDecisions
-    # TODO, this method is low prioriry for initial release
-    
-    # if the first pass finds overlapping keys, keep repeating the proceedure until no more overlapping keys are found in that range.
-
-    pass

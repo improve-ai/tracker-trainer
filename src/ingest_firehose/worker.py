@@ -4,9 +4,11 @@ import concurrent.futures
 import pandas as pd
 import itertools
 
+
 from firehose_record import FirehoseRecordGroup
 from rewarded_decisions import RewardedDecisionGroup, repair_overlapping_keys
 from config import INCOMING_FIREHOSE_S3_KEY, TRAIN_BUCKET, THREAD_WORKER_COUNT, s3client, stats
+
 
 SIGTERM = False
 
@@ -24,12 +26,14 @@ def worker():
     
     # process each group. download the s3_key, consolidate records, upload rewarded decisions to s3, and delete old s3_key
     with concurrent.futures.ThreadPoolExecutor(max_workers=THREAD_WORKER_COUNT) as executor:
-        decision_ids = list(itertools.chain.from_iterable(executor.map(process_decisions, decision_groups)))  # list() forces evaluation of generator
-    # TODO decision_ids not going to work because it must be by model
-    # if multiple ingests happen simultaneously it is possible for keys to overlap, which must be fixed
-    repair_overlapping_keys(min(decision_ids), max(decision_ids))
+        list(executor.map(process_decisions, decision_groups))  # list() forces evaluation of generator
 
-    print(f'uploaded {len(decision_ids)} rewarded decision records to s3://{TRAIN_BUCKET}')
+    print(f'uploaded {stats.rewarded_decision_count} rewarded decision records to s3://{TRAIN_BUCKET}')
+
+    # if multiple ingests happen simultaneously it is possible for keys to overlap, which must be fixed
+    for model_name, model_decision_groups in itertools.groupby(sorted(decision_groups, key=lambda x: x.get_model_name()), lambda x: x.get_model_name()):
+        repair_overlapping_keys(model_name, model_decision_groups)
+
     print(stats)
     print(f'finished firehose ingest')
 
@@ -48,6 +52,7 @@ def signal_handler(signalNumber, frame):
     SIGTERM = True
     print(f'SIGTERM received')
     return
+
 
 if __name__ == '__main__':
     signal.signal(signal.SIGTERM, signal_handler)

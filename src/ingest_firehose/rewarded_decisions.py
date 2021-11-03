@@ -9,60 +9,66 @@ class RewardedDecisionGroup:
 
 
     def __init__(self, model_name, df, s3_key=None):
-        assert(_is_valid_model_name(model_name))
-        assert(df)
+        assert _is_valid_model_name(model_name)
+        assert df
 
         self.model_name = model_name
         self.df = df
         self.s3_key = s3_key
-        self.sort()
 
 
     def process(self):
 
-        if self.s3_key:
-            # load the existing .parq from s3
-            self.load()
+        # load the existing .parquet file (if any) from s3
+        self.load()
 
-        assert(self.sorted)
-    
+        # sort the combined dataframe and update min/max decision_ids
+        self.sort()
+
         # merge the rewarded decisions together to accumulate the rewards
         self.merge()
         
+        # save the consolidated .parquet file to s3
         self.save()
 
-        if self.s3_key:
-            # delete the previous .parq from s3
-            # do this last in case there is a problem during processing that needs to be retried
-            self.clean_up()
-
-        # RAM cleanup
-        self.clean_memory()
+        # delete the old .parquet file (if any) and clean up dataframe RAM
+        self.cleanup()
 
 
     def load(self):
+        if not self.s3_key:
+            return
+
         # TODO split load into s3 request and parse.  If fail on s3 then throw exception
         # and fail job.  If parse error, move bad records to /unrecoverable 
         s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{self.s3_key}')
         self.df = pd.concat([self.df, s3_df], ignore_index=True)
-        self.sorted = False
-        self.sort()
-        
+
 
     def save(self):
         # write the conslidated parquet file to a unique key
-        self.df.write_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, self.first_decision_id(), self.last_decision_id())}')
+        self.df.write_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, self.min_decision_id(), self.max_decision_id())}')
 
         
-    def clean_up(self):
-        # delete the old s3_key
-        s3client.delete_object(Bucket=TRAIN_BUCKET, Key=self.s3_key)
-        
-
     def sort(self):
-        # TODO sort by decision_id
+        # TODO sort by decision_id, set min and max decision id
+        
+        #self.min_decision_id =
+        #self.max_decision_id = 
 
         self.sorted = True
+    
+        
+    def min_decision_id(self):
+        assert self.sorted
+        # use instance variable because it will be accessed after dataframe cleanup
+        return self.min_decision_id
+    
+    
+    def max_decision_id(self):
+        assert self.sorted
+        # use instance variable because it will be accessed after dataframe cleanup
+        return self.max_decision_id
         
         
     def merge(self):
@@ -70,31 +76,43 @@ class RewardedDecisionGroup:
         
         # TODO merge rewarded decisions
 
-            
-    def clean_memory(self):
-        # cleanup
+
+    def cleanup(self):
+        if self.s3_key:
+            # delete the previous .parq from s3
+            # do this last in case there is a problem during processing that needs to be retried
+            s3client.delete_object(Bucket=TRAIN_BUCKET, Key=self.s3_key)
+
+        # reclaim the dataframe memory
+        # do not clean up min/max decision_ids since they will need to be used after processing
+        # for determining if any of the .parquet files have overlapping decision_ids
         self.df = None
         del self.df
         
-
-    def first_decision_id(self):
-        assert(self.sorted)
-        #TODO
-        pass
-    
-    
-    def last_decision_id(self):
-        assert(self.sorted)
-        #TODO
-        pass
     
     @staticmethod
     def groups_from_firehose_record_group(firehose_record_group):
-        pass
+        # TODO list against S3 to find existing s3_keys that need to be loaded.  Split the record
+        # group into groupus by S3 key.
+        return []
 
-def decision_id_range_from_groups(groups):
-    # return first, last
-    pass
+
+def min_max_decision_ids(decision_groups):
+    min_decision_id = min(map(lambda x: x.min_decision_id(), decision_groups))
+    max_decision_id = max(map(lambda x: x.max_decision_id(), decision_groups))
+    return min_decision_id, max_decision_id
+
+
+def repair_overlapping_keys(model_name, decision_groups):
+    for decision_group in decision_groups:
+        assert decision_groups.model_name == model_name
+        
+    min_decision_id, max_decision_id = min_max_decision_ids(decision_groups)
+    
+    # TODO keep iterating until all overlapping keys have been repaired.  It may take multiple passes
+    # TODO this is low priority for initial release since overlapping keys should be very rare
+    
+    return
 
 
 def s3_key_prefix(model_name, max_decision_id):
@@ -113,12 +131,11 @@ def s3_key_prefix(model_name, max_decision_id):
     
     
 def s3_key(model_name, min_decision_id, max_decision_id):
-    
     #
-    # The min decision_id is encoded into the file name so that a lexicographically ordered search
+    # The min decision_id is encoded into the file name so that a lexicographically ordered listing
     # can determine if two parquet files have overlapping decision_id ranges, which they should not.
     # If overlapping ranges are detected they should be repaired by loading the overlapping parquet
-    # files, consolidating them, and possibily re-splitting them.  This process should lead to
+    # files, consolidating them, optionally splitting, then saving.  This process should lead to
     # eventually consistency.
     #
     # The final KSUID is simply to give the file a random name.  We could have used UUIDv4 here
