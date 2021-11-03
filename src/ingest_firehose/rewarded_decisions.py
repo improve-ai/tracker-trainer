@@ -3,7 +3,7 @@ from ksuid import Ksuid
 from uuid import uuid4
 
 from config import TRAIN_BUCKET, s3client
-from firehose_records import _is_valid_model_name
+from firehose_records import _is_valid_model_name, DECISION_ID_KEY
 
 
 class RewardedDecisionGroup:
@@ -49,28 +49,28 @@ class RewardedDecisionGroup:
 
     def save(self):
         # write the conslidated parquet file to a unique key
-        self.df.write_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, self.min_decision_id(), self.max_decision_id())}')
+        self.df.write_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, self.min_decision_id, self.max_decision_id)}')
 
         
     def sort(self):
-        # TODO sort by decision_id, set min and max decision id
+        self.df.sort_values(DECISION_ID_KEY)
         
-        #self.min_decision_id =
-        #self.max_decision_id = 
+        self._min_decision_id = self.df[DECISION_ID_KEY].min()
+        self._max_decision_id = self.df[DECISION_ID_KEY].max()
 
         self.sorted = True
     
-        
+    @property    
     def min_decision_id(self):
         assert self.sorted
         # use instance variable because it will be accessed after dataframe cleanup
-        return self.min_decision_id
+        return self._min_decision_id
     
-    
+    @property
     def max_decision_id(self):
         assert self.sorted
         # use instance variable because it will be accessed after dataframe cleanup
-        return self.max_decision_id
+        return self._max_decision_id
         
         
     def merge(self):
@@ -100,8 +100,8 @@ class RewardedDecisionGroup:
 
 
 def min_max_decision_ids(decision_groups):
-    min_decision_id = min(map(lambda x: x.min_decision_id(), decision_groups))
-    max_decision_id = max(map(lambda x: x.max_decision_id(), decision_groups))
+    min_decision_id = min(map(lambda x: x.min_decision_id, decision_groups))
+    max_decision_id = max(map(lambda x: x.max_decision_id, decision_groups))
     return min_decision_id, max_decision_id
 
 
