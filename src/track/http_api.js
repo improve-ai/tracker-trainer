@@ -8,8 +8,6 @@ const MAX_ID_LENGTH = 256
 const DEBUG = process.env.DEBUG
 
 module.exports.track = async function(event, context) {
-  const receivedAt = new Date()
-  
   if (DEBUG) {
     console.log(JSON.stringify(event))
   }
@@ -27,8 +25,6 @@ module.exports.track = async function(event, context) {
   if (!isValidDate(timestamp)) {
     return errorResponse('timestamp field is required')
   }
-  
-  record['received_at'] = receivedAt.toISOString()
   
   const firehoseRecord = {
     DeliveryStreamName: process.env.FIREHOSE_DELIVERY_STREAM_NAME,
