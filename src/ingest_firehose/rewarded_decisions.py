@@ -22,6 +22,9 @@ class RewardedDecisionGroup:
 
         # load the existing .parquet file (if any) from s3
         self.load()
+        
+        # remove any invalid rows
+        self.filter_valid()
 
         # sort the combined dataframe and update min/max decision_ids
         self.sort()
@@ -51,7 +54,12 @@ class RewardedDecisionGroup:
         # write the conslidated parquet file to a unique key
         self.df.write_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, self.min_decision_id, self.max_decision_id)}')
 
-        
+    
+    def filter_valid(self):
+        # TODO remove any rows with invalid decision_ids, update stats, copy to /unrecoverable (lower priority)
+        pass
+    
+    
     def sort(self):
         self.df.sort_values(DECISION_ID_KEY)
         
