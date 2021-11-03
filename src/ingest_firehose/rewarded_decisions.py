@@ -97,11 +97,16 @@ def decision_id_range_from_groups(groups):
     pass
 
 
-def s3_key_prefix(model_name, last_decision_id):
-    ksuid = Ksuid.from_base62(last_decision_id)
+def s3_key_prefix(model_name, max_decision_id):
+    ksuid = Ksuid.from_base62(max_decision_id)
     yyyy, mm, dd = ksuid.datetime.strftime("%Y-%m-%d").split('-')
-    return f'/rewarded_decisions/{model_name}/parq/{yyyy}/{mm}/{dd}/{yyyy}{mm}{dd}-{last_decision_id[:9]}'
+    # Truncate the ksuid so that we're not exposing entire decision ids in the file names.
+    # While having entire ids in the file names is likey no risk, it is also unneccessary.
+    return f'/rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{max_decision_id[:9]}'
     
     
-def s3_key(model_name, first_decision_id, last_decision_id):
-    return f'{s3_key_prefix(model_name,last_decision_id)}-{first_decision_id[:9]}-{uuid4()}.parq'
+def s3_key(model_name, min_decision_id, max_decision_id):
+    # The final KSUID is simply to give the file a random name.  We could have used UUIDv4 here
+    # but we're already using KSUID, it's slightly shorter, and slightly easier to parse due
+    # to no dashes.  For now, the final KSUID should be considered an opaque string of random characters
+    return f'{s3_key_prefix(model_name, max_decision_id)}-{min_decision_id[:9]}-{Ksuid()}.parquet'

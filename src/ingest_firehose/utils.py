@@ -168,11 +168,6 @@ def list_s3_keys_containing(bucket_name, start_key, end_key):
     return result
 
 
-def s3_key_prefix(model, last_decision_id):
-    return f'/rewarded_decisions/{model}/parq/{yyyy}/{mm}/{dd}/{yyyy}{mm}{dd}-{last_decision_id[:9]}'
-    
-def s3_key(model, first_decision_id, last_decision_id):
-    return f'{s3_key_prefix(model,last_decision_id)}-{first_decision_id[:9]}.parq'
     
 def repair_overlapping_keys(first_decision_id: str, last_decision_id: str):
     # should only be called on the original incoming RewardedDecisions
