@@ -11,7 +11,7 @@ class RewardedDecisionGroup:
 
     def __init__(self, model_name, df, s3_key=None):
         assert _is_valid_model_name(model_name)
-        assert df
+        assert df and df.shape[0] > 0 # must have some rows
 
         self.model_name = model_name
         self.df = df
@@ -91,7 +91,7 @@ class RewardedDecisionGroup:
 
     def cleanup(self):
         if self.s3_key:
-            # delete the previous .parq from s3
+            # delete the previous .parqet from s3
             # do this last in case there is a problem during processing that needs to be retried
             s3client.delete_object(Bucket=TRAIN_BUCKET, Key=self.s3_key)
 
