@@ -7,8 +7,7 @@ from ksuid import ksuid
 
 # Local imports
 from config import s3client, FIREHOSE_BUCKET
-from utils import utc
-import src.train.constants as tc
+from utils import utc, is_valid_model_name
 
 
 MESSAGE_ID_KEY = 'message_id'
@@ -61,7 +60,7 @@ class FirehoseRecord:
         self.type = type_
              
         model = json_record[MODEL_KEY]
-        if not _is_valid_model_name(model):
+        if not is_valid_model_name(model):
             raise ValueError('invalid model')
             
         self.model = model
@@ -187,15 +186,6 @@ class FirehoseRecord:
         f'reward {self.reward} count {self.count} givens {self.givens} variant {self.variant}' \
         f' runners_up {self.runners_up} sample {self.sample} timestamp {self.timestamp}' 
 
-
-def _is_valid_model_name(model_name):   
-    if not isinstance(model_name, str) \
-            or len(model_name) == 0 \
-            or not re.match(tc.MODEL_NAME_REGEXP, model_name):
-        return False
-        
-    return True
-    
     
 def _is_valid_ksuid(id_):
     try:
@@ -216,7 +206,7 @@ def _get_sample_pool_size(count, runners_up):
 class FirehoseRecordGroup:
     
     def __init__(self, model_name, records):
-        assert(_is_valid_model_name(model_name))
+        assert(is_valid_model_name(model_name))
         self.model_name = model_name
         self.records = records
         

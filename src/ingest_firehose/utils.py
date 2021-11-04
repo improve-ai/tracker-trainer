@@ -161,3 +161,11 @@ def list_s3_keys_containing(bucket_name, start_key, end_key):
     return result
 
 
+def is_valid_model_name(model_name):   
+    if not isinstance(model_name, str) \
+            or len(model_name) == 0 \
+            or len(model_name) > 64 \
+            or not re.match('^[a-zA-Z0-9][\w-.]{0,63}$', model_name):
+        return False
+        
+    return True

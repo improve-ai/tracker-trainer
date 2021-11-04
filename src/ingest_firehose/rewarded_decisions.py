@@ -3,14 +3,15 @@ from ksuid import Ksuid
 from uuid import uuid4
 
 from config import TRAIN_BUCKET, s3client
-from firehose_records import _is_valid_model_name, DECISION_ID_KEY
+from firehose_record import DECISION_ID_KEY
+from utils import is_valid_model_name
 
 
 class RewardedDecisionGroup:
 
 
     def __init__(self, model_name, df, s3_key=None):
-        assert _is_valid_model_name(model_name)
+        assert is_valid_model_name(model_name)
         assert df and df.shape[0] > 0 # must have some rows
 
         self.model_name = model_name
