@@ -81,7 +81,7 @@ def get_expected_rewarded_record(base_record, type_base_record, decision_id, rew
     return r
     
 
-class CasesMergeOfTwoRewardedDecisions:
+class CasesMergeOfRewardedDecisions:
 
     def case_one_full_decision_one_partial(self, get_record):
         
@@ -203,7 +203,39 @@ class CasesMergeOfTwoRewardedDecisions:
         return dfs, expected_df
 
 
-@parametrize_with_cases("rewarded_records_df, expected_df", cases=CasesMergeOfTwoRewardedDecisions)
+    def case_duplicated_reward_records(self, get_record):
+
+        dup_records = []
+        for i in [3]*5:
+            
+            reward_rec = get_record(
+                type_val        = "reward",
+                msg_id_val      = f"{i}"*27,
+                decision_id_val = "000000000000000000000000000",
+                reward_val      = i
+            )
+
+            partial_rewarded_decision_rec = FirehoseRecord(reward_rec).to_rewarded_decision_dict()
+            fix_rewarded_decision_dict(partial_rewarded_decision_rec)
+            dup_records.append(pd.DataFrame(partial_rewarded_decision_rec))
+
+        expected_rewarded_record = get_expected_rewarded_record(
+            base_record      = reward_rec,
+            type_base_record = "reward",
+            decision_id      = "000000000000000000000000000",
+            reward           = 3,
+            rewards          = { 
+                "333333333333333333333333333" : 3,
+            }
+        )
+
+        dfs = pd.concat(dup_records, ignore_index=True)
+        expected_df = pd.DataFrame(expected_rewarded_record)
+        
+        return dfs, expected_df
+
+
+@parametrize_with_cases("rewarded_records_df, expected_df", cases=CasesMergeOfRewardedDecisions)
 def test_merge_two_rewarded_decisions_one_is_partial(rewarded_records_df, expected_df):
 
     rdg = RewardedDecisionGroup("model_name", rewarded_records_df)
@@ -214,8 +246,8 @@ def test_merge_two_rewarded_decisions_one_is_partial(rewarded_records_df, expect
     
 
 
-@parametrize_with_cases("rewarded_records_df, expected_df", cases=CasesMergeOfTwoRewardedDecisions)
-def test_idempotency(rewarded_records_df, expected_df):
+@parametrize_with_cases("rewarded_records_df, expected_df", cases=CasesMergeOfRewardedDecisions)
+def test_idempotency1(rewarded_records_df, expected_df):
     """
     Test idempotency by running the same process twice "in parallel", 
     merging the results and running it again.
@@ -236,5 +268,3 @@ def test_idempotency(rewarded_records_df, expected_df):
     rdg3.merge()
 
     assert_frame_equal(rdg3.df, expected_df)
-
-
