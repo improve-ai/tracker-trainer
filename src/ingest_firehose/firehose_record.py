@@ -6,7 +6,7 @@ import gzip
 from ksuid import Ksuid
 
 # Local imports
-from config import s3client, FIREHOSE_BUCKET
+from config import s3client, FIREHOSE_BUCKET, stats
 from utils import utc, is_valid_model_name, is_valid_ksuid
 
 
@@ -121,14 +121,14 @@ class FirehoseRecord:
             sample_pool_size = _get_sample_pool_size(count, runners_up)
     
             if sample_pool_size < 0:
-                raise ValueError('invalid record')
+                raise ValueError('invalid count or runners_up')
     
             if has_sample:
                 if sample_pool_size == 0:
-                    raise ValueError('invalid record')
+                    raise ValueError('invalid count or runners_up')
             else:
                 if sample_pool_size > 0:
-                    raise ValueError('invalid record')
+                    raise ValueError('missing sample')
 
 
     def has_sample(self):
@@ -202,7 +202,7 @@ class FirehoseRecordGroup:
         self.records = records
         
 
-    def _to_rewarded_decision_dicts(self):
+    def to_rewarded_decision_dicts(self):
         assert(self.records)
         return list(map(lambda x: x.to_rewarded_decision_dict(), self.records))
 
@@ -233,7 +233,8 @@ class FirehoseRecordGroup:
                     
                     records_by_model[model].append(record)
                     
-                except Exception as exc:
+                except Exception as e:
+                    stats.add_parse_exception(e)
                     invalid_records.append(line)
                     continue
     

@@ -12,7 +12,7 @@ class RewardedDecisionGroup:
 
     def __init__(self, model_name, df, s3_key=None):
         assert is_valid_model_name(model_name)
-        assert df and df.shape[0] > 0 # must have some rows
+        # TODO assert df and df.shape[0] > 0 # must have some rows
 
         self.model_name = model_name
         self.df = df
