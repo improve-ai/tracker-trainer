@@ -153,13 +153,16 @@ class FirehoseRecord:
         
         result = {}
         
+        # sorting the json keys may improve compression
+        dumps = lambda x: json.dumps(x, option=json.OPT_SORT_KEYS).decode("utf-8")
+        
         if self.is_decision_record():
             result[DECISION_ID_KEY] = self.message_id
             result[TIMESTAMP_KEY] = self.timestamp
-            result[VARIANT_KEY] = json.dumps(self.variant)
+            result[VARIANT_KEY] = dumps(self.variant)
             
             if self.givens is not None:
-                result[GIVENS_KEY] = json.dumps(self.givens)
+                result[GIVENS_KEY] = dumps(self.givens)
                 
             if self.count is not None:
                 result[COUNT_KEY] = self.count
@@ -167,11 +170,11 @@ class FirehoseRecord:
             if self.runners_up is not None:
                 result_runners_up = []
                 for runner_up in self.runners_up:
-                    result_runners_up.append(json.dumps(runner_up))
+                    result_runners_up.append(dumps(runner_up))
                 result[RUNNERS_UP_KEY] = result_runners_up
                 
             if self.sample is not None:
-                result[SAMPLE_KEY] = json.dumps(self.sample)
+                result[SAMPLE_KEY] = dumps(self.sample)
                 
         elif self.is_reward_record():
             # do NOT copy timestamp for reward record
