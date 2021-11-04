@@ -1,11 +1,15 @@
+# Built-in imports
+from collections import ChainMap
+
+# External imports
 import pandas as pd
 from ksuid import Ksuid
 from uuid import uuid4
 
+# Local imports
 from config import TRAIN_BUCKET, s3client
-from firehose_record import DECISION_ID_KEY
+from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY
 from utils import is_valid_model_name
-
 
 class RewardedDecisionGroup:
 
@@ -85,9 +89,44 @@ class RewardedDecisionGroup:
         
         
     def merge(self):
+        """
+
+        Merge decision records.
+
+        Merge full or partial "rewarded decision records".
+        
+        
+        Parameters
+        ----------
+        rewarded_decision_records : pandas.DataFrame
+
+        """
         assert self.sorted
         
-        # TODO merge rewarded decisions
+        def sum_rewards(series):
+            """ Sum all the merged rewards values """
+            merged_rewards = merge_rewards(series)
+            return sum(merged_rewards.values())
+
+
+        def merge_rewards(rewards_series):
+            """Shallow merge of a list of dicts"""
+            return dict(ChainMap(*rewards_series.dropna()))        
+
+
+        def get_first_cell(col_series):
+            """Return the first cell of a column"""
+            return col_series.dropna()[0]
+
+        non_reward_keys = [key for key in self.df.columns if key not in [REWARD_KEY, REWARDS_KEY]]
+
+        # Create dict of aggregations with cols in the same order as the expected result
+        aggregations = { key : pd.NamedAgg(column=key, aggfunc=get_first_cell) for key in non_reward_keys }
+        aggregations[REWARDS_KEY] = pd.NamedAgg(column="rewards", aggfunc=merge_rewards)
+        aggregations[REWARD_KEY]  = pd.NamedAgg(column="rewards", aggfunc=sum_rewards)
+        
+        # Perform the aggregations
+        self.df = self.df.groupby("decision_id").agg(**aggregations).reset_index(drop=True)
 
 
     def cleanup(self):

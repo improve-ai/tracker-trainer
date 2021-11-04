@@ -7,3 +7,8 @@ pytest-mock
 pytest-pythonpath
 rstr
 moto
+ksuid
+pandas
+orjson
+svix-ksuid
+fastparquet
