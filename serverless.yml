@@ -306,19 +306,6 @@ resources:
                 Action: sts:AssumeRole
           ManagedPolicyArns:
             - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
-      AmazonEC2SpotFleetRole:
-        Type: AWS::IAM::Role
-        Properties:
-          AssumeRolePolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Principal:
-                  Service: 
-                  - spotfleet.amazonaws.com
-                Action: sts:AssumeRole
-          ManagedPolicyArns:
-            - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
       ComputeEnvironment:
         Type: AWS::Batch::ComputeEnvironment
         Properties:
@@ -327,14 +314,11 @@ resources:
           ServiceRole: 
             Ref: BatchServiceRole
           ComputeResources:
-            Type: SPOT
-            AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
-            BidPercentage: ${self:custom.config.reward_assignment.spot_bid_percentage}
+            Type: EC2
             InstanceTypes:
               - optimal
             MinvCpus: 0
             MaxvCpus: 128
-            SpotIamFleetRole: !Ref AmazonEC2SpotFleetRole
             InstanceRole: !Ref BatchInstanceProfile
             SecurityGroupIds:
               - Ref: SecurityGroup
