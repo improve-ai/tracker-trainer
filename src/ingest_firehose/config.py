@@ -8,7 +8,7 @@ from stats import Stats
 
 stats = Stats()
 
-# The number of threads in this node's threadpool. Must have enough memory for each thread to load a full .parquet
+# The number of threads in this node's threadpool. Instance must have enough memory for each thread to load a full .parquet
 # plus the memory required to load the full firehose file.
 THREAD_WORKER_COUNT = 16
 
