@@ -67,7 +67,7 @@ function setTrainSchedulingEvents(scheduleEventPattern){
 }
 
 const orgAndProjNameRegex = '^[a-z0-9]+$'
-const modelNameRegex = /^[\w\-.]+$/i
+const modelNameRegex = /^[a-zA-Z0-9][\w\-.]{0,63}$/i
 const config_file = fs.readFileSync('./config/config.yml', 'utf8');
 // Apply defaults to this pattern
 const scheduleEventPattern = {
