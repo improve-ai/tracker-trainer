@@ -63,8 +63,8 @@ class RewardedDecisionGroup:
     def sort(self):
         self.df.sort_values(DECISION_ID_KEY)
         
-        self._min_decision_id = self.df[DECISION_ID_KEY].min()
-        self._max_decision_id = self.df[DECISION_ID_KEY].max()
+        self._min_decision_id = self.df[DECISION_ID_KEY].iat[0]
+        self._max_decision_id = self.df[DECISION_ID_KEY].iat[-1]
 
         self.sorted = True
         
