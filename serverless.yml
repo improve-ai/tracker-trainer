@@ -43,6 +43,7 @@ provider:
   environment:
     SERVICE: ${self:service}
     STAGE: ${opt:stage, self:provider.stage}
+    FIREHOSE_BUCKET: !Ref FirehoseS3Bucket
     TRAIN_BUCKET: !Ref TrainS3Bucket
     MODELS_BUCKET: !Ref ModelsS3Bucket
 
@@ -309,7 +310,7 @@ resources:
       ComputeEnvironment:
         Type: AWS::Batch::ComputeEnvironment
         Properties:
-          ComputeEnvironmentName: ${self:service}-${opt:stage, self:provider.stage}
+          ComputeEnvironmentName: ${self:service}-${opt:stage, self:provider.stage}-compute
           Type: MANAGED
           ServiceRole: 
             Ref: BatchServiceRole
