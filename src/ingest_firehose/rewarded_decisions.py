@@ -3,9 +3,9 @@ from ksuid import Ksuid
 from uuid import uuid4
 
 from config import TRAIN_BUCKET, s3client
-from firehose_record import DECISION_ID_KEY
+from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY
 from utils import is_valid_model_name
-
+from collections import ChainMap
 
 class RewardedDecisionGroup:
 
