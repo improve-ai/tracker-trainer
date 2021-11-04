@@ -53,7 +53,7 @@ class RewardedDecisionGroup:
 
     def save(self):
         # write the conslidated parquet file to a unique key
-        self.df.write_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, self.min_decision_id, self.max_decision_id)}')
+        self.df.to_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, self.min_decision_id, self.max_decision_id)}', compression='gzip')
 
     
     def filter_valid(self):
