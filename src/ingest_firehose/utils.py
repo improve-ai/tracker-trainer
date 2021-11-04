@@ -169,3 +169,12 @@ def is_valid_model_name(model_name):
         return False
         
     return True
+
+    
+def is_valid_ksuid(id_):
+    try:
+        Ksuid.from_base62(id_)
+    except:
+        return False
+        
+    return True

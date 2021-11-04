@@ -3,11 +3,11 @@ import orjson as json
 import re
 import dateutil
 import gzip
-from ksuid import ksuid
+from ksuid import Ksuid
 
 # Local imports
 from config import s3client, FIREHOSE_BUCKET
-from utils import utc, is_valid_model_name
+from utils import utc, is_valid_model_name, is_valid_ksuid
 
 
 MESSAGE_ID_KEY = 'message_id'
@@ -41,7 +41,7 @@ class FirehoseRecord:
         assert isinstance(json_record, dict)
         
         message_id = json_record[MESSAGE_ID_KEY]
-        if not _is_valid_ksuid(message_id):
+        if not is_valid_ksuid(message_id):
             raise ValueError('invalid message_id')
 
         self.message_id = message_id
@@ -67,7 +67,7 @@ class FirehoseRecord:
 
         if self.is_reward_record():
             decision_id = json_record[DECISION_ID_KEY]
-            if not _is_valid_ksuid(decision_id):
+            if not is_valid_ksuid(decision_id):
                 raise ValueError('invalid decision_id')
             self.decision_id = decision_id
 
@@ -185,25 +185,16 @@ class FirehoseRecord:
         return f'message_id {self.message_id} type {self.type} model {self.model} decision_id {self.decision_id}' \
         f'reward {self.reward} count {self.count} givens {self.givens} variant {self.variant}' \
         f' runners_up {self.runners_up} sample {self.sample} timestamp {self.timestamp}' 
-
-    
-def _is_valid_ksuid(id_):
-    try:
-        ksuid.fromBase62(id_)
-    except:
-        return False
-        
-    return True
     
 
 def _get_sample_pool_size(count, runners_up):
     sample_pool_size = count - 1 - (len(runners_up) if runners_up else 0)  # subtract chosen variant and runners up from count
     assert sample_pool_size >= 0
     return sample_pool_size
-    
 
 
 class FirehoseRecordGroup:
+    
     
     def __init__(self, model_name, records):
         assert(is_valid_model_name(model_name))
