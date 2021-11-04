@@ -6,6 +6,9 @@ import shutil
 import re
 import datetime
 
+# External imports
+from ksuid import Ksuid
+
 # Local imports
 import config
 
@@ -22,7 +25,7 @@ class UTC(datetime.tzinfo):
         return ZERO
 
 utc = UTC()
-
+ksuid = Ksuid()
 
 def find_first_gte(x, l):
     """
