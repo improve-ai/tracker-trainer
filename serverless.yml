@@ -342,7 +342,7 @@ resources:
           Type: Container
           JobDefinitionName: '${self:service}-${opt:stage, self:provider.stage}-IngestFirehose'
           ContainerProperties: 
-            Memory: 1024 # enough memory to hold a .parquet file for each thread plus an incoming firehose file
+            Memory: 2048 # enough memory to hold a .parquet file for each thread plus an incoming firehose file
             Vcpus: 1
             Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-${self:service}-${opt:stage, self:provider.stage}:ingest-firehose'
           RetryStrategy: 
