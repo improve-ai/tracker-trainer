@@ -187,7 +187,7 @@ resources:
                 - Ref: FirehoseS3Bucket
             BufferingHints:
               IntervalInSeconds: 900 # max value is 900
-              SizeInMBs: 128 # max value is 128
+              SizeInMBs: 32 # max value is 128. IngestFirehose instance must have enough memory for all threads
             CompressionFormat: "GZIP"
             RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
       TrainS3Bucket:
@@ -342,7 +342,7 @@ resources:
           Type: Container
           JobDefinitionName: '${self:service}-${opt:stage, self:provider.stage}-IngestFirehose'
           ContainerProperties: 
-            Memory: 1024 # enough memory to hold a max size (128MB) firehose file
+            Memory: 1024 # enough memory to hold a .parquet file for each thread plus an incoming firehose file
             Vcpus: 1
             Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-${self:service}-${opt:stage, self:provider.stage}:ingest-firehose'
           RetryStrategy: 
