@@ -90,32 +90,29 @@ class RewardedDecisionGroup:
         
     def merge(self):
         """
-
-        Merge decision records.
-
         Merge full or partial "rewarded decision records".
-        
+        This process is idempotent. It may be safely repeated on 
+        duplicate records and performed in any order.
+        If fields collide, one will win, but which one is unspecified.  
         
         Parameters
         ----------
         rewarded_decision_records : pandas.DataFrame
-
         """
-        assert self.sorted
         
+        assert self.sorted
+
         def sum_rewards(series):
             """ Sum all the merged rewards values """
             merged_rewards = merge_rewards(series)
             return sum(merged_rewards.values())
 
-
         def merge_rewards(rewards_series):
             """Shallow merge of a list of dicts"""
-            return dict(ChainMap(*rewards_series.dropna()))        
-
+            return dict(ChainMap(*rewards_series.dropna()))
 
         def get_first_cell(col_series):
-            """Return the first cell of a column"""
+            """Return the first cell of a column """
             return col_series.dropna()[0]
 
         non_reward_keys = [key for key in self.df.columns if key not in [REWARD_KEY, REWARDS_KEY]]
