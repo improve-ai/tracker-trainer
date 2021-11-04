@@ -211,4 +211,30 @@ def test_merge_two_rewarded_decisions_one_is_partial(rewarded_records_df, expect
     rdg.merge()
 
     assert_frame_equal(rdg.df, expected_df)
+    
+
+
+@parametrize_with_cases("rewarded_records_df, expected_df", cases=CasesMergeOfTwoRewardedDecisions)
+def test_idempotency(rewarded_records_df, expected_df):
+    """
+    Test idempotency by running the same process twice "in parallel", 
+    merging the results and running it again.
+    """
+
+    rdg1 = RewardedDecisionGroup("model_name", rewarded_records_df)
+    rdg1.sort()
+    rdg1.merge()
+
+    rdg2 = RewardedDecisionGroup("model_name", rewarded_records_df)
+    rdg2.sort()
+    rdg2.merge()
+
+    parallel_df = pd.concat([rdg1.df, rdg2.df], ignore_index=True)
+
+    rdg3 = RewardedDecisionGroup("model_name", parallel_df)
+    rdg3.sort()
+    rdg3.merge()
+
+    assert_frame_equal(rdg3.df, expected_df)
+
 

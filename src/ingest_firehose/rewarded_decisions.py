@@ -1,11 +1,15 @@
+# Built-in imports
+from collections import ChainMap
+
+# External imports
 import pandas as pd
 from ksuid import Ksuid
 from uuid import uuid4
 
+# Local imports
 from config import TRAIN_BUCKET, s3client
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY
 from utils import is_valid_model_name
-from collections import ChainMap
 
 class RewardedDecisionGroup:
 
@@ -89,7 +93,8 @@ class RewardedDecisionGroup:
 
         Merge decision records.
 
-        TODO: actually explain something.
+        Merge full or partial "rewarded decision records".
+        
         
         Parameters
         ----------
@@ -99,11 +104,9 @@ class RewardedDecisionGroup:
         assert self.sorted
         
         def sum_rewards(series):
-            """ Sum all the reward values from a list of dicts """         
-            total = 0
-            for d in series.dropna().values.tolist():
-                total += sum(d.values())
-            return total
+            """ Sum all the merged rewards values """
+            merged_rewards = merge_rewards(series)
+            return sum(merged_rewards.values())
 
 
         def merge_rewards(rewards_series):
