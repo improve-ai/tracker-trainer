@@ -224,4 +224,4 @@ def json_dumps_wrapping_primitive(val):
         val = { '$value': val }
     
     # sorting the json keys may improve compression
-    return orjson.dumps(val, option=json.OPT_SORT_KEYS).decode("utf-8")
+    return orjson.dumps(val, option=orjson.OPT_SORT_KEYS).decode("utf-8")
