@@ -122,7 +122,48 @@ class RewardedDecisionPartition:
         aggregations[REWARDS_KEY] = pd.NamedAgg(column="rewards", aggfunc=merge_rewards)
         aggregations[REWARD_KEY]  = pd.NamedAgg(column="rewards", aggfunc=sum_rewards)
         
-        # Perform the aggregations
+        """
+        Now perform the aggregations. This is how it works:
+        
+        1) "groupby" creates subsets of the original DF where each subset 
+        has rows with the same decision_id.
+        
+        2) "agg" uses the aggregations dict to create a new row for each 
+        subset. The columns will be new and named after each key in the 
+        aggregations dict. The cell values of each column will be based on 
+        the NamedAgg named tuple, specified in the aggregations dict.
+        
+        3) These NamedAgg named tuples specify which column of the subset 
+        will be passed to the specified aggregation functions.
+        
+        4) The aggregation functions process the values of the passed column 
+        and return a single value, which will be the contents of the cell 
+        in a new column for that subset.
+        
+        Example:
+        
+        >>> df = pd.DataFrame({
+        ...     "A": [1, 1, 2, 2],
+        ...     "B": [1, 2, 3, 4],
+        ...     "C": [0.362838, 0.227877, 1.267767, -0.562860],
+        ... })
+
+        >>> df
+           A  B         C
+        0  1  1  0.362838
+        1  1  2  0.227877
+        2  2  3  1.267767
+        3  2  4 -0.562860
+
+        >>> df.groupby("A").agg(
+        ...     b_min=pd.NamedAgg(column="B", aggfunc="min"),
+        ...     c_sum=pd.NamedAgg(column="C", aggfunc="sum")
+        ... )
+            b_min     c_sum
+        A
+        1      1  0.590715
+        2      3  0.704907
+        """
         self.df = self.df.groupby("decision_id").agg(**aggregations).reset_index(drop=True)
 
 
