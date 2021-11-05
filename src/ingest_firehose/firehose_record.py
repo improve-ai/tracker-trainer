@@ -159,7 +159,7 @@ class FirehoseRecord:
             # when converting from 'type' == 'decision' firehose records
             #
             # primitive values are wrapped to ensure that all encoded JSON strings are either
-            # dictionarys or lists
+            # a JSON encoded dictionary or a JSON encoded list
             result[DECISION_ID_KEY] = self.message_id
             result[TIMESTAMP_KEY] = self.timestamp
             result[VARIANT_KEY] = json_dumps_wrapping_primitive(self.variant)
