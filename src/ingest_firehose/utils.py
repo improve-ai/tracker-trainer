@@ -1,6 +1,6 @@
 # Built-in imports
 import io
-import orjson as json
+import orjson
 import gzip
 import shutil
 import re
@@ -224,4 +224,4 @@ def json_dumps_wrapping_primitive(val):
         val = { '$value': val }
     
     # sorting the json keys may improve compression
-    return json.dumps(val, option=json.OPT_SORT_KEYS).decode("utf-8")
+    return orjson.dumps(val, option=json.OPT_SORT_KEYS).decode("utf-8")
