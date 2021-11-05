@@ -40,8 +40,8 @@ class CasesMergeOfRewardedDecisions:
 
 
 
-@parametrize_with_cases("rewarded_records_df, expected_df", cases=CasesMergeOfRewardedDecisions)
-def test_parquet(rewarded_records_df, expected_df, tmp_path):
+@parametrize_with_cases("rewarded_records_df", cases=CasesMergeOfRewardedDecisions)
+def test_parquet(rewarded_records_df, tmp_path):
     """
     Test that a rewarded decision record saved to a Parquet file 
     and reading it back again produces the same rewarded decision 
