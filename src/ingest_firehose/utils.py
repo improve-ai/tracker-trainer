@@ -25,7 +25,7 @@ class UTC(datetime.tzinfo):
         return ZERO
 
 utc = UTC()
-ksuid = Ksuid()
+
 
 def find_first_gte(x, l):
     """
@@ -176,8 +176,14 @@ def is_valid_model_name(model_name):
     
 def is_valid_ksuid(id_):
     try:
-        Ksuid.from_base62(id_)
+        # Disallow KSUIDs from the future, otherwise it could severely hurt
+        # the performance of the partitions by creating a huge partition in the future
+        # that new records keep aggregating into. At some point that partition would
+        # no longer fit in RAM and processing could seize.
+        if Ksuid.from_base62(id_).datetime > datetime.datetime.now():
+            return False
     except:
+        # there was an exception parsing the KSUID, fail
         return False
         
     return True

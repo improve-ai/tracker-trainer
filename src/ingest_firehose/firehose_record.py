@@ -2,6 +2,7 @@
 import orjson as json
 import re
 import dateutil
+import datetime
 import gzip
 from ksuid import Ksuid
 
@@ -51,7 +52,7 @@ class FirehoseRecord:
         timestamp = get_valid_timestamp(json_record[TIMESTAMP_KEY])
         if timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=utc)
-            
+        
         self.timestamp = timestamp
         
         type_ = json_record[TYPE_KEY]
