@@ -182,6 +182,25 @@ class RewardedDecisionPartition:
     
     @staticmethod
     def partitions_from_firehose_record_group(firehose_record_group):
+        """
+        High Level Algorithm:
+        
+        1)  For each decision_id that is being ingested, we need to check if that decision_id is already covered by an existing partition
+        within S3.
+        
+        2)  Each partition file S3 key starts with a prefix of the max KSUID in that partition and contains more characters after that.
+        
+        3)  S3's list_objects_v2 request returns results in lexicographical order, using the StartAfter option using a prefix key generated
+            from the target decision_id, the first result will be the target partition.  If there are no results
+            then the max decision_id in all partitions is less than the current one, so there will be no existing partition returned
+            and a new partition file will be created.
+
+        4)  Sending a seperate list_objects_v2 request for each decision_id would be extremely slow and expensive.  Due to S3's lexicographically
+            sorted list_objects_v2 results, rather than send one list request per decision_id to S3, we just send a few list requests for 
+            the range of decision_id prefixes that we’re interested in.  We then use those listing results to partition the decisions by the 
+            s3_key that may contain the same decision_ids.
+        """
+        
         # TODO list against S3 to find existing s3_keys that need to be loaded.  Split the record
         # group into groupus by S3 key.
         return [RewardedDecisionPartition(firehose_record_group.model_name, pd.DataFrame(firehose_record_group.to_rewarded_decision_dicts()))]

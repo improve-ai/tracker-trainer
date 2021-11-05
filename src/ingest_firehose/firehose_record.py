@@ -150,7 +150,7 @@ class FirehoseRecord:
 
         
     def to_rewarded_decision_dict(self):
-        """ Return a dict representation of the rewarded decision record """
+        """ Convert the firehose record to a dict representation of the rewarded decision record """
         
         result = {}
         
@@ -158,8 +158,8 @@ class FirehoseRecord:
             # 'decision_id', 'timestamp', 'variant', 'givens', and 'count' must all be set
             # when converting from 'type' == 'decision' firehose records
             #
-            # primitive values are wrapped to ensure that all encoded JSON strings are either
-            # a JSON encoded dictionary or a JSON encoded list
+            # primitive values (including null values) are wrapped to ensure that all encoded JSON strings 
+            # are either a JSON encoded dictionary or a JSON encoded list
             result[DECISION_ID_KEY] = self.message_id
             result[TIMESTAMP_KEY] = self.timestamp
             result[VARIANT_KEY] = json_dumps_wrapping_primitive(self.variant)
