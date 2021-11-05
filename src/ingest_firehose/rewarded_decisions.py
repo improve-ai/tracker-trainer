@@ -11,7 +11,7 @@ from config import TRAIN_BUCKET, s3client
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY
 from utils import is_valid_model_name
 
-class RewardedDecisionGroup:
+class RewardedDecisionPartition:
 
 
     def __init__(self, model_name, df, s3_key=None):
@@ -140,23 +140,23 @@ class RewardedDecisionGroup:
         
     
     @staticmethod
-    def groups_from_firehose_record_group(firehose_record_group):
+    def partitions_from_firehose_record_group(firehose_record_group):
         # TODO list against S3 to find existing s3_keys that need to be loaded.  Split the record
         # group into groupus by S3 key.
-        return [RewardedDecisionGroup(firehose_record_group.model_name, pd.DataFrame(firehose_record_group.to_rewarded_decision_dicts()))]
+        return [RewardedDecisionPartition(firehose_record_group.model_name, pd.DataFrame(firehose_record_group.to_rewarded_decision_dicts()))]
 
 
-def min_max_decision_ids(decision_groups):
-    min_decision_id = min(map(lambda x: x.min_decision_id, decision_groups))
-    max_decision_id = max(map(lambda x: x.max_decision_id, decision_groups))
+def min_max_decision_ids(partitions):
+    min_decision_id = min(map(lambda x: x.min_decision_id, partitions))
+    max_decision_id = max(map(lambda x: x.max_decision_id, partitions))
     return min_decision_id, max_decision_id
 
 
-def repair_overlapping_keys(model_name, decision_groups):
-    for decision_group in decision_groups:
-        assert decision_group.model_name == model_name
+def repair_overlapping_keys(model_name, partitions):
+    for partition in partitions:
+        assert partition.model_name == model_name
         
-    min_decision_id, max_decision_id = min_max_decision_ids(decision_groups)
+    min_decision_id, max_decision_id = min_max_decision_ids(partitions)
     
     # TODO keep iterating until all overlapping keys have been repaired.  It may take multiple passes
     # TODO this is low priority for initial release since overlapping keys should be very rare
