@@ -8,8 +8,7 @@ from ksuid import Ksuid
 
 # Local imports
 from config import s3client, FIREHOSE_BUCKET, stats
-from utils import utc, is_valid_model_name, is_valid_ksuid
-from utils import get_valid_timestamp
+from utils import utc, is_valid_model_name, is_valid_ksuid, get_valid_timestamp, json_dumps_wrapping_primitive
 
 
 MESSAGE_ID_KEY = 'message_id'
@@ -155,31 +154,34 @@ class FirehoseRecord:
         
         result = {}
         
-        # sorting the json keys may improve compression
-        dumps = lambda x: json.dumps(x, option=json.OPT_SORT_KEYS).decode("utf-8")
-        
         if self.is_decision_record():
+            # 'decision_id', 'timestamp', 'variant', 'givens', and 'count' must all be set
+            # when converting from 'type' == 'decision' firehose records
+            #
+            # primitive values are wrapped to ensure that all encoded JSON strings are either
+            # dictionarys or lists
             result[DECISION_ID_KEY] = self.message_id
             result[TIMESTAMP_KEY] = self.timestamp
-            result[VARIANT_KEY] = dumps(self.variant)
+            result[VARIANT_KEY] = json_dumps_wrapping_primitive(self.variant)
+            result[GIVENS_KEY] = json_dumps_wrapping_primitive(self.givens)
+            result[COUNT_KEY] = self.count
             
-            if self.givens is not None:
-                result[GIVENS_KEY] = dumps(self.givens)
-                
-            if self.count is not None:
-                result[COUNT_KEY] = self.count
-                
+            # A not set runners_up must not be set in the result dictionary
             if self.runners_up is not None:
                 result_runners_up = []
                 for runner_up in self.runners_up:
-                    result_runners_up.append(dumps(runner_up))
+                    result_runners_up.append(json_dumps_wrapping_primitive(runner_up))
                 result[RUNNERS_UP_KEY] = result_runners_up
-                
-            if self.sample is not None:
-                result[SAMPLE_KEY] = dumps(self.sample)
+            
+            # A sample may either be not set or may have a null value (or non-null value).
+            # A set null sample must be wrapped and JSON encoded.
+            # A not set sample must not be set in the result dictionary
+            if self.has_sample():
+                result[SAMPLE_KEY] = json_dumps_wrapping_primitive(self.variant)
                 
         elif self.is_reward_record():
-            # do NOT copy timestamp for reward record
+            # only 'decision_id' and 'rewards' may be set when converting from 'type' == 'reward' firehose records
+            # do NOT copy the 'timestamp' field!
             result[DECISION_ID_KEY] = self.decision_id
             result[REWARDS_KEY] = { self.message_id: self.reward }
             

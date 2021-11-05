@@ -1,6 +1,6 @@
 # Built-in imports
 import io
-import json
+import orjson as json
 import gzip
 import shutil
 import re
@@ -206,3 +206,22 @@ def get_valid_timestamp(timestamp):
     assert parsed_timestamp is not None
 
     return parsed_timestamp
+    
+    
+def json_dumps_wrapping_primitive(val):
+    """
+    Wrapping ensures that even null JSON values are always persisted as a dictionary
+    """
+    if val is None:
+        # "wrap" null primitive values as an empty dictionary.  This is the only way that null givens should be encoded
+        # but it is also fine for null variants, samples, and runners_up items.
+        val = {}
+    elif not (isinstance(val, dict) or isinstance(val, list)):
+        # The Improve AI feature encoder treats the JSON '<primitive>'' and '{ "$value": <primitive> }' identically.
+        # Note that it would also be fine to wrap null/None values in this way, though it would not be technically
+        # correct for the givens as it does not accept primitive values and givens are encoded differently than
+        # variants.
+        val = { '$value': val }
+    
+    # sorting the json keys may improve compression
+    return json.dumps(val, option=json.OPT_SORT_KEYS).decode("utf-8")
