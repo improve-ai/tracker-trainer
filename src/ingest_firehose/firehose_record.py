@@ -8,6 +8,7 @@ from ksuid import Ksuid
 # Local imports
 from config import s3client, FIREHOSE_BUCKET, stats
 from utils import utc, is_valid_model_name, is_valid_ksuid
+from utils import get_valid_timestamp
 
 
 MESSAGE_ID_KEY = 'message_id'
@@ -47,7 +48,7 @@ class FirehoseRecord:
         self.message_id = message_id
         
         # parse and validate timestamp
-        timestamp = dateutil.parser.parse(json_record[TIMESTAMP_KEY])
+        timestamp = get_valid_timestamp(json_record[TIMESTAMP_KEY])
         if timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=utc)
             

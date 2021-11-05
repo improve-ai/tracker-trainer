@@ -181,3 +181,22 @@ def is_valid_ksuid(id_):
         return False
         
     return True
+
+def get_valid_timestamp(timestamp):
+    """ Return a parsed and validated timestamp"""
+    
+    # if missing / None raise
+    assert timestamp is not None
+    
+    # if not string raise
+    assert isinstance(timestamp, str)
+    
+    # check string format
+    try:
+        parsed_timestamp = datetime.datetime.fromisoformat(timestamp)
+    except ValueError:
+        parsed_timestamp = None
+    
+    assert parsed_timestamp is not None
+
+    return parsed_timestamp
