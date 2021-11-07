@@ -1,119 +1,52 @@
 # Built-in imports
-import orjson as json
+from copy import deepcopy
 
 # External imports
 from pytest_cases import parametrize_with_cases
 import pandas as pd
 from pandas._testing import assert_frame_equal
-import dateutil 
 
 # Local imports
-from firehose_record import TIMESTAMP_KEY
-from firehose_record import VARIANT_KEY
-from firehose_record import GIVENS_KEY
-from firehose_record import COUNT_KEY
-from firehose_record import RUNNERS_UP_KEY
-from firehose_record import SAMPLE_KEY
-from firehose_record import REWARD_KEY
+from rewarded_decisions import RewardedDecisionPartition
 from firehose_record import REWARDS_KEY
-from firehose_record import FirehoseRecord
-from rewarded_decisions import RewardedDecisionGroup
-from utils import utc
-
-# TODO: 
-# 1) Improve the get_record function to get fully compliant 
-#    "decision" and "reward" records
 
 
-def fix_rewarded_decision_dict(d):
-    """ To be able to pass a dict into a Pandas DataFrame """
-
-    if "rewards" in d and isinstance(d["rewards"], dict):
-        d["rewards"] = [d["rewards"]]
-
-
-def get_expected_rewarded_record(base_record, type_base_record, decision_id, rewards, reward):
-    """
-    Return a rewarded decision record based on the value of a decision 
-    record but with some key values manually specified.
-    """
-
-    # Just as it's done in .to_rewarded_decision_dict
-    # TODO: move that function to utils
-    dumps = lambda x: json.dumps(x, option=json.OPT_SORT_KEYS).decode("utf-8")
-
-    r = {
-        "decision_id"  : decision_id,
-    }
-
-    if type_base_record == "decision":
-    
-        if TIMESTAMP_KEY in base_record:
-            # parse and validate timestamp
-            timestamp = dateutil.parser.parse(base_record[TIMESTAMP_KEY])
-            if timestamp.tzinfo is None:
-                timestamp = timestamp.replace(tzinfo=utc)
-            
-            r[TIMESTAMP_KEY] = timestamp
-    
-    else:
-        # else: is a reward record and timesamp shouldn't be copied
-        pass 
-
-    if VARIANT_KEY in base_record:
-        r[VARIANT_KEY] = dumps(base_record[VARIANT_KEY])
-    
-    if GIVENS_KEY in base_record:
-        r[GIVENS_KEY] = dumps(base_record[GIVENS_KEY])
-
-    if COUNT_KEY in base_record:
-        r[COUNT_KEY] = float(base_record[COUNT_KEY])
-    
-    if RUNNERS_UP_KEY in base_record:
-        r[RUNNERS_UP_KEY] = [dumps(x) for x in base_record[RUNNERS_UP_KEY]]
-    
-    if SAMPLE_KEY in base_record:
-        r[SAMPLE_KEY] = dumps(base_record[SAMPLE_KEY])
-    
-    r[REWARDS_KEY] = [rewards] # List-wrapped for pandas only
-    r[REWARD_KEY] = reward
-
-    return r
-    
+# TODO: start at jsons and end up merging
 
 class CasesMergeOfRewardedDecisions:
+    """
 
-    def case_one_full_decision_one_partial(self, get_record):
-        
-        decision_rec = get_record(
-            type_val   = "decision",
-            msg_id_val = "000000000000000000000000000"
-        )
+    The possible fixtures that the cases can receive are the following:
 
-        rewarded_decision_rec = FirehoseRecord(decision_rec).to_rewarded_decision_dict()
-        fix_rewarded_decision_dict(rewarded_decision_rec)
+    dec_rec : dict
+        Instance of a "decision" record
+    
+    rewarded_dec_rec: dict
+        Instance of a "rewarded decision record" built from a 
+        single "decision" record
+    
+    partial_rewarded_dec_rec: function
+        To get a partial "rewarded decision record" built from a single 
+        "reward" record
+    
+    helpers: Helpers
+        Class of custom useful static methods
+    """
 
-        reward_rec = get_record(
-            type_val        = "reward",
-            msg_id_val      = "111111111111111111111111111",
-            decision_id_val = "000000000000000000000000000",
-            reward_val      = -10
-        )
+    def case_one_full_decision_one_partial(self, 
+        dec_rec, rewarded_dec_rec, get_partial_rewarded_dec_rec, helpers):
 
-        partial_rewarded_rec = FirehoseRecord(reward_rec).to_rewarded_decision_dict()
-        fix_rewarded_decision_dict(partial_rewarded_rec)
-
-        expected_rewarded_record = get_expected_rewarded_record(
-            base_record      = decision_rec,
+        expected_rewarded_record = helpers.get_expected_rewarded_record(
+            base_record      = dec_rec(),
             type_base_record = "decision",
             decision_id      = "000000000000000000000000000",
             reward           = -10,
-            rewards          = { "111111111111111111111111111" : -10 }
+            rewards          = { "000000000000000000000000001" : -10 }
         )
 
         rewarded_records_df = pd.concat([
-            pd.DataFrame(rewarded_decision_rec),
-            pd.DataFrame(partial_rewarded_rec)
+            pd.DataFrame(rewarded_dec_rec),
+            pd.DataFrame(get_partial_rewarded_dec_rec())
         ], ignore_index=True)
 
         expected_df = pd.DataFrame(expected_rewarded_record)
@@ -121,43 +54,30 @@ class CasesMergeOfRewardedDecisions:
         return rewarded_records_df, expected_df
 
 
-    def case_one_processed_full_decision_and_one_partial(self, get_record):
-
-        decision_rec = get_record(
-            type_val   = "decision",
-            msg_id_val = "000000000000000000000000000"
-        )
-        
-        rewarded_decision_rec = FirehoseRecord(decision_rec).to_rewarded_decision_dict()
+    def case_one_processed_full_rewarded_dec_rec_and_one_partial_rewarded_dec_rec(self, 
+        dec_rec, rewarded_dec_rec, get_partial_rewarded_dec_rec, helpers):
 
         # Simulate that this record has already been merged with some rewards
         # The list wrapping the dict is needed for Pandas to receive a column
-        rewarded_decision_rec["rewards"] = [{ "111111111111111111111111111" : -10 }]
+        rewarded_dec_rec["rewards"] = [{ "000000000000000000000000001" : -10 }]
 
-        reward_rec = get_record(
-            type_val        = "reward",
-            msg_id_val      = "222222222222222222222222222",
-            decision_id_val = "000000000000000000000000000",
-            reward_val      = -10
-        )
+        # A partial rewarded decicion record with a different message_id value
+        partial_rewarded_dec_rec = get_partial_rewarded_dec_rec(msg_id_val="000000000000000000000000002")
 
-        partial_rewarded_decision_rec = FirehoseRecord(reward_rec).to_rewarded_decision_dict()
-        fix_rewarded_decision_dict(partial_rewarded_decision_rec)
-
-        expected_rewarded_record = get_expected_rewarded_record(
-            base_record      = decision_rec,
+        expected_rewarded_record = helpers.get_expected_rewarded_record(
+            base_record      = dec_rec(),
             type_base_record = "decision",
             decision_id      = "000000000000000000000000000",
             reward           = -20,
             rewards          = {
-                "111111111111111111111111111" : -10,
-                "222222222222222222222222222" : -10
+                "000000000000000000000000001" : -10,
+                "000000000000000000000000002" : -10
             }
         )
-
+        
         dfs = pd.concat([
-            pd.DataFrame(rewarded_decision_rec),
-            pd.DataFrame(partial_rewarded_decision_rec)
+            pd.DataFrame(rewarded_dec_rec),
+            pd.DataFrame(partial_rewarded_dec_rec)
         ], ignore_index=True)
 
         expected_df = pd.DataFrame(expected_rewarded_record)
@@ -165,34 +85,33 @@ class CasesMergeOfRewardedDecisions:
         return dfs, expected_df
 
 
-    def case_many_partial_rewarded_records(self, get_record):
+    def case_many_partial_rewarded_records(self, get_record, helpers):
 
         records = []
         for i in range(1, 6):
             
             reward_rec = get_record(
                 type_val        = "reward",
-                msg_id_val      = f"{i}"*27,
+                msg_id_val      = f"00000000000000000000000000{i}",
                 decision_id_val = "000000000000000000000000000",
                 reward_val      = i
             )
 
-            partial_rewarded_decision_rec = FirehoseRecord(reward_rec).to_rewarded_decision_dict()
-            fix_rewarded_decision_dict(partial_rewarded_decision_rec)
-            
+            partial_rewarded_decision_rec = helpers.to_rewarded_decision_record(reward_rec)
+
             records.append(pd.DataFrame(partial_rewarded_decision_rec))
         
-        expected_rewarded_record = get_expected_rewarded_record(
+        expected_rewarded_record = helpers.get_expected_rewarded_record(
             base_record      = reward_rec,
             type_base_record = "reward",
             decision_id      = "000000000000000000000000000",
             reward           = 15,
             rewards          = { 
-                "111111111111111111111111111" : 1,
-                "222222222222222222222222222" : 2,
-                "333333333333333333333333333" : 3,
-                "444444444444444444444444444" : 4,
-                "555555555555555555555555555" : 5
+                "000000000000000000000000001" : 1,
+                "000000000000000000000000002" : 2,
+                "000000000000000000000000003" : 3,
+                "000000000000000000000000004" : 4,
+                "000000000000000000000000005" : 5
             }
         )
 
@@ -203,29 +122,28 @@ class CasesMergeOfRewardedDecisions:
         return dfs, expected_df
 
 
-    def case_duplicated_reward_records(self, get_record):
+    def case_duplicated_reward_records(self, get_record, helpers):
 
         dup_records = []
-        for i in [3]*5:
+        for i in [3, 3, 3, 3, 3]:
             
             reward_rec = get_record(
                 type_val        = "reward",
-                msg_id_val      = f"{i}"*27,
+                msg_id_val      = f"00000000000000000000000000{i}",
                 decision_id_val = "000000000000000000000000000",
                 reward_val      = i
             )
 
-            partial_rewarded_decision_rec = FirehoseRecord(reward_rec).to_rewarded_decision_dict()
-            fix_rewarded_decision_dict(partial_rewarded_decision_rec)
+            partial_rewarded_decision_rec = helpers.to_rewarded_decision_record(reward_rec)
             dup_records.append(pd.DataFrame(partial_rewarded_decision_rec))
 
-        expected_rewarded_record = get_expected_rewarded_record(
+        expected_rewarded_record = helpers.get_expected_rewarded_record(
             base_record      = reward_rec,
             type_base_record = "reward",
             decision_id      = "000000000000000000000000000",
             reward           = 3,
             rewards          = { 
-                "333333333333333333333333333" : 3,
+                "000000000000000000000000003" : 3,
             }
         )
 
@@ -235,10 +153,41 @@ class CasesMergeOfRewardedDecisions:
         return dfs, expected_df
 
 
-@parametrize_with_cases("rewarded_records_df, expected_df", cases=CasesMergeOfRewardedDecisions)
-def test_merge_two_rewarded_decisions_one_is_partial(rewarded_records_df, expected_df):
+    def case_same_rewarded_decision_records_with_no_reward(self, dec_rec, helpers):
+        """
 
-    rdg = RewardedDecisionGroup("model_name", rewarded_records_df)
+        """
+
+        decision_record = dec_rec()
+
+        # Even though the name says "rewarded", has no rewards in it
+        rewarded_decision_record1 = helpers.to_rewarded_decision_record(decision_record)
+        rewarded_decision_record2 = helpers.to_rewarded_decision_record(decision_record)
+        
+        assert rewarded_decision_record1.get(REWARDS_KEY) is None
+
+        expected_rewarded_record = helpers.get_expected_rewarded_record(
+            base_record      = decision_record,
+            type_base_record = "decision",
+            decision_id      = "000000000000000000000000000"
+        )
+
+        dfs = pd.concat([
+            pd.DataFrame(rewarded_decision_record1),
+            pd.DataFrame(rewarded_decision_record2)
+        ], ignore_index=True)
+        expected_df = pd.DataFrame(expected_rewarded_record)
+        
+        return dfs, expected_df
+
+    # def case_distinct_rewarded_decision_records_with_no_reward(self, dec_rec, helpers): 
+    #     pass
+
+
+@parametrize_with_cases("rewarded_records_df, expected_df", cases=CasesMergeOfRewardedDecisions)
+def test_merge_of_rewarded_decision_records(rewarded_records_df, expected_df):
+
+    rdg = RewardedDecisionPartition("some_model_name", rewarded_records_df)
     rdg.sort()
     rdg.merge()
 
@@ -253,17 +202,17 @@ def test_idempotency1(rewarded_records_df, expected_df):
     merging the results and running it again.
     """
 
-    rdg1 = RewardedDecisionGroup("model_name", rewarded_records_df)
+    rdg1 = RewardedDecisionPartition("model_name", rewarded_records_df)
     rdg1.sort()
     rdg1.merge()
 
-    rdg2 = RewardedDecisionGroup("model_name", rewarded_records_df)
+    rdg2 = RewardedDecisionPartition("model_name", rewarded_records_df)
     rdg2.sort()
     rdg2.merge()
 
     parallel_df = pd.concat([rdg1.df, rdg2.df], ignore_index=True)
 
-    rdg3 = RewardedDecisionGroup("model_name", parallel_df)
+    rdg3 = RewardedDecisionPartition("model_name", parallel_df)
     rdg3.sort()
     rdg3.merge()
 
