@@ -177,7 +177,7 @@ class FirehoseRecord:
             # A set null sample must be wrapped and JSON encoded.
             # A not set sample must not be set in the result dictionary
             if self.has_sample():
-                result[SAMPLE_KEY] = json_dumps_wrapping_primitive(self.variant)
+                result[SAMPLE_KEY] = json_dumps_wrapping_primitive(self.sample)
                 
         elif self.is_reward_record():
             # only 'decision_id' and 'rewards' may be set when converting from 'type' == 'reward' firehose records
