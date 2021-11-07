@@ -102,9 +102,9 @@ class RewardedDecisionPartition:
         
         assert self.sorted
 
-        def sum_rewards(series):
+        def sum_rewards(rewards_series):
             """ Sum all the merged rewards values """
-            merged_rewards = merge_rewards(series)
+            merged_rewards = merge_rewards(rewards_series)
             return sum(merged_rewards.values())
 
         def merge_rewards(rewards_series):
@@ -113,12 +113,16 @@ class RewardedDecisionPartition:
 
         def get_first_cell(col_series):
             """Return the first cell of a column """
+            if col_series.name == "count":
+                return col_series.dropna()[0].astype("int64")
             return col_series.dropna()[0]
 
         non_reward_keys = [key for key in self.df.columns if key not in [REWARD_KEY, REWARDS_KEY]]
 
         # Create dict of aggregations with cols in the same order as the expected result
         aggregations = { key : pd.NamedAgg(column=key, aggfunc=get_first_cell) for key in non_reward_keys }
+
+        if REWARDS_KEY in self.df.columns:
         aggregations[REWARDS_KEY] = pd.NamedAgg(column="rewards", aggfunc=merge_rewards)
         aggregations[REWARD_KEY]  = pd.NamedAgg(column="rewards", aggfunc=sum_rewards)
         
