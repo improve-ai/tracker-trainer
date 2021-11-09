@@ -78,13 +78,13 @@ class Helpers:
                     timestamp = timestamp.replace(tzinfo=utc)
                 
                 r[TIMESTAMP_KEY] = timestamp
-        else:
-            # else: is a reward record and timesamp shouldn't be copied
-            pass 
 
-        if type_base_record == "decision":
             r[VARIANT_KEY] = json_dumps_wrapping_primitive(base_record.get(VARIANT_KEY))
             r[GIVENS_KEY] = json_dumps_wrapping_primitive(base_record.get(GIVENS_KEY))
+        
+        else:
+            # in a reward record and timesamp shouldn't be copied
+            r[VARIANT_KEY] = "null"
 
 
         if COUNT_KEY in base_record:

@@ -185,6 +185,7 @@ class FirehoseRecord:
             # do NOT copy the 'timestamp' field!
             result[DECISION_ID_KEY] = self.decision_id
             result[REWARDS_KEY] = { self.message_id: self.reward }
+            result[VARIANT_KEY] = "null" # json str
             
         return result
 
@@ -405,17 +406,19 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
         # assert get_valid_timestamp(record_dict[TIMESTAMP_KEY]), "invalid timestamp"
         assert isinstance(record_dict[TIMESTAMP_KEY], datetime.datetime)
 
+
         ######################################################################
-        # TODO: variant validation: variant MUST be there?
+        # variant validation
         ######################################################################
-        # assert isinstance(record_dict[VARIANT_KEY], dict) and \
-        #     len(record_dict[VARIANT_KEY].keys()) > 0, \
-        #         "variant must not be missing"
         variant = record_dict[VARIANT_KEY]
+        
         assert isinstance(variant, str), \
-            "in a rewarded decision record, variant must be a json string"
-        assert isinstance(json.loads(variant), dict), \
-            "variant must be a dict when json-loaded"
+            (f"in a rewarded decision record, "
+            "variant must be a json string: {variant}")
+        
+        assert json.loads(variant) is not None, \
+            (f"in a rewarded decision record, "
+            "variant must be non-null: {variant}")
 
 
         ######################################################################
@@ -468,11 +471,11 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
         assert record_dict.get(TIMESTAMP_KEY) is None, \
             "a partial rewarded decision record shouldn't have a timestamp"
         
+
         ######################################################################
-        # sample validation: Variant MUST NOT be there
-        # TODO: there is a question for Justin
+        # variant validation
         ######################################################################
         variant = record_dict.get(VARIANT_KEY)
-        assert isinstance(variant, dict) and \
-            len(record_dict[VARIANT_KEY].keys()) == 0, \
-                "variant must be missing"
+        assert variant == "null" , \
+            (f"in a partial rewarded decision record, "
+             f"variant must be the json str 'null': {variant}")
