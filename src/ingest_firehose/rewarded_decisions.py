@@ -67,7 +67,7 @@ class RewardedDecisionPartition:
     
     
     def sort(self):
-        self.df.sort_values(DECISION_ID_KEY)
+        self.df.sort_values(DECISION_ID_KEY, inplace=True)
         
         self._min_decision_id = self.df[DECISION_ID_KEY].iat[0]
         self._max_decision_id = self.df[DECISION_ID_KEY].iat[-1]
