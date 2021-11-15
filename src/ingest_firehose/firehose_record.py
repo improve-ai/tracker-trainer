@@ -9,7 +9,7 @@ import math
 
 # Local imports
 from config import s3client, FIREHOSE_BUCKET, stats
-from utils import utc, is_valid_model_name, is_valid_ksuid, get_valid_timestamp, json_dumps_wrapping_primitive
+from utils import utc, is_valid_model_name, is_valid_ksuid, get_valid_timestamp, json_dumps_wrapping_primitive, json_dumps
 
 
 MESSAGE_ID_KEY = 'message_id'
@@ -169,10 +169,8 @@ class FirehoseRecord:
             
             # A not set runners_up must not be set in the result dictionary
             if self.runners_up is not None:
-                result_runners_up = []
-                for runner_up in self.runners_up:
-                    result_runners_up.append(json_dumps_wrapping_primitive(runner_up))
-                result[RUNNERS_UP_KEY] = result_runners_up
+                # runners_up is always an array so don't wrap it
+                result[RUNNERS_UP_KEY] = json_dumps(self.runners_up)
             
             # A sample may either be not set or may have a null value (or non-null value).
             # A set null sample must be wrapped and JSON encoded.
@@ -184,7 +182,7 @@ class FirehoseRecord:
             # only 'decision_id' and 'rewards' may be set when converting from 'type' == 'reward' firehose records
             # do NOT copy the 'timestamp' field!
             result[DECISION_ID_KEY] = self.decision_id
-            result[REWARDS_KEY] = { self.message_id: self.reward }
+            result[REWARDS_KEY] = json_dumps({ self.message_id: self.reward })
             result[VARIANT_KEY] = None
             
         return result

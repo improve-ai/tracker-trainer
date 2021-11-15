@@ -207,7 +207,12 @@ def get_valid_timestamp(timestamp):
 
     return parsed_timestamp
     
+
+def json_dumps(val):
+    # sorting the json keys may improve compression
+    return orjson.dumps(val, option=orjson.OPT_SORT_KEYS).decode("utf-8")
     
+
 def json_dumps_wrapping_primitive(val):
     """
     Wrapping ensures that even null JSON values are always persisted as a dictionary
@@ -223,5 +228,4 @@ def json_dumps_wrapping_primitive(val):
         # variants.
         val = { '$value': val }
     
-    # sorting the json keys may improve compression
-    return orjson.dumps(val, option=orjson.OPT_SORT_KEYS).decode("utf-8")
+    return json_dumps(val)
