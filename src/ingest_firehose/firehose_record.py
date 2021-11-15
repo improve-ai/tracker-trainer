@@ -179,8 +179,8 @@ class FirehoseRecord:
                 result[SAMPLE_KEY] = json_dumps_wrapping_primitive(self.sample)
                 
         elif self.is_reward_record():
-            # only 'decision_id' and 'rewards' may be set when converting from 'type' == 'reward' firehose records
-            # do NOT copy the 'timestamp' field!
+            # Only 'decision_id' and 'rewards' may be set when converting from 'type' == 'reward' firehose records
+            # Do NOT copy the 'timestamp' field!
             result[DECISION_ID_KEY] = self.decision_id
             result[REWARDS_KEY] = json_dumps({ self.message_id: self.reward })
 
