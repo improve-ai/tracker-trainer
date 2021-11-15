@@ -5,6 +5,7 @@ from collections import ChainMap
 import pandas as pd
 from ksuid import Ksuid
 from uuid import uuid4
+import orjson
 
 # Local imports
 from config import TRAIN_BUCKET, s3client
@@ -102,14 +103,15 @@ class RewardedDecisionPartition:
         
         assert self.sorted
 
+        def merge_rewards(rewards_series):
+            """Shallow merge of a list of dicts"""
+            rewards_dicts = rewards_series.dropna().apply(lambda x: orjson.loads(x))
+            return dict(ChainMap(*rewards_dicts))
+
         def sum_rewards(rewards_series):
             """ Sum all the merged rewards values """
             merged_rewards = merge_rewards(rewards_series)
             return sum(merged_rewards.values())
-
-        def merge_rewards(rewards_series):
-            """Shallow merge of a list of dicts"""
-            return dict(ChainMap(*rewards_series.dropna()))
 
         def get_first_cell(col_series):
             """Return the first cell of a column """

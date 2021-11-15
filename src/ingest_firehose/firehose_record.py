@@ -171,8 +171,8 @@ class FirehoseRecord:
             if self.runners_up is not None:
                 result_runners_up = []
                 for runner_up in self.runners_up:
-                    result_runners_up.append(json_dumps_wrapping_primitive(runner_up))
-                result[RUNNERS_UP_KEY] = result_runners_up
+                    result_runners_up.append(runner_up)
+                result[RUNNERS_UP_KEY] = json_dumps_wrapping_primitive(result_runners_up)
             
             # A sample may either be not set or may have a null value (or non-null value).
             # A set null sample must be wrapped and JSON encoded.
@@ -184,8 +184,7 @@ class FirehoseRecord:
             # only 'decision_id' and 'rewards' may be set when converting from 'type' == 'reward' firehose records
             # do NOT copy the 'timestamp' field!
             result[DECISION_ID_KEY] = self.decision_id
-            result[REWARDS_KEY] = { self.message_id: self.reward }
-            result[VARIANT_KEY] = None
+            result[REWARDS_KEY] = json_dumps_wrapping_primitive({ self.message_id: self.reward })
             
         return result
 
