@@ -183,8 +183,7 @@ class FirehoseRecord:
             # do NOT copy the 'timestamp' field!
             result[DECISION_ID_KEY] = self.decision_id
             result[REWARDS_KEY] = json_dumps({ self.message_id: self.reward })
-            result[VARIANT_KEY] = None
-            
+
         return result
 
 
