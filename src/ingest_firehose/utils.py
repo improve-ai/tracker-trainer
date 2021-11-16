@@ -175,6 +175,13 @@ def is_valid_model_name(model_name):
 
     
 def is_valid_ksuid(id_):
+    
+    if not isinstance(id_, str):
+        return False
+    
+    if len(id_) != 27:
+        return False
+    
     try:
         # Disallow KSUIDs from the future, otherwise it could severely hurt
         # the performance of the partitions by creating a huge partition in the future
