@@ -324,21 +324,21 @@ def assert_valid_record(json_dict):
     ##########################################################################
     if json_dict[TYPE_KEY] == "decision":
 
-        assert is_valid_givens(json_dict[GIVENS_KEY]), "invalid givens"
+        assert is_valid_givens(json_dict[GIVENS_KEY]), "invalid 'givens'"
         
         runners_up = json_dict.get(RUNNERS_UP_KEY, None)
-        assert naive_is_valid_runners_up(runners_up), "invalid runners up"
+        assert naive_is_valid_runners_up(runners_up), "invalid' runners up'"
 
         count = json_dict[COUNT_KEY]
-        assert is_valid_count(count), f"invalid count: {count}"
+        assert is_valid_count(count), f"invalid 'count': {count}"
 
         has_sample = SAMPLE_KEY in json_dict
         sample_pool_size = _get_sample_pool_size(count, runners_up)
 
-        assert sample_pool_size >= 0, "invalid count or runners_up"
+        assert sample_pool_size >= 0, "invalid 'count' or 'runners up'"
 
         if has_sample:
-            assert sample_pool_size > 0, "invalid count or runners_up"
+            assert sample_pool_size > 0, "invalid 'count' or 'runners up'"
         else:
             assert sample_pool_size == 0, "missing sample"
     
@@ -348,20 +348,21 @@ def assert_valid_record(json_dict):
     ##########################################################################
     elif json_dict[TYPE_KEY] == "reward":
 
-        assert is_valid_decision_id(json_dict[DECISION_ID_KEY]), "invalid decision_id"
+        assert is_valid_decision_id(json_dict[DECISION_ID_KEY]), \
+            "invalid 'decision id'"
 
-        assert is_valid_reward(json_dict[REWARD_KEY]), "invalid reward"
+        assert is_valid_reward(json_dict[REWARD_KEY]), "invalid 'reward'"
 
 
 def assert_valid_rewarded_decision_record(record_dict, record_type):
     """
-    The fields' validations here are slightly different than the ones for the normal records
     """
 
     ##########################################################################
     # decision_id validation
     ##########################################################################
-    assert is_valid_decision_id(record_dict[DECISION_ID_KEY]), "invalid decision_id"
+    assert is_valid_decision_id(record_dict[DECISION_ID_KEY]), \
+        f"invalid decision_id: {record_dict[DECISION_ID_KEY]}"
 
 
     ##########################################################################
@@ -370,27 +371,45 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
     rewards = record_dict.get(REWARDS_KEY)
     
     if rewards is not None:
-        
-        # The actual "rewards" is wrapped in a list so that Pandas can ingest it 
-        rewards = rewards[0]
 
-        assert isinstance(rewards, dict),  "rewards must be a dict or missing/null"
+        assert isinstance(rewards, str),  \
+            f"{REWARDS_KEY} must be a json str, got {type(rewards)}"
+
+        rewards_dict = json.loads(rewards)
+        assert isinstance(rewards_dict, dict), \
+            f"the json str 'rewards' must contain a dict, got {type(rewards_dict)}"
         
-        for i in rewards.values():
-            assert is_valid_reward(i), "invalid 'reward' inside 'rewards'"
+        for key,val in rewards_dict.items():
+
+            assert is_valid_ksuid(key), \
+                f"invalid message_id of one reward in 'rewards': {key}"
+
+            assert is_valid_reward(val), \
+                f"invalid reward in 'rewards'"
     
-        for key in rewards.keys():
-            assert is_valid_ksuid(key), "invalid message_id of one 'reward' inside 'rewards'"
-
 
     ##########################################################################
     # reward validation
     ##########################################################################
     reward = record_dict.get(REWARD_KEY)
     if reward is not None:
-        assert is_valid_reward(reward), "invalid reward"
-        if rewards is not None:
-            assert reward == sum(rewards.values()), "reward != sum(rewards)"
+        assert is_valid_reward(reward), f"invalid {REWARD_KEY}"
+        
+        assert REWARDS_KEY in record_dict, \
+            f"{REWARD_KEY} present but {REWARDS_KEY} is missing"
+        
+        assert isinstance(rewards, str),  \
+            f"{REWARDS_KEY} must be a json str, got {type(rewards)}"
+        
+        rewards_dict = json.loads(rewards)
+        assert isinstance(rewards_dict, dict), \
+            f"the json str 'rewards' must contain a dict, got {type(rewards_dict)}"
+        
+        for key in rewards_dict.keys():
+            assert is_valid_decision_id(key), "invalid 'decision id' in 'rewards'"
+
+        assert reward == sum(rewards_dict.values()), \
+            f"{REWARD_KEY} != sum({REWARDS_KEY})"
 
 
     if record_type == "decision":
@@ -410,12 +429,10 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
         variant = record_dict[VARIANT_KEY]
         
         assert isinstance(variant, str), \
-            (f"in a rewarded decision record, "
-            "variant must be a json string: {variant}")
+            f"'variant' must be a json string, got {type(variant)}"
         
         assert json.loads(variant) is not None, \
-            (f"in a rewarded decision record, "
-            "variant must be non-null: {variant}")
+            "'variant' must be non-null: {variant}"
 
 
         ######################################################################
@@ -423,29 +440,37 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
         ######################################################################
         givens = record_dict[GIVENS_KEY]
         assert isinstance(givens, str), \
-            "in a rewarded decision record, givens must be a json string"
-        assert isinstance(json.loads(givens), dict), "givens must be a dict"
+            f"'givens' must be a json str, got {type(givens)}"
+        assert isinstance(json.loads(givens), dict), \
+            f"the json str 'givens' must be a dict, got {type(json.loads(givens))}"
 
 
         ######################################################################
         # count validation
         ######################################################################
         count = record_dict[COUNT_KEY]
-        assert is_valid_count(count), f"invalid count: {count}"
+        assert is_valid_count(count), f"invalid 'count': {count}"
 
 
         ######################################################################
         # runners_up validation
         ######################################################################
         runners_up = record_dict.get(RUNNERS_UP_KEY)
+        
         if runners_up is not None:
-            assert isinstance(runners_up, list)
-            for i in runners_up:
-                assert isinstance(i, str)
-                assert json.loads(i)
+            
+            assert isinstance(runners_up, str), "'runners_up' should be a str" 
+
+            runners_up_list = json.loads(runners_up)
+            assert isinstance(runners_up_list, list), \
+                "'runners_up' must be a list"
+
+            assert len(runners_up_list) > 0, "len(runners_up) must be > 0"
+    
         # runners up must not be set if missing
         elif runners_up is None:
-            assert RUNNERS_UP_KEY not in record_dict
+            assert RUNNERS_UP_KEY not in record_dict, \
+                f"{RUNNERS_UP_KEY} must not be set if missing"
 
 
         ######################################################################
@@ -454,10 +479,13 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
         # sample must not be set if missing
         sample = record_dict.get(SAMPLE_KEY)
         if sample is None:
-            assert SAMPLE_KEY not in record_dict
+            assert SAMPLE_KEY not in record_dict, \
+                f"{SAMPLE_KEY} must not be set if missing"
+        
         else:
-            assert isinstance(sample, str)
-            assert is_valid_sample(json.loads(sample))
+            assert isinstance(sample, str), f"'sample' must be a str: {sample}"
+            assert is_valid_sample(json.loads(sample)), \
+                f"invalid 'sample': {sample}"
 
 
     elif record_type == "reward":
@@ -473,6 +501,7 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
         # variant validation
         ######################################################################
         variant = record_dict.get(VARIANT_KEY)
-        assert variant == "null" , \
+        assert variant is None , \
             (f"in a partial rewarded decision record, "
-             f"variant must be the json str 'null': {variant}")
+             f"'variant' must be None: {variant}")
+
