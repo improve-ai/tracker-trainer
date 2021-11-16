@@ -1,6 +1,3 @@
-# Built-in imports
-from copy import deepcopy
-
 # External imports
 from pytest_cases import parametrize_with_cases
 import pandas as pd
@@ -9,6 +6,7 @@ from pandas._testing import assert_frame_equal
 # Local imports
 from rewarded_decisions import RewardedDecisionPartition
 from firehose_record import REWARDS_KEY
+from firehose_record import to_pandas_df
 
 
 # TODO: start at jsons and end up merging
@@ -18,10 +16,10 @@ class CasesMergeOfRewardedDecisions:
 
     The possible fixtures that the cases can receive are the following:
 
-    dec_rec : dict
+    get_decision_rec : dict
         Instance of a "decision" record
     
-    rewarded_dec_rec: dict
+    rewarded_decision_rec: dict
         Instance of a "rewarded decision record" built from a 
         single "decision" record
     
@@ -34,10 +32,10 @@ class CasesMergeOfRewardedDecisions:
     """
 
     def case_one_full_decision_one_partial(self, 
-        dec_rec, rewarded_dec_rec, get_partial_rewarded_dec_rec, helpers):
+        get_decision_rec, rewarded_decision_rec, get_partial_rewarded_dec_rec, helpers):
 
         expected_rewarded_record = helpers.get_expected_rewarded_record(
-            base_record      = dec_rec(),
+            base_record      = get_decision_rec(),
             type_base_record = "decision",
             decision_id      = "000000000000000000000000000",
             reward           = -10,
@@ -45,27 +43,28 @@ class CasesMergeOfRewardedDecisions:
         )
 
         rewarded_records_df = pd.concat([
-            pd.DataFrame(rewarded_dec_rec),
-            pd.DataFrame(get_partial_rewarded_dec_rec())
+            to_pandas_df(rewarded_decision_rec),
+            to_pandas_df(get_partial_rewarded_dec_rec())
         ], ignore_index=True)
 
-        expected_df = pd.DataFrame(expected_rewarded_record)
+        expected_df = to_pandas_df(expected_rewarded_record)
 
         return rewarded_records_df, expected_df
 
 
     def case_one_processed_full_rewarded_dec_rec_and_one_partial_rewarded_dec_rec(self, 
-        dec_rec, rewarded_dec_rec, get_partial_rewarded_dec_rec, helpers):
+        get_decision_rec, rewarded_decision_rec, get_partial_rewarded_dec_rec, helpers):
 
         # Simulate that this record has already been merged with some rewards
         # The list wrapping the dict is needed for Pandas to receive a column
-        rewarded_dec_rec["rewards"] = [{ "000000000000000000000000001" : -10 }]
+        rewarded_decision_rec["rewards"] = '{ "000000000000000000000000001" : -10 }'
 
         # A partial rewarded decicion record with a different message_id value
         partial_rewarded_dec_rec = get_partial_rewarded_dec_rec(msg_id_val="000000000000000000000000002")
 
+        # The expected
         expected_rewarded_record = helpers.get_expected_rewarded_record(
-            base_record      = dec_rec(),
+            base_record      = get_decision_rec(),
             type_base_record = "decision",
             decision_id      = "000000000000000000000000000",
             reward           = -20,
@@ -76,11 +75,11 @@ class CasesMergeOfRewardedDecisions:
         )
         
         dfs = pd.concat([
-            pd.DataFrame(rewarded_dec_rec),
-            pd.DataFrame(partial_rewarded_dec_rec)
+            to_pandas_df(rewarded_decision_rec),
+            to_pandas_df(partial_rewarded_dec_rec)
         ], ignore_index=True)
 
-        expected_df = pd.DataFrame(expected_rewarded_record)
+        expected_df = to_pandas_df(expected_rewarded_record)
 
         return dfs, expected_df
 
@@ -99,7 +98,7 @@ class CasesMergeOfRewardedDecisions:
 
             partial_rewarded_decision_rec = helpers.to_rewarded_decision_record(reward_rec)
 
-            records.append(pd.DataFrame(partial_rewarded_decision_rec))
+            records.append(to_pandas_df(partial_rewarded_decision_rec))
         
         expected_rewarded_record = helpers.get_expected_rewarded_record(
             base_record      = reward_rec,
@@ -117,7 +116,7 @@ class CasesMergeOfRewardedDecisions:
 
         dfs = pd.concat(records, ignore_index=True)
 
-        expected_df = pd.DataFrame(expected_rewarded_record)
+        expected_df = to_pandas_df(expected_rewarded_record)
         
         return dfs, expected_df
 
@@ -135,52 +134,52 @@ class CasesMergeOfRewardedDecisions:
             )
 
             partial_rewarded_decision_rec = helpers.to_rewarded_decision_record(reward_rec)
-            dup_records.append(pd.DataFrame(partial_rewarded_decision_rec))
+            dup_records.append(to_pandas_df(partial_rewarded_decision_rec))
 
         expected_rewarded_record = helpers.get_expected_rewarded_record(
             base_record      = reward_rec,
             type_base_record = "reward",
             decision_id      = "000000000000000000000000000",
             reward           = 3,
-            rewards          = { 
-                "000000000000000000000000003" : 3,
-            }
+            rewards          = { "000000000000000000000000003" : 3 }
         )
 
         dfs = pd.concat(dup_records, ignore_index=True)
-        expected_df = pd.DataFrame(expected_rewarded_record)
+        expected_df = to_pandas_df(expected_rewarded_record)
         
         return dfs, expected_df
 
 
-    def case_same_rewarded_decision_records_with_no_reward(self, dec_rec, helpers):
+    def case_same_rewarded_decision_records_with_no_reward(self, get_decision_rec, helpers):
         """
 
         """
 
-        decision_record = dec_rec()
+        decision_record = get_decision_rec()
 
         # Even though the name says "rewarded", has no rewards in it
         rewarded_decision_record1 = helpers.to_rewarded_decision_record(decision_record)
-        rewarded_decision_record2 = helpers.to_rewarded_decision_record(decision_record)
+        rewarded_decision_record2 = helpers.to_rewarded_decision_record(decision_record)       
         
         assert rewarded_decision_record1.get(REWARDS_KEY) is None
 
         expected_rewarded_record = helpers.get_expected_rewarded_record(
             base_record      = decision_record,
             type_base_record = "decision",
-            decision_id      = "000000000000000000000000000"
+            decision_id      = "000000000000000000000000000",
+            rewards          = {},
+            reward           = 0
         )
 
         dfs = pd.concat([
-            pd.DataFrame(rewarded_decision_record1),
-            pd.DataFrame(rewarded_decision_record2)
+            to_pandas_df(rewarded_decision_record1),
+            to_pandas_df(rewarded_decision_record2)
         ], ignore_index=True)
-        expected_df = pd.DataFrame(expected_rewarded_record)
+        expected_df = to_pandas_df(expected_rewarded_record)
         
         return dfs, expected_df
 
-    # def case_distinct_rewarded_decision_records_with_no_reward(self, dec_rec, helpers): 
+    # def case_distinct_rewarded_decision_records_with_no_reward(self, get_decision_rec, helpers): 
     #     pass
 
 

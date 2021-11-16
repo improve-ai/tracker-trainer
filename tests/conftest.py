@@ -25,7 +25,7 @@ from firehose_record import assert_valid_rewarded_decision_record
 from firehose_record import DECISION_ID_KEY
 from utils import utc
 from utils import get_valid_timestamp
-from utils import json_dumps_wrapping_primitive
+from utils import json_dumps_wrapping_primitive, json_dumps
 
 
 @pytest.fixture(scope='function')
@@ -47,14 +47,6 @@ class Helpers:
     """
     A collection of helper functions used when generating test data.
     """
-    
-    @staticmethod
-    def fix_rewarded_decision_dict(d):
-        """ To be able to pass a dict into a Pandas DataFrame """
-
-        if "rewards" in d and isinstance(d["rewards"], dict):
-            d["rewards"] = [d["rewards"]]
-
 
     @staticmethod
     def get_expected_rewarded_record(
@@ -84,21 +76,22 @@ class Helpers:
         
         else:
             # in a reward record and timesamp shouldn't be copied
-            r[VARIANT_KEY] = "null"
+            pass
 
 
         if COUNT_KEY in base_record:
             r[COUNT_KEY] = base_record[COUNT_KEY]
         
         if RUNNERS_UP_KEY in base_record:
-            r[RUNNERS_UP_KEY] = [json_dumps_wrapping_primitive(x) for x in base_record[RUNNERS_UP_KEY]]
+            r[RUNNERS_UP_KEY] = json_dumps([x for x in base_record[RUNNERS_UP_KEY]])
         
         if SAMPLE_KEY in base_record:
             r[SAMPLE_KEY] = json_dumps_wrapping_primitive(base_record[SAMPLE_KEY])
         
         if rewards is not None:
-            r[REWARDS_KEY] = [rewards] # List-wrapped for pandas only
+            r[REWARDS_KEY] = json_dumps(rewards)
         
+        # null or missing is allowed
         if reward is not None:
             r[REWARD_KEY] = reward
 
@@ -109,9 +102,8 @@ class Helpers:
 
     @staticmethod
     def to_rewarded_decision_record(x):
-        rewarded_decision_rec = FirehoseRecord(x).to_rewarded_decision_dict()
-        Helpers.fix_rewarded_decision_dict(rewarded_decision_rec)
-        return rewarded_decision_rec
+        """ Transform a record into a rewarded decision record ready to be used in tests """
+        return FirehoseRecord(x).to_rewarded_decision_dict()
 
 
 @fixture
@@ -170,12 +162,11 @@ def get_record():
 
         return record
     
-
     return __get_record
 
 
 @fixture
-def dec_rec(get_record):
+def get_decision_rec(get_record):
     """ An fabric of decision records with some known values """
     
     def __dec_rec(msg_id_val="000000000000000000000000000"):
@@ -187,12 +178,15 @@ def dec_rec(get_record):
 
 
 @fixture
-def rewarded_dec_rec(dec_rec, helpers):
-    return helpers.to_rewarded_decision_record(dec_rec())
+def rewarded_decision_rec(get_decision_rec, helpers):
+    decision_record = get_decision_rec()
+    rdr = helpers.to_rewarded_decision_record(decision_record)
+    assert_valid_rewarded_decision_record(rdr, record_type="decision")
+    return rdr
 
 
 @fixture
-def get_rew_rec(get_record):
+def get_reward_rec(get_record):
     """ An instance of a reward record with some known values """
     
     def __rew_rec(msg_id_val="000000000000000000000000001"):
@@ -208,11 +202,12 @@ def get_rew_rec(get_record):
 
 
 @fixture
-def get_partial_rewarded_dec_rec(get_rew_rec, helpers):
+def get_partial_rewarded_dec_rec(get_reward_rec, helpers):
 
     def __partial_rewarded_dec_rec(msg_id_val="000000000000000000000000001"):
-        reward_record = get_rew_rec(msg_id_val=msg_id_val)
-        partial_rewarded_dec_rec = helpers.to_rewarded_decision_record(reward_record)
-        return partial_rewarded_dec_rec
+        reward_record = get_reward_rec(msg_id_val=msg_id_val)
+        prdr = helpers.to_rewarded_decision_record(reward_record)
+        assert_valid_rewarded_decision_record(prdr, record_type="reward")
+        return prdr
         
     return __partial_rewarded_dec_rec
