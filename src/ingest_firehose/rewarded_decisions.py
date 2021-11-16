@@ -9,8 +9,9 @@ import orjson
 
 # Local imports
 from config import TRAIN_BUCKET, s3client
-from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY
-from utils import is_valid_model_name
+from firehose_record import to_pandas_df
+from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA
+from utils import is_valid_model_name, json_dumps
 
 class RewardedDecisionPartition:
 
@@ -106,18 +107,26 @@ class RewardedDecisionPartition:
         def merge_rewards(rewards_series):
             """Shallow merge of a list of dicts"""
             rewards_dicts = rewards_series.dropna().apply(lambda x: orjson.loads(x))
-            return dict(ChainMap(*rewards_dicts))
+            return json_dumps(dict(ChainMap(*rewards_dicts)))
 
         def sum_rewards(rewards_series):
             """ Sum all the merged rewards values """
-            merged_rewards = merge_rewards(rewards_series)
-            return sum(merged_rewards.values())
+            merged_rewards = orjson.loads(merge_rewards(rewards_series))
+            return float(sum(merged_rewards.values()))
 
         def get_first_cell(col_series):
             """Return the first cell of a column """
-            if col_series.name == "count":
-                return col_series.dropna()[0].astype("int64")
-            return col_series.dropna()[0]
+            
+            if col_series.isnull().all():
+                first_element = col_series[0]
+            else:
+                first_element = col_series.dropna()[0]
+
+                if col_series.name == "count":
+                    return first_element.astype("int64")
+            
+            return first_element
+
 
         non_reward_keys = [key for key in self.df.columns if key not in [REWARD_KEY, REWARDS_KEY]]
 
@@ -170,7 +179,8 @@ class RewardedDecisionPartition:
         1      1  0.590715
         2      3  0.704907
         """
-        self.df = self.df.groupby("decision_id").agg(**aggregations).reset_index(drop=True)
+
+        self.df = self.df.groupby("decision_id").agg(**aggregations).reset_index(drop=True).astype(DF_SCHEMA)
 
 
     def cleanup(self):
@@ -209,7 +219,7 @@ class RewardedDecisionPartition:
         
         # TODO list against S3 to find existing s3_keys that need to be loaded.  Split the record
         # group into groupus by S3 key.
-        return [RewardedDecisionPartition(firehose_record_group.model_name, pd.DataFrame(firehose_record_group.to_rewarded_decision_dicts()))]
+        return [RewardedDecisionPartition(firehose_record_group.model_name, to_pandas_df(firehose_record_group.to_rewarded_decision_dicts()))]
 
 
 def min_max_decision_ids(partitions):

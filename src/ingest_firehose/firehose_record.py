@@ -1,11 +1,9 @@
 # Built-in imports
 import orjson as json
-import re
-import dateutil
 import datetime
 import gzip
-from ksuid import Ksuid
 import math
+import pandas as pd
 
 # Local imports
 from config import s3client, FIREHOSE_BUCKET, stats
@@ -27,6 +25,17 @@ COUNT_KEY = 'count'
 SAMPLE_KEY = 'sample'
 RUNNERS_UP_KEY = 'runners_up'
 
+DF_SCHEMA = {
+    DECISION_ID_KEY : 'object',
+    TIMESTAMP_KEY   : 'datetime64[ns]',
+    VARIANT_KEY     : 'object',
+    GIVENS_KEY      : 'object',
+    COUNT_KEY       : 'Int64',
+    RUNNERS_UP_KEY  : 'object',
+    SAMPLE_KEY      : 'object',
+    REWARDS_KEY     : 'object',
+    REWARD_KEY      : 'float64',
+}
 
 class FirehoseRecord:
     # slots are faster and use much less memory than dicts
@@ -505,3 +514,10 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
             (f"in a partial rewarded decision record, "
              f"'variant' must be None: {variant}")
 
+
+def to_pandas_df(rewarded_decision_record):
+
+    if isinstance(rewarded_decision_record, dict):
+        rewarded_decision_record = [rewarded_decision_record]
+  
+    return pd.DataFrame(rewarded_decision_record, columns=DF_SCHEMA.keys()).astype(DF_SCHEMA)
