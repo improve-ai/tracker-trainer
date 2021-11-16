@@ -4,7 +4,6 @@ from collections import ChainMap
 # External imports
 import pandas as pd
 from ksuid import Ksuid
-from uuid import uuid4
 import orjson
 
 # Local imports

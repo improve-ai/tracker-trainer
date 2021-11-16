@@ -1,8 +1,5 @@
 # Built-in imports
-import io
 import orjson
-import gzip
-import shutil
 import re
 import datetime
 
@@ -11,7 +8,6 @@ from ksuid import Ksuid
 
 # Local imports
 import config
-
 
 ZERO = datetime.timedelta(0)
 
