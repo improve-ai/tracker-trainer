@@ -3,3 +3,4 @@ orjson
 pandas
 svix-ksuid
 fastparquet
+zstandard

@@ -58,7 +58,7 @@ class RewardedDecisionPartition:
 
     def save(self):
         # write the conslidated parquet file to a unique key
-        self.df.to_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, self.min_decision_id, self.max_decision_id)}', compression='gzip')
+        self.df.to_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, self.min_decision_id, self.max_decision_id)}', compression='ZSTD')
 
     
     def filter_valid(self):
