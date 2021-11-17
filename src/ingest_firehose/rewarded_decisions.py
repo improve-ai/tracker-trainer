@@ -274,6 +274,7 @@ def s3_key(model_name, min_decision_id, max_decision_id):
     #
     # The final KSUID is simply to give the file a random name.  We could have used UUIDv4 here
     # but we're already using KSUID, it's slightly shorter, and slightly easier to parse due
-    # to no dashes.  For now, the final KSUID should be considered an opaque string of random characters
+    # to no dashes.  For now, the characters following the last dash should be considered an opaque 
+    # string of random characters
     #
     return f'{s3_key_prefix(model_name, max_decision_id)}-{min_timestamp}-{min_decision_id[:9]}-{Ksuid()}.parquet'
