@@ -246,9 +246,9 @@ def repair_overlapping_keys(model_name, partitions):
 def s3_key_prefix(model_name, max_decision_id):
     max_timestamp = Ksuid.from_base62(max_decision_id).datetime.strftime(ISO_8601_BASIC_FORMAT)
 
-    yyyy = timestamp[0:4]
-    mm = timestamp[4:6]
-    dd = timestamp[6:8]
+    yyyy = max_timestamp[0:4]
+    mm = max_timestamp[4:6]
+    dd = max_timestamp[6:8]
     
     #
     # Truncate the ksuid to 9 characters so that we're not exposing entire decision ids in the file names.
