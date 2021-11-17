@@ -218,7 +218,7 @@ class RewardedDecisionPartition:
         
         # TODO list against S3 to find existing s3_keys that need to be loaded.  Split the record
         # group into groupus by S3 key.
-        return [RewardedDecisionPartition(firehose_record_group.model_name, to_pandas_df(firehose_record_group.to_rewarded_decision_dicts()))]
+        return [RewardedDecisionPartition(firehose_record_group.model_name, firehose_record_group.to_pandas_df())]
 
 
 def min_max_decision_ids(partitions):

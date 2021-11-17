@@ -222,6 +222,11 @@ class FirehoseRecordGroup:
         return list(map(lambda x: x.to_rewarded_decision_dict(), self.records))
 
 
+    def to_pandas_df(self):
+
+        return pd.DataFrame(self.to_rewarded_decision_dicts(), columns=DF_SCHEMA.keys()).astype(DF_SCHEMA)
+
+
     @staticmethod
     def load_groups(s3_key):
         assert(s3_key)
@@ -514,10 +519,3 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
             (f"in a partial rewarded decision record, "
              f"'variant' must be None: {variant}")
 
-
-def to_pandas_df(rewarded_decision_record):
-
-    if isinstance(rewarded_decision_record, dict):
-        rewarded_decision_record = [rewarded_decision_record]
-  
-    return pd.DataFrame(rewarded_decision_record, columns=DF_SCHEMA.keys()).astype(DF_SCHEMA)
