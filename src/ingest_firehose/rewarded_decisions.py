@@ -12,6 +12,10 @@ from firehose_record import to_pandas_df
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA
 from utils import is_valid_model_name, json_dumps
 
+
+ISO_8601_BASIC_FORMAT = '%Y%m%dT%H%M%SZ'
+
+
 class RewardedDecisionPartition:
 
 
@@ -241,7 +245,7 @@ def repair_overlapping_keys(model_name, partitions):
 
 def s3_key_prefix(model_name, max_decision_id):
     ksuid = Ksuid.from_base62(max_decision_id)
-    max_timestamp = ksuid.datetime.strftime('%Y%m%dT%H%M%SZ')
+    max_timestamp = ksuid.datetime.strftime(ISO_8601_BASIC_FORMAT)
     yyyy = timestamp[0:4]
     mm = timestamp[4:6]
     dd = timestamp[6:8]
@@ -259,7 +263,7 @@ def s3_key_prefix(model_name, max_decision_id):
     
 def s3_key(model_name, min_decision_id, max_decision_id):
     min_ksuid = Ksuid.from_base62(min_decision_id)
-    min_timestamp = ksuid.datetime.strftime('%Y%m%dT%H%M%SZ')
+    min_timestamp = ksuid.datetime.strftime(ISO_8601_BASIC_FORMAT)
 
     #
     # The min decision_id is encoded into the file name so that a lexicographically ordered listing
