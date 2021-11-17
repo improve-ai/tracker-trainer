@@ -241,7 +241,7 @@ def repair_overlapping_keys(model_name, partitions):
 
 def s3_key_prefix(model_name, max_decision_id):
     ksuid = Ksuid.from_base62(max_decision_id)
-    timestamp = ksuid.datetime.strftime('%Y%m%dT%H%M%SZ')
+    max_timestamp = ksuid.datetime.strftime('%Y%m%dT%H%M%SZ')
     yyyy = timestamp[0:4]
     mm = timestamp[4:6]
     dd = timestamp[6:8]
@@ -254,7 +254,7 @@ def s3_key_prefix(model_name, max_decision_id):
     # search of file names starting at the prefix of the target decision_id will provide
     # the .parquet that should contain that decision_id, if it exists
     #
-    return f'/rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{timestamp}-{max_decision_id[:9]}'
+    return f'/rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{max_timestamp}-{max_decision_id[:9]}'
     
     
 def s3_key(model_name, min_decision_id, max_decision_id):
