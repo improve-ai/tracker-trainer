@@ -251,7 +251,7 @@ def s3_key_prefix(model_name, max_decision_id):
     dd = timestamp[6:8]
     
     #
-    # Truncate the ksuid so that we're not exposing entire decision ids in the file names.
+    # Truncate the ksuid to 9 characters so that we're not exposing entire decision ids in the file names.
     # While having entire ids in the file names is likey no risk, it is also unneccessary.
     #
     # The max decision_id is encoded first in the path so that a lexicographically sorted
