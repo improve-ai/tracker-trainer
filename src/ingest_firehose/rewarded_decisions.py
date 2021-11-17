@@ -241,7 +241,10 @@ def repair_overlapping_keys(model_name, partitions):
 
 def s3_key_prefix(model_name, max_decision_id):
     ksuid = Ksuid.from_base62(max_decision_id)
-    yyyy, mm, dd = ksuid.datetime.strftime("%Y-%m-%d").split('-')
+    timestamp = ksuid.datetime.strftime('%Y%m%dT%H%M%SZ')
+    yyyy = timestamp[0:4]
+    mm = timestamp[4:6]
+    dd = timestamp[6:8]
     
     #
     # Truncate the ksuid so that we're not exposing entire decision ids in the file names.
@@ -251,10 +254,13 @@ def s3_key_prefix(model_name, max_decision_id):
     # search of file names starting at the prefix of the target decision_id will provide
     # the .parquet that should contain that decision_id, if it exists
     #
-    return f'/rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{max_decision_id[:9]}'
+    return f'/rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{timestamp}-{max_decision_id[:9]}'
     
     
 def s3_key(model_name, min_decision_id, max_decision_id):
+    min_ksuid = Ksuid.from_base62(min_decision_id)
+    min_timestamp = ksuid.datetime.strftime('%Y%m%dT%H%M%SZ')
+
     #
     # The min decision_id is encoded into the file name so that a lexicographically ordered listing
     # can determine if two parquet files have overlapping decision_id ranges, which they should not.
@@ -266,4 +272,4 @@ def s3_key(model_name, min_decision_id, max_decision_id):
     # but we're already using KSUID, it's slightly shorter, and slightly easier to parse due
     # to no dashes.  For now, the final KSUID should be considered an opaque string of random characters
     #
-    return f'{s3_key_prefix(model_name, max_decision_id)}-{min_decision_id[:9]}-{Ksuid()}.parquet'
+    return f'{s3_key_prefix(model_name, max_decision_id)}-{min_timestamp}-{min_decision_id[:9]}-{Ksuid()}.parquet'
