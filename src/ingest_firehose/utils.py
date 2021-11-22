@@ -23,9 +23,19 @@ class UTC(datetime.tzinfo):
 utc = UTC()
 
 
-def find_first_gte(x, l):
+def find_first_gte(x: str, l: list):
     """
-    Return the first element that's greater or equal than x.
+    Return the index and value of the first element that's greater or 
+    equal than x.
+
+    Returns
+    -------
+    int or None
+        Index of the first element that is greater or equal than x. None if no 
+        element greater or equal than x can be found.
+    str or None
+        First element that is greater or equal than x. None if no element 
+        greater or equal than x can be found.
     
     Modified from: https://stackoverflow.com/a/2236935/1253729
     """
@@ -35,14 +45,14 @@ def find_first_gte(x, l):
     return next(((i,v) for i,v in enumerate(sorted(l)) if v >= x), (None, None))
 
 
-def list_s3_keys_containing(bucket_name, start_key, end_key):
+def list_s3_keys_containing(bucket_name, start_after_key, end_key, prefix=''):
     """
-    Return a list of keys between the given `start_key` and `end_key` 
-    in the given S3 `bucket_name`. 
-    Both `start_key` and `end_key` are  inclusive but if there is no 
-    match for `end_key`, return the closest key that's greater than 
-    `end_key`. The comparisons of keys is done comparing the Unicode 
-    code point numbers of individual characters.
+    Return a list of keys between the given `start_after_key` and 
+    `end_key` in the given S3 bucket (`bucket_name`). 
+    `end_key` is  inclusive but if there is no match for `end_key`, 
+    return the closest key that's greater than `end_key`. 
+    The comparisons of keys is done comparing the Unicode code point 
+    numbers of individual characters.
     
     Listing S3's keys returns them in UTF8-binary order:
         "List results are always returned in UTF-8 binary order". [3]
@@ -62,12 +72,15 @@ def list_s3_keys_containing(bucket_name, start_key, end_key):
     ----------
     bucket_name : str
         AWS S3 bucket name
-    start_key : str
-        Key from where to start the subset selection
+    start_after_key : str
+        Key after which to start the subset selection
     end_key : str
         The subset selection will be done up to this key or, if not 
         available, up to the closes key with a greater Unicode code 
         point number.
+    prefix : str
+        Passed directly to the S3 call. Limits the response to keys 
+        that begin with the specified prefix.
 
     Returns
     -------
@@ -79,22 +92,27 @@ def list_s3_keys_containing(bucket_name, start_key, end_key):
     ------
 
     TypeError
-        If something different than a str is passed to the start_key, 
+        If something different than a str is passed to the start_after_key, 
         end_key or bucket_name
     ValueError
-        If `start_key` > `end_key`
+        If `start_after_key` > `end_key`
     
-    """    
+    """  
 
     if not isinstance(bucket_name, str) or \
-       not isinstance(start_key, str) or \
-       not isinstance(end_key, str):
+       not isinstance(start_after_key, str) or \
+       not isinstance(end_key, str) or \
+       not isinstance(prefix, str):
        raise TypeError
 
-    if start_key > end_key:
+    if start_after_key > end_key:
         raise ValueError
 
-    kwargs = { 'Bucket': bucket_name }
+    kwargs = {
+        'Bucket': bucket_name,
+        'StartAfter' : start_after_key,
+        'Prefix' : prefix
+    }
 
     keys = []
     while True:
@@ -111,51 +129,18 @@ def list_s3_keys_containing(bucket_name, start_key, end_key):
         except KeyError:
             break
 
-    if len(keys) == 0:
-        return []
-
     keys.sort()
 
-    # Find the index of the first key
-    idx_start_gte, start_gte = find_first_gte(start_key, keys)
+    if len(keys) == 0:
+        return []
 
     # Find the index of the last key
     idx_end_gte, end_gte = find_first_gte(end_key, keys)
 
-    # When the requested end key is beyond the available ones.
-    #
-    # Example:
-    #
-    # Keys: |||||||||||||||||||||||---------
-    #       ^                             ^
-    #      start                         end
-    #
-    if idx_start_gte is not None and idx_end_gte is None:
-       result = keys
-
-    # When the requested range has nothing 1.
-    #
-    # Example:
-    #
-    # Keys: ----------------------|||||||||||||||||||------
-    #       ^                ^
-    #   start/end         end/start
-    #
-    # No special care must be taken here because the default case will take care of it
-
-    # When the requested range has nothing 2.
-    #
-    # Example:
-    #
-    # Keys: ----|||||||||||||||||||----------------
-    #                                ^           ^
-    #                            start/end    end/start
-    #
-    elif start_key > keys[-1] and end_key > keys[-1]:
-        result = []
-
+    if idx_end_gte is None:
+        result = keys
     else:
-        result = keys[idx_start_gte:idx_end_gte+1]
+        result = keys[:idx_end_gte+1]
     
     return result
 
