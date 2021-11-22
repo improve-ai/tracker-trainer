@@ -196,6 +196,29 @@ class FirehoseRecord:
         return result
 
 
+    def to_dict(self):
+        d = {
+            MESSAGE_ID_KEY : self.message_id,
+            TIMESTAMP_KEY : self.timestamp.isoformat(),
+            TYPE_KEY : self.type,
+            MODEL_KEY : self.model
+        }
+
+        if self.is_reward_record():
+            d[DECISION_ID_KEY] = self.decision_id
+            d[REWARD_KEY] = self.reward
+
+        elif self.is_decision_record():
+            d[VARIANT_KEY] = self.variant
+            d[GIVENS_KEY] = self.givens
+            d[COUNT_KEY] = self.count
+            d[RUNNERS_UP_KEY] = self.runners_up
+            d[SAMPLE_KEY] = self.sample
+
+        assert_valid_record(d)
+        
+        return d
+
     def __str__(self):
         return f'message_id {self.message_id} type {self.type} model {self.model} decision_id {self.decision_id}' \
         f'reward {self.reward} count {self.count} givens {self.givens} variant {self.variant}' \
@@ -222,9 +245,15 @@ class FirehoseRecordGroup:
         return list(map(lambda x: x.to_rewarded_decision_dict(), self.records))
 
 
-    def to_pandas_df(self):
+    @staticmethod
+    def _to_pandas_df(rewarded_decision_records):
+        if isinstance(rewarded_decision_records, dict):
+            rewarded_decision_records = [rewarded_decision_records]
+        return pd.DataFrame(rewarded_decision_records, columns=DF_SCHEMA.keys()).astype(DF_SCHEMA)
 
-        return pd.DataFrame(self.to_rewarded_decision_dicts(), columns=DF_SCHEMA.keys()).astype(DF_SCHEMA)
+
+    def to_pandas_df(self):
+        return self._to_pandas_df(self.to_rewarded_decision_dicts())
 
 
     @staticmethod
