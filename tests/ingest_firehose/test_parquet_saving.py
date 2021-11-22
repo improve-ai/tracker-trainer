@@ -16,17 +16,19 @@ from firehose_record import SAMPLE_KEY
 from firehose_record import REWARD_KEY
 from firehose_record import REWARDS_KEY
 from firehose_record import DECISION_ID_KEY
-from firehose_record import to_pandas_df
 
+from firehose_record import FirehoseRecordGroup
+
+to_pandas_df = FirehoseRecordGroup._to_pandas_df
 
 ENGINE="fastparquet"
 
 class CasesMergeOfRewardedDecisions:
 
-    def case_one_full_decision_one_partial(self, rewarded_decision_rec, get_partial_rewarded_dec_rec):
+    def case_one_full_decision_one_partial(self, get_rewarded_decision_rec, get_partial_rewarded_dec_rec):
 
         rewarded_records_df = pd.concat([
-            to_pandas_df(rewarded_decision_rec),
+            to_pandas_df(get_rewarded_decision_rec()),
             to_pandas_df([get_partial_rewarded_dec_rec()])
         ], ignore_index=True)
 

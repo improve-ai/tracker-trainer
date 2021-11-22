@@ -1,6 +1,7 @@
 # Built-in imports
 import string
 import io
+import os 
 
 # External imports
 import pytest
@@ -8,10 +9,10 @@ from pytest_cases import parametrize_with_cases
 from pytest_cases import parametrize
 
 # Local imports
-from assign_rewards.utils import find_first_gte
-from assign_rewards.utils import list_s3_keys_containing
+from utils import find_first_gte
+from utils import list_s3_keys_containing
 
-S3_BUCKET = "temp"
+TRAIN_BUCKET = os.environ['TRAIN_BUCKET']
 
 """
 Some characters (from string.printable) ordered by their Unicode code point:
@@ -42,36 +43,40 @@ for c in sorted(string.printable): print(f"{c}: {ord(c)}")
     ~: 126
 """
 
+"""
+TODO: add case which uses the prefix
+TODO: start by testing the high level behavior:
+
+
+Equal to or after a specific decision_id, which is equivalent to after a prefix of the decision_id
+
+bucket: [/rewarded_decisions/messages-2.0/parquet/2021/11/03/20QAxKOXA-20QAxNXYi-20QAxMZns2RdfX64tNXdPVf4OSY.parquet]
+start_after_key: /rewarded_decisions/messages-2.0/parquet/2021/11/03/20QAxKOXA
+end_key:
+
+result: /rewarded_decisions/messages-2.0/parquet/2021/11/03/20QAxKOXA-20QAxNXYi-20QAxMZns2RdfX64tNXdPVf4OSY.parquet
+
+"""
+
+
 class CasesS3Keys:
 
     # Keys: ----|||||||||||||||||||||||---------
-    #             ^             ^
-    #           start          end
+    #           ^                  ^
+    #         start               end
     @parametrize("start,end,expected", [
-        ("a", "b", ["a", "b"]),
-        ("b", "d", ["b", "c", "d"]),
+        ("a", "e", ["b", "c", "d", "e"]),
+        ("b", "d", ["c", "d"]),
         ("b", "a", "will raise exception"),
     ])
     def case_requested_keys_are_subset_of_available_keys1(self, start, end, expected):
         return string.ascii_lowercase
 
-
-    # Keys: ----|||||||||||||||||||||||---------
-    #                   ^        ^
-    #                 start     end
-    @parametrize("start,end,expected", [
-        ("k", "m", ["k", "l", "m"]),
-        ("m", "k", "will raise exception"),
-    ])
-    def caserequested_keys_are_subset_of_available_keys2(self, start, end, expected):
-        return ['i', 'j', 'k', 'l', 'm', 'n', 'o']
-
-
     # Keys: ----||||||||||||----------||||||||---------
     #                   ^        ^
     #                 start     end
     @parametrize("start,end,expected", [
-        ("j", "m", ["j", "k", "l", "o"]),
+        ("j", "m", ["k", "l", "o"]),
         ("m", "j", "will raise exception"),
     ])
     def case_requested_range_is_partially_in_hole1(self, start, end, expected):
@@ -90,7 +95,7 @@ class CasesS3Keys:
     #           ^                     ^
     #          start                  end
     @parametrize("start,end,expected", [
-        ("a", "z", string.ascii_lowercase),
+        ("a", "z", string.ascii_lowercase[1:]),
         ("z", "a", "will raise exception"),
     ])
     def case_requested_keys_are_the_actual_start_and_end(self, start, end, expected):
@@ -101,7 +106,7 @@ class CasesS3Keys:
     #           ^                         ^
     #          start                     end
     @parametrize("start,end,expected", [
-        ("a", "}", string.ascii_lowercase),
+        ("a", "}", string.ascii_lowercase[1:]),
         ("}", "a", "will raise exception"),
     ])
     def case_end_key_is_beyond_available(self, start, end, expected):
@@ -137,8 +142,18 @@ class CasesS3Keys:
         ("{", "}", []),
         ("}", "{", "will raise exception"),
     ])
-    def case_requested_keys_are_after_available(self, start, end, expected):
+    def case_requested_keys_are_after_available1(self, start, end, expected):
         return string.ascii_lowercase
+
+    # Keys: ----||||||||||---------
+    #                      ^   ^
+    #                   start  end
+    @parametrize("start,end,expected", [
+        ("a", "z", []),
+        ("0", "9", ["1", "2", "3", "4"]),
+    ])
+    def case_requested_keys_are_after_available2(self, start, end, expected):
+        return ["0", "1", "2", "3", "4"]
 
     # Keys: -----------|||||||||||||||||||||||-------
     #        ^       ^
@@ -171,7 +186,7 @@ class CasesS3Keys:
     #                  ^
     #             start == end
     @parametrize("start,end,expected", [
-        ("c", "c", ["c"]),
+        ("c", "c", ["d"]),
     ])
     def case_requested_keys_are_the_same1(self, start, end, expected):
         return string.ascii_lowercase
@@ -208,18 +223,10 @@ class CasesS3Keys:
 
 
     @parametrize("start,end,expected", [
-        ("aa", "c", ["aa", "aac", "abcd", "b", "z"]),
+        ("aa", "c", ["aac", "abcd", "b", "z"]),
     ])
     def case_simple_longer_keys(self, start, end, expected):
         return ['a', 'aa', 'b', 'aac', 'z', 'abcd']
-
-
-    @parametrize("start,end,expected", [
-        ("a", "z", []),
-        ("0", "9", ["0", "1", "2", "3", "4"]),
-    ])
-    def case_custom_4(self, start, end, expected):
-        return ["0", "1", "2", "3", "4"]
 
 
     @parametrize("start,end,expected", [("a", "b", [])])
@@ -244,22 +251,22 @@ def test_list_s3_keys_containing(s3, current_cases, mocker, keys):
     # Test for known exceptions to be raised
     if case_id == "wrong_types":
         with pytest.raises(TypeError):
-            selected_keys = list_s3_keys_containing(S3_BUCKET, p_start, p_end)
+            selected_keys = list_s3_keys_containing(TRAIN_BUCKET, p_start, p_end)
     
     # Test for known exceptions to be raised
     elif p_start > p_end:
         with pytest.raises(ValueError):
-            selected_keys = list_s3_keys_containing(S3_BUCKET, p_start, p_end)
+            selected_keys = list_s3_keys_containing(TRAIN_BUCKET, p_start, p_end)
     
     else:
         # Create a temporal bucket
-        s3.create_bucket(Bucket=S3_BUCKET)
+        s3.create_bucket(Bucket=TRAIN_BUCKET)
 
         # Put the case keys in the bucket
         for s3_key in keys:
-            s3.put_object(Bucket=S3_BUCKET, Body=io.BytesIO(), Key=s3_key)
+            s3.put_object(Bucket=TRAIN_BUCKET, Body=io.BytesIO(), Key=s3_key)
 
-        selected_keys = list_s3_keys_containing(S3_BUCKET, p_start, p_end)
+        selected_keys = list_s3_keys_containing(TRAIN_BUCKET, p_start, p_end)
 
         assert isinstance(selected_keys, list)
         assert len(selected_keys) == len(expected)
@@ -340,3 +347,5 @@ def test_find_first_gte(keys, current_cases):
     
     i,v = find_first_gte(mark, keys)
     assert v == expected
+
+
