@@ -1,13 +1,22 @@
 # Built-in imports
-import orjson as json
+from __future__ import annotations
 import datetime
 import gzip
 import math
+from typing import List
+
+# External imports
+import orjson as json
 import pandas as pd
 
 # Local imports
 import config
 from utils import utc
+from utils import is_valid_model_name
+from utils import is_valid_ksuid
+from utils import get_valid_timestamp
+from utils import json_dumps_wrapping_primitive
+from utils import json_dumps
 
 
 MESSAGE_ID_KEY = 'message_id'
@@ -220,9 +229,25 @@ class FirehoseRecord:
         return d
 
     def __str__(self):
-        return f'message_id {self.message_id} type {self.type} model {self.model} decision_id {self.decision_id}' \
-        f'reward {self.reward} count {self.count} givens {self.givens} variant {self.variant}' \
-        f' runners_up {self.runners_up} sample {self.sample} timestamp {self.timestamp}' 
+
+        if self.is_decision_record():
+            return f'message_id {self.message_id} '\
+                   f'type {self.type} '\
+                   f'model {self.model} '\
+                   f'count {self.count} '\
+                   f'givens {self.givens} '\
+                   f'variant {self.variant} ' \
+                   f'runners_up {self.runners_up} '\
+                   f'sample {self.sample} '\
+                   f'timestamp {self.timestamp}' 
+
+        elif self.is_reward_record():
+            return f'message_id {self.message_id} '\
+                f'type {self.type} '\
+                f'model {self.model} '\
+                f'decision_id {self.decision_id} '\
+                f'reward {self.reward}' \
+                f'timestamp {self.timestamp}'
     
 
 def _get_sample_pool_size(count, runners_up):
@@ -234,7 +259,7 @@ def _get_sample_pool_size(count, runners_up):
 class FirehoseRecordGroup:
     
     
-    def __init__(self, model_name, records):
+    def __init__(self, model_name, records: List[FirehoseRecord]):
         assert(is_valid_model_name(model_name))
         self.model_name = model_name
         self.records = records
@@ -257,7 +282,7 @@ class FirehoseRecordGroup:
 
 
     @staticmethod
-    def load_groups(s3_key):
+    def load_groups(s3_key) -> List[FirehoseRecordGroup]:
         assert(s3_key)
         """
         Load records from a gzipped jsonlines file
@@ -397,21 +422,23 @@ def assert_valid_record(json_dict):
         assert is_valid_reward(json_dict[REWARD_KEY]), "invalid 'reward'"
 
 
-def assert_valid_rewarded_decision_record(record_dict, record_type):
+def assert_valid_rewarded_decision_record(rdr_dict, record_type):
     """
     """
+
+    assert record_type in ("reward", "decision")
 
     ##########################################################################
     # decision_id validation
     ##########################################################################
-    assert is_valid_decision_id(record_dict[DECISION_ID_KEY]), \
-        f"invalid decision_id: {record_dict[DECISION_ID_KEY]}"
+    assert is_valid_decision_id(rdr_dict[DECISION_ID_KEY]), \
+        f"invalid decision_id: {rdr_dict[DECISION_ID_KEY]}"
 
 
     ##########################################################################
     # rewards validation
     ##########################################################################
-    rewards = record_dict.get(REWARDS_KEY)
+    rewards = rdr_dict.get(REWARDS_KEY)
     
     if rewards is not None:
 
@@ -434,11 +461,11 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
     ##########################################################################
     # reward validation
     ##########################################################################
-    reward = record_dict.get(REWARD_KEY)
+    reward = rdr_dict.get(REWARD_KEY)
     if reward is not None:
         assert is_valid_reward(reward), f"invalid {REWARD_KEY}"
         
-        assert REWARDS_KEY in record_dict, \
+        assert REWARDS_KEY in rdr_dict, \
             f"{REWARD_KEY} present but {REWARDS_KEY} is missing"
         
         assert isinstance(rewards, str),  \
@@ -453,7 +480,7 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
 
         assert reward == sum(rewards_dict.values()), \
             f"{REWARD_KEY} != sum({REWARDS_KEY})"
-
+    
 
     if record_type == "decision":
 
@@ -462,14 +489,14 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
         ######################################################################
         # Can't do the following because the rewarded decision record returned
         # by to_rewarded_decision_dict is a datetime object
-        # assert get_valid_timestamp(record_dict[TIMESTAMP_KEY]), "invalid timestamp"
-        assert isinstance(record_dict[TIMESTAMP_KEY], datetime.datetime)
+        # assert get_valid_timestamp(rdr_dict[TIMESTAMP_KEY]), "invalid timestamp"
+        assert isinstance(rdr_dict[TIMESTAMP_KEY], datetime.datetime)
 
 
         ######################################################################
         # variant validation
         ######################################################################
-        variant = record_dict[VARIANT_KEY]
+        variant = rdr_dict[VARIANT_KEY]
         
         assert isinstance(variant, str), \
             f"'variant' must be a json string, got {type(variant)}"
@@ -481,7 +508,7 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
         ######################################################################
         # givens validation
         ######################################################################
-        givens = record_dict[GIVENS_KEY]
+        givens = rdr_dict[GIVENS_KEY]
         assert isinstance(givens, str), \
             f"'givens' must be a json str, got {type(givens)}"
         assert isinstance(json.loads(givens), dict), \
@@ -491,14 +518,14 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
         ######################################################################
         # count validation
         ######################################################################
-        count = record_dict[COUNT_KEY]
+        count = rdr_dict[COUNT_KEY]
         assert is_valid_count(count), f"invalid 'count': {count}"
 
 
         ######################################################################
         # runners_up validation
         ######################################################################
-        runners_up = record_dict.get(RUNNERS_UP_KEY)
+        runners_up = rdr_dict.get(RUNNERS_UP_KEY)
         
         if runners_up is not None:
             
@@ -512,7 +539,7 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
     
         # runners up must not be set if missing
         elif runners_up is None:
-            assert RUNNERS_UP_KEY not in record_dict, \
+            assert RUNNERS_UP_KEY not in rdr_dict, \
                 f"{RUNNERS_UP_KEY} must not be set if missing"
 
 
@@ -520,9 +547,9 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
         # sample validation
         ######################################################################
         # sample must not be set if missing
-        sample = record_dict.get(SAMPLE_KEY)
+        sample = rdr_dict.get(SAMPLE_KEY)
         if sample is None:
-            assert SAMPLE_KEY not in record_dict, \
+            assert SAMPLE_KEY not in rdr_dict, \
                 f"{SAMPLE_KEY} must not be set if missing"
         
         else:
@@ -536,14 +563,14 @@ def assert_valid_rewarded_decision_record(record_dict, record_type):
         ######################################################################
         # timestamp validation: Timestamp must not be there
         ######################################################################
-        assert record_dict.get(TIMESTAMP_KEY) is None, \
+        assert rdr_dict.get(TIMESTAMP_KEY) is None, \
             "a partial rewarded decision record shouldn't have a timestamp"
         
 
         ######################################################################
         # variant validation
         ######################################################################
-        variant = record_dict.get(VARIANT_KEY)
+        variant = rdr_dict.get(VARIANT_KEY)
         assert variant is None , \
             (f"in a partial rewarded decision record, "
              f"'variant' must be None: {variant}")

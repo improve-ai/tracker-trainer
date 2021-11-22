@@ -340,7 +340,7 @@ def repair_overlapping_keys(model_name, partitions):
 
 def s3_key_prefix(model_name, max_decision_id):
     max_timestamp = Ksuid.from_base62(max_decision_id).datetime.strftime(ISO_8601_BASIC_FORMAT)
-
+    
     yyyy = max_timestamp[0:4]
     mm = max_timestamp[4:6]
     dd = max_timestamp[6:8]
@@ -358,7 +358,7 @@ def s3_key_prefix(model_name, max_decision_id):
     
 def s3_key(model_name, min_decision_id, max_decision_id):
     min_timestamp = Ksuid.from_base62(min_decision_id).datetime.strftime(ISO_8601_BASIC_FORMAT)
-
+    
     #
     # The min decision_id is encoded into the file name so that a lexicographically ordered listing
     # can determine if two parquet files have overlapping decision_id ranges, which they should not.

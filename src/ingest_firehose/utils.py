@@ -176,6 +176,7 @@ def is_valid_ksuid(id_):
         
     return True
 
+
 def get_valid_timestamp(timestamp):
     """ Return a parsed and validated timestamp"""
     
