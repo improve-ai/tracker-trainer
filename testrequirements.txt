@@ -11,3 +11,4 @@ pandas
 orjson
 svix-ksuid
 fastparquet
+s3fs
