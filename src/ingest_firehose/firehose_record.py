@@ -6,8 +6,8 @@ import math
 import pandas as pd
 
 # Local imports
-from config import s3client, FIREHOSE_BUCKET, stats
-from utils import utc, is_valid_model_name, is_valid_ksuid, get_valid_timestamp, json_dumps_wrapping_primitive, json_dumps
+import config
+from utils import utc
 
 
 MESSAGE_ID_KEY = 'message_id'
@@ -266,10 +266,10 @@ class FirehoseRecordGroup:
         records_by_model = {}
         invalid_records = []
         
-        print(f'loading s3://{FIREHOSE_BUCKET}/{s3_key}')
+        print(f'loading s3://{config.FIREHOSE_BUCKET}/{s3_key}')
     
         # download and parse the firehose file
-        s3obj = s3client.get_object(Bucket=FIREHOSE_BUCKET, Key=s3_key)['Body']
+        s3obj = config.s3client.get_object(Bucket=config.FIREHOSE_BUCKET, Key=s3_key)['Body']
         with gzip.GzipFile(fileobj=s3obj) as gzf:
             for line in gzf.readlines():
     
@@ -283,7 +283,7 @@ class FirehoseRecordGroup:
                     records_by_model[model].append(record)
                     
                 except Exception as e:
-                    stats.add_parse_exception(e)
+                    config.stats.add_parse_exception(e)
                     invalid_records.append(line)
                     continue
     
