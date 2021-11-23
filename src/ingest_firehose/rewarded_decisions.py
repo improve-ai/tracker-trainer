@@ -3,6 +3,7 @@ from collections import ChainMap
 import re
 import os
 from collections import defaultdict
+from uuid import uuid4
 
 # External imports
 import pandas as pd
@@ -355,15 +356,13 @@ def s3_key(model_name, min_decision_id, max_decision_id):
     min_timestamp = Ksuid.from_base62(min_decision_id).datetime.strftime(ISO_8601_BASIC_FORMAT)
     
     #
-    # The min decision_id is encoded into the file name so that a lexicographically ordered listing
+    # The min timestamp is encoded into the file name so that a lexicographically ordered listing
     # can determine if two parquet files have overlapping decision_id ranges, which they should not.
     # If overlapping ranges are detected they should be repaired by loading the overlapping parquet
     # files, consolidating them, optionally splitting, then saving.  This process should lead to
     # eventually consistency.
     #
-    # The final KSUID is simply to give the file a random name.  We could have used UUIDv4 here
-    # but we're already using KSUID, it's slightly shorter, and slightly easier to parse due
-    # to no dashes.  For now, the characters following the last dash should be considered an opaque 
-    # string of random characters
+    # The final UUID4 is simply to give the file a random name. For now, the characters following
+    # the last dash should be considered an opaque string of random characters
     #
-    return f'{s3_key_prefix(model_name, max_decision_id)}-{min_timestamp}-{min_decision_id[:9]}-{Ksuid()}.parquet'
+    return f'{s3_key_prefix(model_name, max_decision_id)}-{min_timestamp}-{uuid4()}.parquet'
