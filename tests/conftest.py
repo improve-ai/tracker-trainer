@@ -142,12 +142,21 @@ def get_rewarded_decision_rec(get_decision_rec, helpers):
 def get_reward_rec(get_record):
     """ An instance of a reward record with some known values """
     
+    # Automatic different message_ids
+    idval = 990
+        
     def __rew_rec(
-        msg_id_val='000000000000000000000000001',
+        msg_id_val=None,
         decision_id_val='000000000000000000000000000',
         reward_val= -10
         ):
         
+        # Automatic different message_ids
+        nonlocal idval
+        if msg_id_val is None:
+            msg_id_val = str(idval).rjust(27, "0")
+        idval += 1
+
         record = get_record(
             type_val        = "reward",
             msg_id_val      = msg_id_val,
