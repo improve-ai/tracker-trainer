@@ -124,13 +124,12 @@ class RewardedDecisionPartition:
             """Return the first cell of a column """
             
             if col_series.isnull().all():
-                first_element = col_series[0]
+                first_element = col_series.iloc[0]
             else:
-                first_element = col_series.dropna()[0]
+                first_element = col_series.dropna().iloc[0]
 
                 if col_series.name == "count":
                     return first_element.astype("int64")
-            
             return first_element
 
 
