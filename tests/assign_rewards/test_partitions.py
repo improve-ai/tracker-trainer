@@ -1,23 +1,20 @@
 # Built-in imports
-import string
-import io
-import os
 import gzip
-from io import StringIO, BytesIO
+from io import BytesIO
 import orjson
+import operator
 
 # External imports
-import pandas
-import pytest
-from pytest_cases import parametrize_with_cases
-from pytest_cases import parametrize
+import pandas as pd
 from pandas._testing import assert_frame_equal
 
 # Local imports
 import config
 from firehose_record import FirehoseRecordGroup
+from firehose_record import DECISION_ID_KEY
 from firehose_record import MESSAGE_ID_KEY
 from rewarded_decisions import RewardedDecisionPartition
+from rewarded_decisions import s3_key_prefix
 
 
 def upload_gzipped_jsonl_records_to_firehose_bucket(s3client, records):
@@ -48,6 +45,36 @@ def upload_rdrs_as_parquet_files_to_train_bucket(rdrs, model_name):
     RDP.save()
 
 
+def get_rdrs_before_or_after_decision_id(firehose_record_group, pivot, op):
+    """
+    Convert records from a Firehose Record Group into RDRs and return a subset
+    of them depending if they are "<=" or ">" than a pivot record.
+    """
+    
+    expected_rdrs = []
+    for fhr in firehose_record_group.records:
+        
+        rdr = fhr.to_rewarded_decision_dict()
+
+        if fhr.is_decision_record():
+            if op(fhr.message_id, pivot):
+                expected_rdrs.append(rdr)
+
+        elif fhr.is_reward_record():
+            if op(fhr.decision_id, pivot):
+                expected_rdrs.append(rdr)
+    
+    expected_rdrs.sort(key=lambda rdr: rdr[DECISION_ID_KEY])
+    df = FirehoseRecordGroup._to_pandas_df(expected_rdrs)
+
+    return df
+
+
+def assert_only_last_partition_may_not_have_an_s3_key(rdps):
+    if len(rdps) > 1:
+        assert all(rdp.s3_key is not None for rdp in rdps[:-1])
+
+
 def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get_reward_rec, get_rewarded_decision_rec, helpers):
     """
     - Put some records in the Firehose bucket
@@ -70,29 +97,39 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
     # Create buckets in the Moto's virtual AWS account
     s3.create_bucket(Bucket=config.FIREHOSE_BUCKET)
     s3.create_bucket(Bucket=config.TRAIN_BUCKET)
-    
 
     ##########################################################################
     # Generate and add synthetic records to the Firehose bucket
     ##########################################################################
 
+    # The maximum value of all the decision_ids in the Train bucket
+    LAST_DECISION_ID_IN_TRAIN_BUCKET = '111111112000000000000000000'
+
     decision_records = [
-        get_decision_rec('111111111000000000000000000'),
-        get_decision_rec('111111112000000000000000000'),
-        get_decision_rec('111111113000000000000000000')
+        get_decision_rec('111111111000000000000000000'), # In Train bucket
+        get_decision_rec('111111112000000000000000000'), # In Train bucket 
+        get_decision_rec('111111113000000000000000000')  # NOT in Train bucket
     ]
 
     reward_records = [
-        get_reward_rec(msg_id_val='111111111000000000000000001', decision_id_val='111111111000000000000000000', reward_val=1),
-        get_reward_rec(msg_id_val='111111111000000000000000002', decision_id_val='111111111000000000000000000', reward_val=1),
+        get_reward_rec(decision_id_val='111111111000000000000000000'), # In Train bucket
+        get_reward_rec(decision_id_val='111111111000000000000000000'), # In Train bucket
         
-        get_reward_rec(msg_id_val='111111111000000000000000003', decision_id_val='111111112000000000000000000', reward_val=1),
-        get_reward_rec(msg_id_val='111111111000000000000000004', decision_id_val='111111112000000000000000000', reward_val=1),
+        get_reward_rec(decision_id_val='111111112000000000000000000'), # In Train bucket
+        get_reward_rec(decision_id_val='111111112000000000000000000'), # In Train bucket
         
-        get_reward_rec(msg_id_val='111111111000000000000000005', decision_id_val='111111113000000000000000000', reward_val=1),
-        get_reward_rec(msg_id_val='111111111000000000000000006', decision_id_val='111111113000000000000000000', reward_val=1),
+        get_reward_rec(decision_id_val='111111113000000000000000000'), # NOT in Train bucket
+        get_reward_rec(decision_id_val='111111113000000000000000000'), # NOT in Train bucket
     ]
-    
+
+    # Assert that there is at least one decision_id with the value of 
+    # LAST_DECISION_ID_IN_TRAIN_BUCKET both in the decision records
+    # and in the reward records
+    assert any(dr[MESSAGE_ID_KEY] == LAST_DECISION_ID_IN_TRAIN_BUCKET 
+        for dr in decision_records)
+    assert any(rr[DECISION_ID_KEY] == LAST_DECISION_ID_IN_TRAIN_BUCKET
+        for rr in reward_records)
+
     upload_gzipped_jsonl_records_to_firehose_bucket(s3, decision_records+reward_records)
 
 
@@ -102,61 +139,91 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
 
     rdrs = [
         get_rewarded_decision_rec(decision_id='111111111000000000000000000'),
-        get_rewarded_decision_rec(decision_id='111111112000000000000000000')
+        get_rewarded_decision_rec(decision_id='111111112000000000000000000'),
     ]
+
+    # To be sure that I know the max decision_id in the Train bucket
+    assert LAST_DECISION_ID_IN_TRAIN_BUCKET == max(rdr[DECISION_ID_KEY] 
+        for rdr in rdrs)
 
     upload_rdrs_as_parquet_files_to_train_bucket(rdrs, model_name=MODEL_NAME)
 
 
     ##########################################################################
-    # Assertion of the result of partitions_from_firehose_record_group
-    # BEFORE executing .load() which retrieves partitions from S3.
-    #
-    # Generate a DataFrame of Rewarded Decision Records based on the Firehose 
-    # S3 records. Used to assert that the partitions returned by
-    # partitions_from_firehose_record_group contain a DF of RDR based on the 
-    # Firehose records.
+    # Assert the generated partitions BEFORE executing .load(), which 
+    # retrieves partitions from S3.
     ##########################################################################
 
-    # One FirehoseRecordGroup per model
-    firehose_record_groups = FirehoseRecordGroup.load_groups(config.INCOMING_FIREHOSE_S3_KEY)
-    assert len(firehose_record_groups) == 1
-
-    expected_rdrs_before_load = []
-    for fhr in firehose_record_groups[0].records:
-        append = False
-        if fhr.is_decision_record() and fhr.message_id <= "111111112000000000000000000":
-            append = True
-        elif fhr.is_reward_record() and fhr.decision_id <= "111111112000000000000000000":
-            append = True
-
-        if append:
-            rdr = fhr.to_rewarded_decision_dict()
-            expected_rdrs_before_load.append(rdr)
+    firehose_record_groups = \
+        FirehoseRecordGroup.load_groups(config.INCOMING_FIREHOSE_S3_KEY)
     
-    expected_rdrs_before_load.sort(key=lambda rdr: rdr['decision_id'])
-    expected_df_before_load = FirehoseRecordGroup._to_pandas_df(expected_rdrs_before_load)
+    # One FirehoseRecordGroup per model
+    assert len(firehose_record_groups) == 1
+    firehose_record_group = firehose_record_groups[0]
 
-    rewarded_decision_partitions = RewardedDecisionPartition.partitions_from_firehose_record_group(firehose_record_groups[0])
-    rdp = rewarded_decision_partitions[0]
-    assert_frame_equal(rdp.df, expected_df_before_load, check_column_type=True)
+    # Generate an expected DataFrame of RDRs based on the Firehose S3 records 
+    # that DO have a corresponding decision_id in the Train bucket.
+    expected_df_before_load1 = get_rdrs_before_or_after_decision_id(
+        firehose_record_group = firehose_record_group,
+        pivot = LAST_DECISION_ID_IN_TRAIN_BUCKET,
+        op = operator.le)
+    rdps = RewardedDecisionPartition.partitions_from_firehose_record_group(
+        firehose_record_group)
+    assert_frame_equal(rdps[0].df, expected_df_before_load1, check_column_type=True)
+    assert_only_last_partition_may_not_have_an_s3_key(rdps)
+
+
+    # Generate an expected DataFrame of RDRs based on the Firehose S3 records 
+    # that DON'T have a corresponding decision_id in the Train bucket.
+    expected_df_before_load2 = get_rdrs_before_or_after_decision_id(
+        firehose_record_group = firehose_record_group,
+        pivot = LAST_DECISION_ID_IN_TRAIN_BUCKET,
+        op = operator.gt)
+    rdps = RewardedDecisionPartition.partitions_from_firehose_record_group(
+        firehose_record_group)
+    assert_frame_equal(rdps[1].df, expected_df_before_load2, check_column_type=True)
+    assert_only_last_partition_may_not_have_an_s3_key(rdps)
 
 
     ##########################################################################
-    # Assertion of the result of partitions_from_firehose_record_group
-    # AFTER executing .load() which retrieves partitions from S3.
-    #
-    # The expected DataFrame has RDRs from the Firehose bucket and from the
-    # Train bucket.
+    # Assert the generated partitions AFTER executing .load(), which 
+    # retrieves partitions from S3. The expected DataFrame has RDRs from the 
+    # Firehose bucket and from theTrain bucket.
     ##########################################################################
 
-    expected_rdrs_after_load = list(expected_rdrs_before_load)
-    expected_rdrs_after_load.extend(rdrs)
-    expected_rdrs_after_load.sort(key=lambda rdr: rdr['decision_id'])
-    expected_df_after_load = FirehoseRecordGroup._to_pandas_df(expected_rdrs_after_load)
+    expected_df_after_load1 = pd.concat(
+        [expected_df_before_load1, FirehoseRecordGroup._to_pandas_df(rdrs)],
+        ignore_index=True).sort_values(DECISION_ID_KEY, ignore_index=True)
 
     # Assert after the S3 Train RDRs have been loaded
-    rdp.load()
-    rdp.sort()
+    rdps[0].load()
+    rdps[0].sort()
+    assert_frame_equal(
+        rdps[0].df, expected_df_after_load1,
+        check_column_type=True, check_exact=True, check_index_type=True
+    )
+    
+    
+    ##########################################################################
+    # Assert the presence of new files due to no partitions being found for 
+    # certain Firehose records
+    ##########################################################################
+
+    for rdp in rdps:
+        rdp.load()
+        rdp.sort()
+        rdp.merge()
+        rdp.save()
+
+    response = s3.list_objects_v2(
+        Bucket = config.TRAIN_BUCKET,
+        Prefix = f'/rewarded_decisions/{MODEL_NAME}'
+    )
+
+    # Assert presence of the new generated s3 key due to new Firehose records
+    # TODO: this may need to be modified/updated/improved
+    expected_key_prefix = s3_key_prefix(MODEL_NAME, '111111113000000000000000000')
+    assert any(map(lambda x: expected_key_prefix in x, [s3file['Key'] for s3file in response['Contents']]))
+    
 
     assert_frame_equal(rdp.df, expected_df_after_load, check_column_type=True, check_exact=True)
