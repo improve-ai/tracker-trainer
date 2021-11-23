@@ -10,7 +10,8 @@ from ksuid import Ksuid
 import orjson
 
 # Local imports
-from config import TRAIN_BUCKET, s3client
+import config
+from config import TRAIN_BUCKET
 from firehose_record import FirehoseRecordGroup
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA
 from utils import is_valid_model_name, json_dumps
@@ -192,7 +193,7 @@ class RewardedDecisionPartition:
         if self.s3_key:
             # delete the previous .parqet from s3
             # do this last in case there is a problem during processing that needs to be retried
-            s3client.delete_object(Bucket=TRAIN_BUCKET, Key=self.s3_key)
+            config.s3client.delete_object(Bucket=TRAIN_BUCKET, Key=self.s3_key)
 
         # reclaim the dataframe memory
         # do not clean up min/max decision_ids since they will need to be used after processing
