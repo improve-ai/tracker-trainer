@@ -226,4 +226,5 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
     assert any(map(lambda x: expected_key_prefix in x, [s3file['Key'] for s3file in response['Contents']]))
     
 
-    assert_frame_equal(rdp.df, expected_df_after_load, check_column_type=True, check_exact=True)
+
+
