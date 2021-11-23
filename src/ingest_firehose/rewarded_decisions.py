@@ -345,15 +345,10 @@ def s3_key_prefix(model_name, max_decision_id):
     mm = max_timestamp[4:6]
     dd = max_timestamp[6:8]
     
-    #
-    # Truncate the ksuid to 9 characters so that we're not exposing entire decision ids in the file names.
-    # While having entire ids in the file names is likey no risk, it is also unneccessary.
-    #
-    # The max decision_id is encoded first in the path so that a lexicographically sorted
+    # The max timestamp is encoded first in the path so that a lexicographically sorted
     # search of file names starting at the prefix of the target decision_id will provide
     # the .parquet that should contain that decision_id, if it exists
-    #
-    return f'/rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{max_timestamp}-{max_decision_id[:9]}'
+    return f'/rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{max_timestamp}'
     
     
 def s3_key(model_name, min_decision_id, max_decision_id):
