@@ -229,10 +229,11 @@ class RewardedDecisionPartition:
                 lambda x: s3_key_prefix(model_name=model_name, max_decision_id=x)).copy()
         sorted_s3_prefixes.sort_values(inplace=True)
 
-        sorted_rdrs_df = rdrs_df.iloc[sorted_s3_prefixes.index].reset_index(drop=True)
+        rdrs_df = rdrs_df.iloc[sorted_s3_prefixes.index]
+        rdrs_df.reset_index(drop=True, inplace=True)
 
         min_decision_id, max_decision_id = \
-            (sorted_rdrs_df['decision_id'].iloc[0], sorted_rdrs_df['decision_id'].iloc[-1])
+            (rdrs_df['decision_id'].iloc[0], rdrs_df['decision_id'].iloc[-1])
 
         start_after_key = s3_key_prefix(model_name, min_decision_id)
         end_key = s3_key_prefix(model_name, max_decision_id)
@@ -244,7 +245,7 @@ class RewardedDecisionPartition:
                 end_key=end_key, prefix=f'/rewarded_decisions/{model_name}')
 
         if len(s3_keys) == 0:
-            return [RewardedDecisionPartition(model_name, sorted_rdrs_df)]
+            return [RewardedDecisionPartition(model_name, rdrs_df)]
                 # RewardedDecisionPartition(model_name, firehose_record_group.to_pandas_df())]
 
         warn('Processing following s3 keys from train bucket: {}'.format(s3_keys))
@@ -261,17 +262,17 @@ class RewardedDecisionPartition:
 
             # append selected rows to list
             map_of_s3_keys_to_rdrs[s3_key] = \
-                sorted_rdrs_df[append_s3_to_firehose_records].reset_index(drop=True)
+                rdrs_df[append_s3_to_firehose_records].reset_index(drop=True)
             # remove appended rows from rdrs_df
-            sorted_rdrs_df = sorted_rdrs_df[~append_s3_to_firehose_records].reset_index(drop=True)
+            rdrs_df = rdrs_df[~append_s3_to_firehose_records].reset_index(drop=True)
 
         partitions_s3 = [
             RewardedDecisionPartition(
                 model_name=model_name,
                 df=df, s3_key=s3_key) for s3_key, df in map_of_s3_keys_to_rdrs.items()]
 
-        if not sorted_rdrs_df.empty:
-            partitions_s3.append(RewardedDecisionPartition(model_name=model_name, df=sorted_rdrs_df))
+        if not rdrs_df.empty:
+            partitions_s3.append(RewardedDecisionPartition(model_name=model_name, df=rdrs_df))
 
         return partitions_s3
 
