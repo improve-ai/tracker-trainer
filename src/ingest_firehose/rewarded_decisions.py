@@ -226,8 +226,8 @@ class RewardedDecisionPartition:
 
         sorted_s3_prefixes = \
             rdrs_df['decision_id'].apply(
-                lambda x: s3_key_prefix(model_name=model_name, max_decision_id=x))\
-            .sort_values()
+                lambda x: s3_key_prefix(model_name=model_name, max_decision_id=x)).copy()
+        sorted_s3_prefixes.sort_values(inplace=True)
 
         sorted_rdrs_df = rdrs_df.iloc[sorted_s3_prefixes.index].reset_index(drop=True)
 
