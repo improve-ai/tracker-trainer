@@ -9,8 +9,12 @@ from pytest_cases import parametrize_with_cases
 from pytest_cases import parametrize
 
 # Local imports
+import utils
 from utils import find_first_gte
 from utils import list_s3_keys_containing
+
+import src.ingest_firehose.config
+import src.ingest_firehose.firehose_record
 
 TRAIN_BUCKET = os.environ['TRAIN_BUCKET']
 
@@ -245,20 +249,21 @@ def test_list_s3_keys_containing(s3, current_cases, mocker, keys):
     p_end    = params.get("end")
     expected = params.get("expected")
 
-    # Patch the s3 client used in list_delimited_s3_keys
-    mocker.patch('config.s3client', new=s3)
-    
     # Test for known exceptions to be raised
     if case_id == "wrong_types":
         with pytest.raises(TypeError):
-            selected_keys = list_s3_keys_containing(TRAIN_BUCKET, p_start, p_end)
+            list_s3_keys_containing(TRAIN_BUCKET, p_start, p_end)
     
     # Test for known exceptions to be raised
     elif p_start > p_end:
         with pytest.raises(ValueError):
-            selected_keys = list_s3_keys_containing(TRAIN_BUCKET, p_start, p_end)
+            list_s3_keys_containing(TRAIN_BUCKET, p_start, p_end)
     
     else:
+        # TODO this can be simplified by moving with statement here
+        #  this way we will be aware where s3 comes from and how it is created
+        # Patch the s3 client used in list_delimited_s3_keys
+        utils.s3client = s3
         # Create a temporal bucket
         s3.create_bucket(Bucket=TRAIN_BUCKET)
 

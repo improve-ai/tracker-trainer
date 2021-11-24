@@ -10,11 +10,13 @@ from pandas._testing import assert_frame_equal
 
 # Local imports
 import config
-from firehose_record import FirehoseRecordGroup
-from firehose_record import DECISION_ID_KEY
-from firehose_record import MESSAGE_ID_KEY
-from rewarded_decisions import RewardedDecisionPartition
-from rewarded_decisions import s3_key_prefix
+import rewarded_decisions
+import utils
+import firehose_record
+from firehose_record import DF_SCHEMA, FirehoseRecordGroup, DECISION_ID_KEY, MESSAGE_ID_KEY
+from rewarded_decisions import RewardedDecisionPartition, s3_key_prefix
+
+from tests.ingest_firehose.utils import dicts_to_df
 
 
 def upload_gzipped_jsonl_records_to_firehose_bucket(s3client, records):
@@ -39,7 +41,7 @@ def upload_rdrs_as_parquet_files_to_train_bucket(rdrs, model_name):
     assert isinstance(model_name, str)
 
     # Create df based on the rdrs
-    df = FirehoseRecordGroup._to_pandas_df(rdrs)
+    df = dicts_to_df(dicts=rdrs, columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
     RDP = RewardedDecisionPartition(model_name=model_name, df=df)
     RDP.sort()
     RDP.save()
@@ -65,7 +67,8 @@ def get_rdrs_before_or_after_decision_id(firehose_record_group, pivot, op):
                 expected_rdrs.append(rdr)
     
     expected_rdrs.sort(key=lambda rdr: rdr[DECISION_ID_KEY])
-    df = FirehoseRecordGroup._to_pandas_df(expected_rdrs)
+    # df = FirehoseRecordGroup._to_pandas_df(expected_rdrs)
+    df = dicts_to_df(dicts=expected_rdrs, columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
 
     return df
 
@@ -92,8 +95,11 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
     ##########################################################################
 
     # Replace the S3 client used in the app with a mock
-    mocker.patch('config.s3client', new=s3)
-    
+    # mocker.patch('config.s3client', new=s3)
+    utils.s3client = rewarded_decisions.s3client = firehose_record.s3client = s3
+    # firehose_record.s3client = rewarded_decisions.s3client = \
+    #     src.ingest_firehose.utils = s3
+
     # Create buckets in the Moto's virtual AWS account
     s3.create_bucket(Bucket=config.FIREHOSE_BUCKET)
     s3.create_bucket(Bucket=config.TRAIN_BUCKET)
@@ -108,7 +114,7 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
     decision_records = [
         get_decision_rec('111111111000000000000000000'), # In Train bucket
         get_decision_rec('111111112000000000000000000'), # In Train bucket 
-        get_decision_rec('111111113000000000000000000')  # NOT in Train bucket
+        get_decision_rec('111119000000000000000000000')  # NOT in Train bucket
     ]
 
     reward_records = [
@@ -118,8 +124,8 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
         get_reward_rec(decision_id_val='111111112000000000000000000'), # In Train bucket
         get_reward_rec(decision_id_val='111111112000000000000000000'), # In Train bucket
         
-        get_reward_rec(decision_id_val='111111113000000000000000000'), # NOT in Train bucket
-        get_reward_rec(decision_id_val='111111113000000000000000000'), # NOT in Train bucket
+        get_reward_rec(decision_id_val='111119000000000000000000000'), # NOT in Train bucket
+        get_reward_rec(decision_id_val='111119000000000000000000000'), # NOT in Train bucket
     ]
 
     # Assert that there is at least one decision_id with the value of 
@@ -167,9 +173,15 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
         firehose_record_group = firehose_record_group,
         pivot = LAST_DECISION_ID_IN_TRAIN_BUCKET,
         op = operator.le)
+
     rdps = RewardedDecisionPartition.partitions_from_firehose_record_group(
         firehose_record_group)
-    assert_frame_equal(rdps[0].df, expected_df_before_load1, check_column_type=True)
+
+    # TODO this is just a trick to make sorting equal in both expected and
+    #  calculated data
+    checked_df = rdps[0].df.sort_values(['decision_id', 'timestamp']).reset_index(drop=True)
+
+    assert_frame_equal(checked_df, expected_df_before_load1, check_column_type=True)
     assert_only_last_partition_may_not_have_an_s3_key(rdps)
 
 
@@ -179,6 +191,8 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
         firehose_record_group = firehose_record_group,
         pivot = LAST_DECISION_ID_IN_TRAIN_BUCKET,
         op = operator.gt)
+
+    # config.s3client = firehose_record.s3client = rewarded_decisions.s3client = utils.s3_client = s3
     rdps = RewardedDecisionPartition.partitions_from_firehose_record_group(
         firehose_record_group)
     assert_frame_equal(rdps[1].df, expected_df_before_load2, check_column_type=True)
@@ -192,7 +206,7 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
     ##########################################################################
 
     expected_df_after_load1 = pd.concat(
-        [expected_df_before_load1, FirehoseRecordGroup._to_pandas_df(rdrs)],
+        [expected_df_before_load1, dicts_to_df(dicts=rdrs, columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)],
         ignore_index=True).sort_values(DECISION_ID_KEY, ignore_index=True)
 
     # Assert after the S3 Train RDRs have been loaded

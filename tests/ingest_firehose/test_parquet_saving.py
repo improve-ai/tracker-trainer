@@ -16,10 +16,9 @@ from firehose_record import SAMPLE_KEY
 from firehose_record import REWARD_KEY
 from firehose_record import REWARDS_KEY
 from firehose_record import DECISION_ID_KEY
+from firehose_record import DF_SCHEMA
 
-from firehose_record import FirehoseRecordGroup
-
-to_pandas_df = FirehoseRecordGroup._to_pandas_df
+from tests.ingest_firehose.utils import dicts_to_df
 
 ENGINE="fastparquet"
 
@@ -27,12 +26,15 @@ class CasesMergeOfRewardedDecisions:
 
     def case_one_full_decision_one_partial(self, get_rewarded_decision_rec, get_partial_rewarded_dec_rec):
 
-        rewarded_records_df = pd.concat([
-            to_pandas_df(get_rewarded_decision_rec()),
-            to_pandas_df([get_partial_rewarded_dec_rec()])
-        ], ignore_index=True)
-
-        return rewarded_records_df
+        # rewarded_records_df = pd.concat([
+        #     to_pandas_df(get_rewarded_decision_rec()),
+        #     to_pandas_df([get_partial_rewarded_dec_rec()])
+        # ], ignore_index=True)
+        #
+        # return rewarded_records_df
+        return dicts_to_df(
+            dicts=[get_rewarded_decision_rec(), get_partial_rewarded_dec_rec()],
+            columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
 
 
 @parametrize_with_cases("rewarded_records_df", cases=CasesMergeOfRewardedDecisions)
@@ -91,7 +93,8 @@ def test_parquet_types_unrewarded_rewarded_decision_record(tmp_path):
 
     records = [rdr1, rdr2]
 
-    df = to_pandas_df(records)
+    # df = to_pandas_df(records)
+    df = dicts_to_df(dicts=records, columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
     df.to_parquet(temp_parquet_file, engine=ENGINE, index=False) 
     restored = pd.read_parquet(temp_parquet_file, engine=ENGINE)
     assert_frame_equal(df, restored, check_column_type=True)
@@ -129,7 +132,8 @@ def test_parquet_types_rewarded_decision_record(tmp_path):
 
     records = [rdr1, rdr2]
 
-    df = to_pandas_df(records)
+    # df = to_pandas_df(records)
+    df = dicts_to_df(dicts=records, columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
     df.to_parquet(temp_parquet_file, engine=ENGINE, index=False)
     restored = pd.read_parquet(temp_parquet_file, engine=ENGINE)
     assert_frame_equal(df, restored, check_column_type=True)
@@ -155,7 +159,8 @@ def test_parquet_types_partial_rewarded_decision_record(tmp_path):
 
     records = [rdr1, rdr2]
 
-    df = to_pandas_df(records)
+    # df = to_pandas_df(records)
+    df = dicts_to_df(dicts=records, columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
     df.to_parquet(temp_parquet_file, engine=ENGINE, index=False)
     restored = pd.read_parquet(temp_parquet_file, engine=ENGINE)
 
