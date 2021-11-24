@@ -10,13 +10,9 @@ import orjson as json
 import pandas as pd
 
 # Local imports
-import config
-from utils import utc
-from utils import is_valid_model_name
-from utils import is_valid_ksuid
-from utils import get_valid_timestamp
-from utils import json_dumps_wrapping_primitive
-from utils import json_dumps
+from config import FIREHOSE_BUCKET, s3client, stats
+from utils import utc, is_valid_model_name, is_valid_ksuid, get_valid_timestamp, \
+    json_dumps_wrapping_primitive, json_dumps
 
 
 MESSAGE_ID_KEY = 'message_id'
@@ -204,30 +200,6 @@ class FirehoseRecord:
 
         return result
 
-
-    def to_dict(self):
-        d = {
-            MESSAGE_ID_KEY : self.message_id,
-            TIMESTAMP_KEY : self.timestamp.isoformat(),
-            TYPE_KEY : self.type,
-            MODEL_KEY : self.model
-        }
-
-        if self.is_reward_record():
-            d[DECISION_ID_KEY] = self.decision_id
-            d[REWARD_KEY] = self.reward
-
-        elif self.is_decision_record():
-            d[VARIANT_KEY] = self.variant
-            d[GIVENS_KEY] = self.givens
-            d[COUNT_KEY] = self.count
-            d[RUNNERS_UP_KEY] = self.runners_up
-            d[SAMPLE_KEY] = self.sample
-
-        assert_valid_record(d)
-        
-        return d
-
     def __str__(self):
 
         if self.is_decision_record():
@@ -257,8 +229,8 @@ def _get_sample_pool_size(count, runners_up):
 
 
 class FirehoseRecordGroup:
-    
-    
+
+
     def __init__(self, model_name, records: List[FirehoseRecord]):
         assert(is_valid_model_name(model_name))
         self.model_name = model_name
@@ -270,15 +242,16 @@ class FirehoseRecordGroup:
         return list(map(lambda x: x.to_rewarded_decision_dict(), self.records))
 
 
-    @staticmethod
-    def _to_pandas_df(rewarded_decision_records):
-        if isinstance(rewarded_decision_records, dict):
-            rewarded_decision_records = [rewarded_decision_records]
-        return pd.DataFrame(rewarded_decision_records, columns=DF_SCHEMA.keys()).astype(DF_SCHEMA)
+    # # TODO delete this method
+    # @staticmethod
+    # def _to_pandas_df(rewarded_decision_records):
+    #     if isinstance(rewarded_decision_records, dict):
+    #         rewarded_decision_records = [rewarded_decision_records]
+    #     return pd.DataFrame(rewarded_decision_records, columns=DF_SCHEMA.keys()).astype(DF_SCHEMA)
 
 
     def to_pandas_df(self):
-        return self._to_pandas_df(self.to_rewarded_decision_dicts())
+        return pd.DataFrame(self.to_rewarded_decision_dicts(), columns=DF_SCHEMA.keys()).astype(DF_SCHEMA)
 
 
     @staticmethod
@@ -291,10 +264,10 @@ class FirehoseRecordGroup:
         records_by_model = {}
         invalid_records = []
         
-        print(f'loading s3://{config.FIREHOSE_BUCKET}/{s3_key}')
+        print(f'loading s3://{FIREHOSE_BUCKET}/{s3_key}')
     
         # download and parse the firehose file
-        s3obj = config.s3client.get_object(Bucket=config.FIREHOSE_BUCKET, Key=s3_key)['Body']
+        s3obj = s3client.get_object(Bucket=FIREHOSE_BUCKET, Key=s3_key)['Body']
         with gzip.GzipFile(fileobj=s3obj) as gzf:
             for line in gzf.readlines():
     
@@ -308,7 +281,7 @@ class FirehoseRecordGroup:
                     records_by_model[model].append(record)
                     
                 except Exception as e:
-                    config.stats.add_parse_exception(e)
+                    stats.add_parse_exception(e)
                     invalid_records.append(line)
                     continue
     

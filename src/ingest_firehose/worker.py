@@ -6,7 +6,7 @@ import itertools
 
 from firehose_record import FirehoseRecordGroup
 from rewarded_decisions import RewardedDecisionPartition, repair_overlapping_keys
-from config import INCOMING_FIREHOSE_S3_KEY, TRAIN_BUCKET, THREAD_WORKER_COUNT, s3client, stats
+from config import INCOMING_FIREHOSE_S3_KEY, TRAIN_BUCKET, THREAD_WORKER_COUNT, stats
 
 
 SIGTERM = False
@@ -30,7 +30,7 @@ def worker():
     print(f'uploaded {stats.rewarded_decision_count} rewarded decision records to s3://{TRAIN_BUCKET}')
 
     # if multiple ingests happen simultaneously it is possible for keys to overlap, which must be fixed
-    sort_key = lambda x: x.get_model_name()
+    sort_key = lambda x: x.model_name
     for model_name, model_decision_partitions in itertools.groupby(sorted(decision_partitions, key=sort_key), sort_key):
         repair_overlapping_keys(model_name, model_decision_partitions)
 

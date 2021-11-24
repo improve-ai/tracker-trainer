@@ -2,12 +2,14 @@
 import orjson
 import re
 import datetime
+from dateutil import parser
 
 # External imports
 from ksuid import Ksuid
 
 # Local imports
-import config
+from config import s3client
+# import config
 
 ZERO = datetime.timedelta(0)
 
@@ -110,15 +112,15 @@ def list_s3_keys_containing(bucket_name, start_after_key, end_key, prefix=''):
 
     kwargs = {
         'Bucket': bucket_name,
-        'StartAfter' : start_after_key,
-        'Prefix' : prefix
+        'StartAfter': start_after_key,
+        'Prefix': prefix
     }
 
     keys = []
     while True:
-        resp = config.s3client.list_objects_v2(**kwargs)
-        
-        if not 'Contents' in resp:
+        resp = s3client.list_objects_v2(**kwargs)
+
+        if 'Contents' not in resp:
             return []
 
         for obj in resp['Contents']:
@@ -188,7 +190,7 @@ def get_valid_timestamp(timestamp):
     
     # check string format
     try:
-        parsed_timestamp = datetime.datetime.fromisoformat(timestamp)
+        parsed_timestamp = parser.isoparse(timestamp)
     except ValueError:
         parsed_timestamp = None
     

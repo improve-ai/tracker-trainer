@@ -2,8 +2,8 @@
 from collections import ChainMap
 import re
 import os
-from collections import defaultdict
 from uuid import uuid4
+from warnings import warn
 
 # External imports
 import pandas as pd
@@ -11,12 +11,10 @@ from ksuid import Ksuid
 import orjson
 
 # Local imports
-import config
-from config import TRAIN_BUCKET
-from firehose_record import FirehoseRecordGroup
+from config import s3client, TRAIN_BUCKET
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA
-from utils import is_valid_model_name, json_dumps
-from utils import list_s3_keys_containing
+from utils import is_valid_model_name, json_dumps, list_s3_keys_containing
+
 
 ISO_8601_BASIC_FORMAT = '%Y%m%dT%H%M%SZ'
 
@@ -193,7 +191,7 @@ class RewardedDecisionPartition:
         if self.s3_key:
             # delete the previous .parqet from s3
             # do this last in case there is a problem during processing that needs to be retried
-            config.s3client.delete_object(Bucket=TRAIN_BUCKET, Key=self.s3_key)
+            s3client.delete_object(Bucket=TRAIN_BUCKET, Key=self.s3_key)
 
         # reclaim the dataframe memory
         # do not clean up min/max decision_ids since they will need to be used after processing
@@ -222,80 +220,60 @@ class RewardedDecisionPartition:
             the range of decision_id prefixes that we’re interested in.  We then use those listing results to partition the decisions by the 
             s3_key that may contain the same decision_ids.
         """
-
-        def decision_id_belongs_to_range(decision_id: str, min_id: str, max_id: str):
-            return (decision_id >= min_id.ljust(27, "0")) and (decision_id <= max_id.ljust(27, "0"))
-        
         model_name = firehose_record_group.model_name
         
-        rdrs = firehose_record_group.to_rewarded_decision_dicts()
-        
-        # Get the range of decision ids
-        rdrs.sort(key=lambda rdr: rdr['decision_id'])
-        min_decision_id = rdrs[0]['decision_id']
-        max_decision_id = rdrs[-1]['decision_id']
-        start_after_key = s3_key_prefix(model_name, min_decision_id)
-        end_key         = s3_key_prefix(model_name, max_decision_id)
+        rdrs_df = firehose_record_group.to_pandas_df()
 
-        # Request s3 keys belonging to that range
-        s3_keys = list_s3_keys_containing(
-            bucket_name     = os.environ['TRAIN_BUCKET'],
-            start_after_key = start_after_key,
-            end_key         = end_key,
-            prefix          = f'/rewarded_decisions/{model_name}'
-        )
+        sorted_s3_prefixes = \
+            rdrs_df['decision_id'].apply(
+                lambda x: s3_key_prefix(model_name=model_name, max_decision_id=x))\
+            .sort_values()
+
+        sorted_rdrs_df = rdrs_df.iloc[sorted_s3_prefixes.index].reset_index(drop=True)
+
+        min_decision_id, max_decision_id = \
+            (sorted_rdrs_df['decision_id'].iloc[0], sorted_rdrs_df['decision_id'].iloc[-1])
+
+        start_after_key = s3_key_prefix(model_name, min_decision_id)
+        end_key = s3_key_prefix(model_name, max_decision_id)
+
+        s3_keys = \
+            list_s3_keys_containing(
+                bucket_name=os.environ['TRAIN_BUCKET'],
+                start_after_key=start_after_key,
+                end_key=end_key, prefix=f'/rewarded_decisions/{model_name}')
 
         if len(s3_keys) == 0:
-            return RewardedDecisionPartition(
-                model_name, firehose_record_group.to_pandas_df()
-            )
+            return [RewardedDecisionPartition(model_name, sorted_rdrs_df)]
+                # RewardedDecisionPartition(model_name, firehose_record_group.to_pandas_df())]
 
+        warn('Processing following s3 keys from train bucket: {}'.format(s3_keys))
 
-        # Example:
-        # { s3_key1 : [ RDRs that belong to such parquet file ] }
-        map_of_s3_keys_to_rdrs = defaultdict(list)
+        map_of_s3_keys_to_rdrs = {}
+        for i, s3_key in enumerate(sorted(s3_keys)):
 
-        for rdr in list(rdrs): # copy of rdrs list
-            found_s3_file_for_rdr = False
-            for i,s3_key in enumerate(s3_keys):
-                
-                min_9char_decision_id, max_9char_decision_id = \
-                get_min_max_truncated_decision_ids_from_s3_key(s3_key)
-                
-                if decision_id_belongs_to_range(
-                    rdr['decision_id'],
-                    min_9char_decision_id,
-                    max_9char_decision_id):
+            s3_prefixes = sorted_s3_prefixes.reset_index(drop=True)
 
-                        map_of_s3_keys_to_rdrs[s3_key].append(rdr) # ERROR: rdr has to be a FirehoseRecord
-                        rdrs.remove(rdr)
-                        found_s3_file_for_rdr = True
-                        break
-            
-            if not found_s3_file_for_rdr:
-                # What happens if I can't fit a RDR in one partition?
-                # Maybe I should collect them all and return a Partition with all of them there
-                pass
+            append_s3_to_firehose_records = (s3_prefixes < s3_key)
 
-        # RewardedDecisionPartition for the records WITH a corresponding S3 key
+            if not append_s3_to_firehose_records.any():
+                continue
+
+            # append selected rows to list
+            map_of_s3_keys_to_rdrs[s3_key] = \
+                sorted_rdrs_df[append_s3_to_firehose_records].reset_index(drop=True)
+            # remove appended rows from rdrs_df
+            sorted_rdrs_df = sorted_rdrs_df[~append_s3_to_firehose_records].reset_index(drop=True)
+
         partitions_s3 = [
             RewardedDecisionPartition(
-                model_name,
-                FirehoseRecordGroup._to_pandas_df(map_of_s3_keys_to_rdrs[key]),
-                s3_key=key
-            ) for key in map_of_s3_keys_to_rdrs.keys()
-        ]
+                model_name=model_name,
+                df=df, s3_key=s3_key) for s3_key, df in map_of_s3_keys_to_rdrs.items()]
 
-        # RewardedDecisionPartition for the records WITHOUT a corresponding S3 key
-        partitions_no_s3 = RewardedDecisionPartition(
-            model_name,
-            FirehoseRecordGroup._to_pandas_df(rdrs),
-        )
+        if not sorted_rdrs_df.empty:
+            partitions_s3.append(RewardedDecisionPartition(model_name=model_name, df=sorted_rdrs_df))
 
-        partitions_s3.append(partitions_no_s3)
-        
         return partitions_s3
-        
 
         # Plan: Do Plan1, then do some tests then do Plan2 and compare results
 
@@ -310,9 +288,12 @@ class RewardedDecisionPartition:
 
 
 def get_min_max_truncated_decision_ids_from_s3_key(s3_key):
-    """Extract the min and max truncated decision ids found in a S3 key str"""   
-    
+    """Extract the min and max truncated decision ids found in a S3 key str"""
+
+    print('s3_key')
+    print(s3_key)
     regexp = r"/rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\w+-([A-Za-z0-9]{9})-\w+-([A-Za-z0-9]{9})-[A-Za-z0-9]{27}.parquet"
+
     result = re.match(regexp, s3_key)
     if result is not None:
         max_decision_id, min_decision_id = result.groups()
@@ -322,8 +303,13 @@ def get_min_max_truncated_decision_ids_from_s3_key(s3_key):
 
 
 def min_max_decision_ids(partitions):
-    min_decision_id = min(map(lambda x: x.min_decision_id, partitions))
-    max_decision_id = max(map(lambda x: x.max_decision_id, partitions))
+    min_per_partitions = list(map(lambda x: x.min_decision_id, partitions))
+    max_per_partitions = list(map(lambda x: x.max_decision_id, partitions))
+    min_decision_id = min([None] if not min_per_partitions else min_per_partitions)
+    max_decision_id = max([None] if not max_per_partitions else max_per_partitions)
+
+    # min_decision_id = min(map(lambda x: x.min_decision_id, partitions))
+    # max_decision_id = max(map(lambda x: x.max_decision_id, partitions))
     return min_decision_id, max_decision_id
 
 
@@ -349,6 +335,7 @@ def s3_key_prefix(model_name, max_decision_id):
     # The max timestamp is encoded first in the path so that a lexicographically sorted
     # search of file names starting at the prefix of the target decision_id will provide
     # the .parquet that should contain that decision_id, if it exists
+    # TODO change from /rewarded_decisions/... to rewarded_decisions/... (?)
     return f'/rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{max_timestamp}'
     
     

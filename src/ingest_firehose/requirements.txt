@@ -2,5 +2,6 @@ boto3
 orjson
 pandas
 svix-ksuid
-fastparquet
+s3fs
+git+https://github.com/dask/fastparquet@7bf80f62b1e8b6b36baf9631e1d0da96d9f8b52e
 zstandard
