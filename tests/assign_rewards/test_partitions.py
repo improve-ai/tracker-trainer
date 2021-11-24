@@ -177,7 +177,7 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
     rdps = RewardedDecisionPartition.partitions_from_firehose_record_group(
         firehose_record_group)
 
-    # TODO this is jsut a trick to make sorting equal in both expected and
+    # TODO this is just a trick to make sorting equal in both expected and
     #  calculated data
     checked_df = rdps[0].df.sort_values(['decision_id', 'timestamp']).reset_index(drop=True)
 
