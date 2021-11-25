@@ -5,7 +5,7 @@
 #
 # 'organization' and 'project' may contain only lowercase letters and numbers
 #
-region: us-east-2
+region: us-east-1
 organization: acme # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
 project: demo # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
 contact: your_email@example.com # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
@@ -21,8 +21,8 @@ models:
 training:
   # get your training image URL by subscribing to the decision model trainer at 
   # XXX
-  image: 278455137857.dkr.ecr.us-east-2.amazonaws.com/improve.ai:v6_trainer # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
-  schedule: rate(168 hours)
-  worker_instance_type: ml.m5.large
-  worker_count: 1
+  image: XXX.dkr.ecr.us-east-1.amazonaws.com/improveai-trainer:latest # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
+  schedule: rate(6 hours)
+  worker_instance_type: ml.m5.xlarge
+  worker_count: 2
   max_runtime_in_seconds: 7200 # 2 hours
