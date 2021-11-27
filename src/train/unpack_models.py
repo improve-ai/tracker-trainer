@@ -91,6 +91,6 @@ def get_latest_s3_key(model_name: str, extension: str) -> str:
 
 def get_timestamped_s3_key(
         model_name: str, extension: str, model_uuid: str = None) -> str:
-    date_str = datetime.now().strftime('%Y-%m-%d-%M-%H-%S')
+    date_str = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
     return f'models/archive/{model_name}/{model_name}-{date_str}-{uuid4()}{extension}'
