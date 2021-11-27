@@ -1,5 +1,11 @@
 const assert = require('assert')
 const fs = require('fs');
+
+const empty_models_error =
+    '\n###################################################################\n' +
+    '### No model specified in `models` section of config/config.yml ###\n' +
+    '###################################################################\n';
+
 let yaml = null;
 
 try {
@@ -110,6 +116,7 @@ assert(project.match(orgAndProjNameRegex), 'config/config.yml:project may contai
 assert(organization != '', 'config/config.yml:organization is an empty string');
 assert(project != '', 'config/config.yml:project is an empty string');
 
+assert(module.exports.config['models'] != null, empty_models_error);
 // model names should be validated according to model naming rules
 for (const [key, value] of Object.entries(module.exports.config['models'])) {
   assert(key.match(modelNameRegex), `Invalid model name: ${key}`)
