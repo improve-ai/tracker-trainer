@@ -327,7 +327,7 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
     ##########################################################################
     
     # The record uploaded by .save() is called:
-    # /rewarded_decisions/test-model-name-1.0/parquet/2021/01/03/20210103T000000Z-20210101T000000Z-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet
+    # /rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet
     df1 = dicts_to_df(dicts=rdrs1, columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
     RDP1 = RewardedDecisionPartition(model_name=MODEL_NAME, df=df1)
     RDP1.sort()
@@ -351,25 +351,56 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
     RDP4.sort()
     RDP4.save()
 
-    RDPs = [RDP1, RDP2, RDP3, RDP4]
-
-    repair_overlapping_keys(MODEL_NAME, RDPs)
-
-
     ##########################################################################
-    # Assertion of number of keys
+    # Assertion original keys are present before fix
     ##########################################################################
 
-    # List and load Train S3 files
+    original_keys = [
+        "/rewarded_decisions/test-model-name-1.0/parquet/2021/01/03/20210103T000000Z-20210101T000000Z-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
+        "/rewarded_decisions/test-model-name-1.0/parquet/2021/01/05/20210105T000000Z-20210103T000000Z-f728b4fa-4248-4e3a-8a5d-2f346baa9455.parquet",
+        "/rewarded_decisions/test-model-name-1.0/parquet/2021/01/07/20210107T000000Z-20210105T000000Z-eb1167b3-67a9-4378-bc65-c1e582e2e662.parquet",
+        "/rewarded_decisions/test-model-name-1.0/parquet/2021/01/10/20210110T000000Z-20210109T000000Z-f7c1bd87-4da5-4709-9471-3d60c8a70639.parquet"
+    ]
+    
+
     response = s3.list_objects_v2(
         Bucket = config.TRAIN_BUCKET,
         Prefix = f'/rewarded_decisions/{MODEL_NAME}')
     keys_in_bucket = [x['Key'] for x in response['Contents']]
+
+    for i in original_keys:
+        assert i in keys_in_bucket, f"{i} not in bucket"
+
+
+    ##########################################################################
+    # Repair
+    ##########################################################################
+
+    RDPs = [RDP1, RDP2, RDP3, RDP4]
+    repair_overlapping_keys(MODEL_NAME, RDPs)
+
+
+    ##########################################################################
+    # Assertion of number of keys after repair
+    ##########################################################################
+
+    response = s3.list_objects_v2(
+        Bucket = config.TRAIN_BUCKET,
+        Prefix = f'/rewarded_decisions/{MODEL_NAME}')
+    keys_in_bucket = [x['Key'] for x in response['Contents']]
+
     assert len(keys_in_bucket) == 2, "Too many keys in bucket, were the old ones deleted?"
 
 
     ##########################################################################
-    # Assertion of actual keys
+    # Assert old keys deleted
+    ##########################################################################
+
+    for i in original_keys[:3]: assert i not in keys_in_bucket
+
+
+    ##########################################################################
+    # Assertion of actual keys after repair
     ##########################################################################
 
     # Assert presence of the new generated s3 keys due to new Firehose records
@@ -389,13 +420,6 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
     s3_df2 = pd.read_parquet(f's3://{config.TRAIN_BUCKET}/{expected_key2}')
     assert s3_df2.shape[0] == 2
 
-    #TODO:
-    # Somehow assert eventually consistency
-    # Run the process "in parallel" (twice)
-
-    # Assert that the original parquet files are deleted (kind of already done)
-
-    # Maybe assert that there is only one file with such name?
 
 
 
