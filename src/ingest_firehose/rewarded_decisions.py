@@ -355,7 +355,8 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
         interval = P.IntervalDict({ P.closed(mints_key, maxts_key): [key] })
         train_s3_intervals.append(interval)
 
-
+    # Modified from:
+    # https://www.csestack.org/merge-overlapping-intervals/
     merged_list= [ train_s3_intervals[0] ]
     for i in range(1, len(train_s3_intervals)):
         
