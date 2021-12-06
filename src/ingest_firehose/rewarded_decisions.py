@@ -4,11 +4,14 @@ import re
 import os
 from uuid import uuid4
 from warnings import warn
+from typing import List
+import itertools
 
 # External imports
 import pandas as pd
 from ksuid import Ksuid
 import orjson
+import portion as P
 
 # Local imports
 from config import s3client, TRAIN_BUCKET
@@ -314,15 +317,79 @@ def min_max_decision_ids(partitions):
     return min_decision_id, max_decision_id
 
 
-def repair_overlapping_keys(model_name, partitions):
+def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPartition]):
+    """
+    Detect parquet files which contain decision ids from overlapping 
+    time periods and fix them.
+    
+    The min timestamp is encoded into the file name so that a 
+    lexicographically ordered listing can determine if two parquet 
+    files have overlapping decision_id ranges, which they should not. 
+    
+    If overlapping ranges are detected they should be repaired by 
+    loading the overlapping parquet files, consolidating them, 
+    optionally splitting, then saving. This process should lead to 
+    eventually consistency.
+    """
+    
     for partition in partitions:
         assert partition.model_name == model_name
         
     min_decision_id, max_decision_id = min_max_decision_ids(partitions)
+        
+    # Load from s3 based on above min max
+    train_s3_keys = list_s3_keys_containing(
+        bucket_name     = TRAIN_BUCKET,
+        start_after_key = s3_key_prefix(model_name, min_decision_id),
+        end_key         = s3_key_prefix(model_name, max_decision_id),
+        prefix          = f'/rewarded_decisions/{model_name}')
+
+    train_s3_keys.reverse()
+
+    assert train_s3_keys[0] > train_s3_keys[-1]
     
-    # TODO keep iterating until all overlapping keys have been repaired.  It may take multiple passes
-    # TODO this is low priority for initial release since overlapping keys should be very rare
-    
+    # Create list of "Interval" objects
+    train_s3_intervals = []
+    for key in train_s3_keys:
+        maxts_key, mints_key = key.split('/')[-1].split('-')[:2]
+        interval = P.IntervalDict({ P.closed(mints_key, maxts_key): [key] })
+        train_s3_intervals.append(interval)
+
+
+    merged_list= [ train_s3_intervals[0] ]
+    for i in range(1, len(train_s3_intervals)):
+        
+        pop_element  = merged_list.pop()
+        next_element = train_s3_intervals[i]
+
+        if pop_element.domain().overlaps(next_element.domain()):
+            new_element = pop_element.combine(next_element, how=lambda a,b: a + b)
+            merged_list.append(new_element)
+        else:
+            merged_list.append(pop_element)
+            merged_list.append(next_element)
+
+
+    def get_unique_keys_from_interval(interval):
+        return set(itertools.chain(*interval.values()))
+
+    # If there are overlapping ranges, load parquet files, consolidate them, save them
+    for interval in merged_list:
+        keys = get_unique_keys_from_interval(interval)
+        if len(keys) > 1:
+
+            dfs = [pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}') for s3_key in keys]
+            df = pd.concat(dfs, ignore_index=True)
+            RDP = RewardedDecisionPartition(model_name, df=df)
+            RDP.process()
+
+            response = s3client.delete_objects(
+                Bucket=TRAIN_BUCKET,
+                Delete={
+                    'Objects': [{'Key': s3_key} for s3_key in keys],
+                },
+            )
+
     return
 
 
