@@ -245,7 +245,7 @@ class RewardedDecisionPartition:
             list_s3_keys_containing(
                 bucket_name=os.environ['TRAIN_BUCKET'],
                 start_after_key=start_after_key,
-                end_key=end_key, prefix=f'/rewarded_decisions/{model_name}')
+                end_key=end_key, prefix=f'rewarded_decisions/{model_name}')
 
         if len(s3_keys) == 0:
             return [RewardedDecisionPartition(model_name, rdrs_df)]
@@ -284,7 +284,7 @@ class RewardedDecisionPartition:
         # Plan 2
         #
         # Run each decision_id through the prefix function
-        # You end up with '/rewarded_decisions/modelname/parquet/2014/05/13/000000000' for example
+        # You end up with 'rewarded_decisions/modelname/parquet/2014/05/13/000000000' for example
         # You also have s3 keys which look alike
         # Then you go through each s3 key and check if the fragment is part of the s3 key
         # But since the s3 keys are in lexicographic order, once
@@ -294,9 +294,7 @@ class RewardedDecisionPartition:
 def get_min_max_truncated_decision_ids_from_s3_key(s3_key):
     """Extract the min and max truncated decision ids found in a S3 key str"""
 
-    print('s3_key')
-    print(s3_key)
-    regexp = r"/rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\w+-([A-Za-z0-9]{9})-\w+-([A-Za-z0-9]{9})-[A-Za-z0-9]{27}.parquet"
+    regexp = r"rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\w+-([A-Za-z0-9]{9})-\w+-([A-Za-z0-9]{9})-[A-Za-z0-9]{27}.parquet"
 
     result = re.match(regexp, s3_key)
     if result is not None:
@@ -342,9 +340,18 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
         bucket_name     = TRAIN_BUCKET,
         start_after_key = s3_key_prefix(model_name, min_decision_id),
         end_key         = s3_key_prefix(model_name, max_decision_id),
-        prefix          = f'/rewarded_decisions/{model_name}')
+        prefix          = f'rewarded_decisions/{model_name}')
+
+    # if there are no files in s3 yet there is nothing to fix
+    if len(train_s3_keys) <= 1:
+        print(train_s3_keys)
+        print('No overlapping keys detected')
+        return
 
     train_s3_keys.reverse()
+
+    print('### train_s3_keys ###')
+    print(train_s3_keys)
 
     assert train_s3_keys[0] > train_s3_keys[-1]
     
@@ -405,7 +412,7 @@ def s3_key_prefix(model_name, max_decision_id):
     # search of file names starting at the prefix of the target decision_id will provide
     # the .parquet that should contain that decision_id, if it exists
     # TODO change from /rewarded_decisions/... to rewarded_decisions/... (?)
-    return f'/rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{max_timestamp}'
+    return f'rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{max_timestamp}'
     
     
 def s3_key(model_name, min_decision_id, max_decision_id):

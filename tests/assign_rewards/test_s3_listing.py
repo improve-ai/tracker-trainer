@@ -54,11 +54,11 @@ TODO: start by testing the high level behavior:
 
 Equal to or after a specific decision_id, which is equivalent to after a prefix of the decision_id
 
-bucket: [/rewarded_decisions/messages-2.0/parquet/2021/11/03/20QAxKOXA-20QAxNXYi-20QAxMZns2RdfX64tNXdPVf4OSY.parquet]
-start_after_key: /rewarded_decisions/messages-2.0/parquet/2021/11/03/20QAxKOXA
+bucket: [rewarded_decisions/messages-2.0/parquet/2021/11/03/20QAxKOXA-20QAxNXYi-20QAxMZns2RdfX64tNXdPVf4OSY.parquet]
+start_after_key: rewarded_decisions/messages-2.0/parquet/2021/11/03/20QAxKOXA
 end_key:
 
-result: /rewarded_decisions/messages-2.0/parquet/2021/11/03/20QAxKOXA-20QAxNXYi-20QAxMZns2RdfX64tNXdPVf4OSY.parquet
+result: rewarded_decisions/messages-2.0/parquet/2021/11/03/20QAxKOXA-20QAxNXYi-20QAxMZns2RdfX64tNXdPVf4OSY.parquet
 
 """
 

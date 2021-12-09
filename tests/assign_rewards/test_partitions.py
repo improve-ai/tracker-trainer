@@ -237,7 +237,7 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
 
     response = s3.list_objects_v2(
         Bucket = config.TRAIN_BUCKET,
-        Prefix = f'/rewarded_decisions/{MODEL_NAME}'
+        Prefix = f'rewarded_decisions/{MODEL_NAME}'
     )
 
     # Assert presence of the new generated s3 key due to new Firehose records
@@ -356,16 +356,15 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
     ##########################################################################
 
     original_keys = [
-        "/rewarded_decisions/test-model-name-1.0/parquet/2021/01/03/20210103T000000Z-20210101T000000Z-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
-        "/rewarded_decisions/test-model-name-1.0/parquet/2021/01/05/20210105T000000Z-20210103T000000Z-f728b4fa-4248-4e3a-8a5d-2f346baa9455.parquet",
-        "/rewarded_decisions/test-model-name-1.0/parquet/2021/01/07/20210107T000000Z-20210105T000000Z-eb1167b3-67a9-4378-bc65-c1e582e2e662.parquet",
-        "/rewarded_decisions/test-model-name-1.0/parquet/2021/01/10/20210110T000000Z-20210109T000000Z-f7c1bd87-4da5-4709-9471-3d60c8a70639.parquet"
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/05/20210105T000000Z-20210103T000000Z-f728b4fa-4248-4e3a-8a5d-2f346baa9455.parquet",
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/07/20210107T000000Z-20210105T000000Z-eb1167b3-67a9-4378-bc65-c1e582e2e662.parquet",
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/10/20210110T000000Z-20210109T000000Z-f7c1bd87-4da5-4709-9471-3d60c8a70639.parquet"
     ]
-    
 
     response = s3.list_objects_v2(
         Bucket = config.TRAIN_BUCKET,
-        Prefix = f'/rewarded_decisions/{MODEL_NAME}')
+        Prefix = f'rewarded_decisions/{MODEL_NAME}')
     keys_in_bucket = [x['Key'] for x in response['Contents']]
 
     for i in original_keys:
@@ -386,7 +385,7 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
 
     response = s3.list_objects_v2(
         Bucket = config.TRAIN_BUCKET,
-        Prefix = f'/rewarded_decisions/{MODEL_NAME}')
+        Prefix = f'rewarded_decisions/{MODEL_NAME}')
     keys_in_bucket = [x['Key'] for x in response['Contents']]
 
     assert len(keys_in_bucket) == 2, "Too many keys in bucket, were the old ones deleted?"
@@ -404,8 +403,8 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
     ##########################################################################
 
     # Assert presence of the new generated s3 keys due to new Firehose records
-    expected_key1 = "/rewarded_decisions/test-model-name-1.0/parquet/2021/01/07/20210107T000000Z-20210101T000000Z-e443df78-9558-467f-9ba9-1faf7a024204.parquet"
-    expected_key2 = "/rewarded_decisions/test-model-name-1.0/parquet/2021/01/10/20210110T000000Z-20210109T000000Z-f7c1bd87-4da5-4709-9471-3d60c8a70639.parquet"
+    expected_key1 = "rewarded_decisions/test-model-name-1.0/parquet/2021/01/07/20210107T000000Z-20210101T000000Z-e443df78-9558-467f-9ba9-1faf7a024204.parquet"
+    expected_key2 = "rewarded_decisions/test-model-name-1.0/parquet/2021/01/10/20210110T000000Z-20210109T000000Z-f7c1bd87-4da5-4709-9471-3d60c8a70639.parquet"
     assert expected_key1 in keys_in_bucket, f"Expected:\n{expected_key1}"
     assert expected_key2 in keys_in_bucket, f"Expected:\n{expected_key2}"
 

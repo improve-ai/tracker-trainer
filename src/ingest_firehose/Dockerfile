@@ -2,7 +2,7 @@ FROM public.ecr.aws/lambda/python:3.8
 
 WORKDIR /code
 
-COPY ./* ./
+COPY ./requirements.txt ./requirements.txt
 
 RUN yum install git gcc -y --setopt=install_weak_deps=False && \
     yum autoremove && yum clean all && \
@@ -11,6 +11,7 @@ RUN yum install git gcc -y --setopt=install_weak_deps=False && \
     python -m pip install --no-cache-dir -r requirements.txt && \
     rm -rf ~/.cache/pip
 
+COPY ./* ./
 
 ENV PYTHONPATH=/code
 ENV PYTHONUNBUFFERED=TRUE

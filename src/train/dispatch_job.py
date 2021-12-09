@@ -59,10 +59,12 @@ def create_sagemaker_training_job(
         InputDataConfig=[
             {
                 'ChannelName': 'decisions',
+                'InputMode': 'FastFile',
                 'DataSource': {
                     'S3DataSource': {
                         'S3DataType': 'S3Prefix',
-                        'S3Uri': training_s3_uri
+                        'S3Uri': training_s3_uri,
+                        'S3DataDistributionType': 'FullyReplicated',
                     },
                 }
             },
