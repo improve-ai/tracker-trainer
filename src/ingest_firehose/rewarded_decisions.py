@@ -1,11 +1,11 @@
 # Built-in imports
 from collections import ChainMap
+import itertools
 import re
 import os
 from uuid import uuid4
 from warnings import warn
 from typing import List
-import itertools
 
 # External imports
 import pandas as pd
@@ -247,6 +247,7 @@ class RewardedDecisionPartition:
                 start_after_key=start_after_key,
                 end_key=end_key, prefix=f'rewarded_decisions/{model_name}')
 
+        # TODO should s3_keys be checked for empty folders?
         if len(s3_keys) == 0:
             return [RewardedDecisionPartition(model_name, rdrs_df)]
                 # RewardedDecisionPartition(model_name, firehose_record_group.to_pandas_df())]
@@ -344,14 +345,10 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
 
     # if there are no files in s3 yet there is nothing to fix
     if len(train_s3_keys) <= 1:
-        print(train_s3_keys)
         print('No overlapping keys detected')
         return
 
     train_s3_keys.reverse()
-
-    print('### train_s3_keys ###')
-    print(train_s3_keys)
 
     assert train_s3_keys[0] > train_s3_keys[-1]
     
