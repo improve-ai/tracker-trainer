@@ -4,16 +4,17 @@ WORKDIR /code
 
 COPY ./requirements.txt ./requirements.txt
 
-RUN yum install git gcc -y --setopt=install_weak_deps=False && \
-    yum autoremove && yum clean all && \
-    rm -rf /var/cache/yum/* && \
-    python -m pip install --no-cache-dir --upgrade pip && \
-    python -m pip install --no-cache-dir -r requirements.txt && \
-    rm -rf ~/.cache/pip
+RUN python -m venv /code/venv && \
+    source /code/venv/bin/activate && \
+    pip3 install --upgrade pip --no-cache-dir && \
+    pip3 install --no-cache-dir -r /code/requirements.txt && \
+    rm -rf ~/.cache/pip /tmp/pip-ephem-wheel-cache*
 
 COPY ./* ./
 
-ENV PYTHONPATH=/code
+ENV PYTHONPATH="/code/:$PATH"
+# make sure python from venv is visible and responds as default to python3 command
+ENV PATH="/code/venv/bin/:$PATH"
 ENV PYTHONUNBUFFERED=TRUE
 
 
