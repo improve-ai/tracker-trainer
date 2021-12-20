@@ -224,15 +224,6 @@ class RewardedDecisionPartition:
             s3_key that may contain the same decision_ids.
         """
 
-        # def get_sorted_s3_prefixes(df, reset_index=False):
-        #     """ Get s3 prefixes based on decision_ids from DF of records """
-        #
-        #     s3_prefixes = df['decision_id'].apply(
-        #         lambda x: s3_key_prefix(model_name=model_name, max_decision_id=x)
-        #     ).copy()
-        #
-        #     return s3_prefixes.sort_values()
-
         model_name = firehose_record_group.model_name
         
         rdrs_df = firehose_record_group.to_pandas_df()
