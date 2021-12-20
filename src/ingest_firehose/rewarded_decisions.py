@@ -289,17 +289,6 @@ class RewardedDecisionPartition:
 
         return partitions_s3
 
-        # Plan: Do Plan1, then do some tests then do Plan2 and compare results
-
-        # Plan 2
-        #
-        # Run each decision_id through the prefix function
-        # You end up with 'rewarded_decisions/modelname/parquet/2014/05/13/000000000' for example
-        # You also have s3 keys which look alike
-        # Then you go through each s3 key and check if the fragment is part of the s3 key
-        # But since the s3 keys are in lexicographic order, once
-
-
 
 def get_min_max_truncated_decision_ids_from_s3_key(s3_key):
     """Extract the min and max truncated decision ids found in a S3 key str"""
