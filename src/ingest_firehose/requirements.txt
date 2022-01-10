@@ -1,11 +1,10 @@
-boto3==1.19.8
+boto3==1.20.31
 fastparquet==0.7.2
 # git+https://github.com/dask/fastparquet@7bf80f62b1e8b6b36baf9631e1d0da96d9f8b52e
 orjson==3.6.5
 pandas==1.3.4
 portion==2.2.0
 # this works but is obsolete (march 2020)
-# s3fs==0.4.2
-s3fs==2021.11.1
+s3fs==0.4.2
 svix-ksuid==0.6.0
 zstandard==0.16.0

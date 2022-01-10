@@ -13,6 +13,7 @@ from ksuid import Ksuid
 import orjson
 import portion as P
 
+
 # Local imports
 from config import s3client, TRAIN_BUCKET
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA
@@ -31,6 +32,8 @@ class RewardedDecisionPartition:
         self.model_name = model_name
         self.df = df
         self.s3_key = s3_key
+
+        self.sorted = False
 
 
     def process(self):

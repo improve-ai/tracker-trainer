@@ -16,13 +16,15 @@ contact: your_email@example.com # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
 # 'appconfig' is the default decision model used by the "Improve" helper class
 #
 models:
-  appconfig: 
+  appconfig:
+
 
 training:
   # get your training image URL by subscribing to the decision model trainer at 
   # XXX
   image: XXX.dkr.ecr.us-east-1.amazonaws.com/improveai-trainer:latest # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
-  schedule: rate(6 hours)
-  worker_instance_type: ml.m5.xlarge
+  schedule: rate(24 hours)
+  worker_instance_type: ml.m5.large
   worker_count: 2
-  max_runtime_in_seconds: 7200 # 2 hours
+  max_runtime: 14400 # 4 hours
+  volume_size_in_gb: 10

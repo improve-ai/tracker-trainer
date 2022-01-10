@@ -37,12 +37,13 @@ def create_sagemaker_training_job(
 
     instance_count = event[tc.EVENT_WORKER_COUNT_KEY]
     instance_type = event[tc.EVENT_WORKER_INSTANCE_TYPE_KEY]
+    volume_size_in_gb = event[tc.EVENT_VOLUME_SIZE_IN_GB_KEY]
 
     subnets = [os.getenv(tc.SUBNET_ENVVAR)]
     security_groups_ids = \
         [os.getenv(tc.SECURITY_GROUP_BATCH_ENVVAR)]
 
-    training_max_runtime_s = event[tc.EVENT_MAX_RUNTIME_IN_SECONDS_KEY]
+    training_max_runtime_s = event[tc.EVENT_MAX_RUNTIME_KEY]
 
     training_job_name = get_train_job_name(model_name=model_name)
     training_s3_uri = get_training_s3_uri_for_model(model_name=model_name)
@@ -72,7 +73,7 @@ def create_sagemaker_training_job(
         ResourceConfig={
             'InstanceType': instance_type,
             'InstanceCount': instance_count,
-            'VolumeSizeInGB': tc.VOLUME_SIZE_IN_GB,
+            'VolumeSizeInGB': volume_size_in_gb  #  tc.VOLUME_SIZE_IN_GB,
         },
         VpcConfig={
             'SecurityGroupIds': security_groups_ids,

@@ -82,9 +82,6 @@ functions:
     events: ${file(src/predeploy.js):trainSchedulingEvents}
     environment:
       TRAINING_IMAGE: ${self:custom.config.training.image}
-      TRAINING_INSTANCE_TYPE: ${self:custom.config.training.worker_instance_type}
-      TRAINING_INSTANCE_COUNT: ${self:custom.config.training.worker_count}
-      TRAINING_MAX_RUNTIME_IN_SECONDS: ${self:custom.config.training.max_runtime_in_seconds}
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
       TRAINING_SUBNET: !Ref Subnet
       TRAINING_SECURITY_GROUP: !Ref SecurityGroup

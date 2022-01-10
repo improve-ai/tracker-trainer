@@ -31,7 +31,8 @@ function setTrainSchedulingEvents(scheduleEventPattern){
   var defaultWorkerInstanceType = module.exports.config['training']['worker_instance_type'];
   var defaultWorkerCount = module.exports.config['training']['worker_count'];
   var defaultMaxRecordsPerWorker = module.exports.config['training']['max_records_per_worker'];
-  var defaultMaxRuntimeInSeconds = module.exports.config['training']['max_runtime_in_seconds'];
+  var defaultMaxRuntimeInSeconds = module.exports.config['training']['max_runtime'];
+  var defaultVolumeSizeInGB = module.exports.config['training']['volume_size_in_gb'];
 
   var currentScheduleEventDef = null;
   var currentModelTrainingConfig = {};
@@ -65,9 +66,10 @@ function setTrainSchedulingEvents(scheduleEventPattern){
           get(currentModelTrainingConfig, 'worker_count', defaultWorkerCount);
       currentScheduleEventDef['schedule']['input']['max_records_per_worker'] =
           get(currentModelTrainingConfig, 'max_records_per_worker', defaultMaxRecordsPerWorker);
-      currentScheduleEventDef['schedule']['input']['max_runtime_in_seconds'] =
-          get(currentModelTrainingConfig, 'max_runtime_in_seconds', defaultMaxRuntimeInSeconds);
-
+      currentScheduleEventDef['schedule']['input']['max_runtime'] =
+          get(currentModelTrainingConfig, 'max_runtime', defaultMaxRuntimeInSeconds);
+      currentScheduleEventDef['schedule']['input']['volume_size_in_gb'] =
+          get(currentModelTrainingConfig, 'volume_size_in_gb', defaultVolumeSizeInGB);
       module.exports.trainSchedulingEvents.push(currentScheduleEventDef)
   }
 }
