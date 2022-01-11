@@ -25,6 +25,49 @@ function get(object, key, default_value) {
 }
 
 
+const MAX_RUNTIME_UNITS_TO_SECONDS = {seconds: 1, minutes: 60, hours: 3600, days: 86400};
+
+const MAX_RUNTIME_NULL_ERROR =
+    '\n###########################################################\n' +
+    '###            max_runtime must not be empty            ###\n' +
+    '###########################################################\n';
+
+const MAX_RUNTIME_NOT_POSITIVE =
+    '\n###########################################################\n' +
+    '###               max_runtime must be > 0               ###\n' +
+    '###########################################################\n';
+
+const BAD_UNIT_ERROR =
+    '\n###########################################################\n' +
+    '###         Provided time unit is not supported         ###\n' +
+    '###########################################################\n';
+
+function parseMaxRuntimeString(maxRuntimeString){
+    assert(!(maxRuntimeString == null), MAX_RUNTIME_NULL_ERROR);
+    assert(!(maxRuntimeString == ''), MAX_RUNTIME_NULL_ERROR);
+    // replace multiple spaces, tabs, etc with single space
+    var maxRuntimeStringFixed = maxRuntimeString.replace(/\s\s+/g, ' ').trim();
+    // split on space to separate value and unit
+    var maxRuntimeArray = maxRuntimeStringFixed.split(' ');
+    var maxRuntimeUnit = maxRuntimeArray[1].toLowerCase();
+
+    assert(Object.keys(MAX_RUNTIME_UNITS_TO_SECONDS).includes(maxRuntimeUnit), BAD_UNIT_ERROR);
+
+    var maxRuntimeValue = -1;
+
+    try {
+        maxRuntimeValue = parseInt(maxRuntimeArray[0]);
+    } catch(error) {
+        throw '\n#####################################################\n' +
+                '### Unable to parse provided value of max runtime ###\n' +
+                '#####################################################\n';
+    }
+
+    assert(maxRuntimeValue > 0, MAX_RUNTIME_NOT_POSITIVE)
+    return maxRuntimeValue * MAX_RUNTIME_UNITS_TO_SECONDS[maxRuntimeUnit]
+}
+
+
 function setTrainSchedulingEvents(scheduleEventPattern){
   //defaults
   var defaultScheduleString = module.exports.config['training']['schedule'];
@@ -67,7 +110,7 @@ function setTrainSchedulingEvents(scheduleEventPattern){
       currentScheduleEventDef['schedule']['input']['max_records_per_worker'] =
           get(currentModelTrainingConfig, 'max_records_per_worker', defaultMaxRecordsPerWorker);
       currentScheduleEventDef['schedule']['input']['max_runtime'] =
-          get(currentModelTrainingConfig, 'max_runtime', defaultMaxRuntimeInSeconds);
+          parseMaxRuntimeString(get(currentModelTrainingConfig, 'max_runtime', defaultMaxRuntimeInSeconds));
       currentScheduleEventDef['schedule']['input']['volume_size_in_gb'] =
           get(currentModelTrainingConfig, 'volume_size_in_gb', defaultVolumeSizeInGB);
       module.exports.trainSchedulingEvents.push(currentScheduleEventDef)

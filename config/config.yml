@@ -26,5 +26,5 @@ training:
   schedule: rate(24 hours)
   worker_instance_type: ml.m5.large
   worker_count: 2
-  max_runtime: 14400 # 4 hours
+  max_runtime: 4 hours # 4 hours
   volume_size_in_gb: 10

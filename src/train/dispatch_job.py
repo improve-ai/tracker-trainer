@@ -1,6 +1,5 @@
 import boto3
 import os
-import random
 
 import src.train.constants as tc
 from src.train.naming import get_train_job_name, get_training_s3_uri_for_model, \
@@ -43,7 +42,7 @@ def create_sagemaker_training_job(
     security_groups_ids = \
         [os.getenv(tc.SECURITY_GROUP_BATCH_ENVVAR)]
 
-    training_max_runtime_s = event[tc.EVENT_MAX_RUNTIME_KEY]
+    training_max_runtime = event[tc.EVENT_MAX_RUNTIME_KEY]
 
     training_job_name = get_train_job_name(model_name=model_name)
     training_s3_uri = get_training_s3_uri_for_model(model_name=model_name)
@@ -80,7 +79,7 @@ def create_sagemaker_training_job(
             'Subnets': subnets
         },
         StoppingCondition={
-            'MaxRuntimeInSeconds': training_max_runtime_s,
+            'MaxRuntimeInSeconds': training_max_runtime,
         },
         OutputDataConfig={
             'S3OutputPath': model_save_s3_uri},
