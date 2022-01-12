@@ -21,6 +21,7 @@ from utils import is_valid_model_name, json_dumps, list_s3_keys_containing
 
 
 ISO_8601_BASIC_FORMAT = '%Y%m%dT%H%M%SZ'
+REWARDED_DECISIONS_S3_KEY_REGEXP = r"rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\d{8}T\d{6}Z\-(.*){36}\.parquet"
 
 class RewardedDecisionPartition:
 
@@ -242,11 +243,13 @@ class RewardedDecisionPartition:
         start_after_key = s3_key_prefix(model_name, min_decision_id)
         end_key = s3_key_prefix(model_name, max_decision_id)
 
-        s3_keys = \
-            list_s3_keys_containing(
-                bucket_name=os.environ['TRAIN_BUCKET'],
-                start_after_key=start_after_key,
-                end_key=end_key, prefix=f'rewarded_decisions/{model_name}')
+        s3_keys = [s3_key for s3_key in
+                   list_s3_keys_containing(
+                       bucket_name=os.environ['TRAIN_BUCKET'],
+                       start_after_key=start_after_key,
+                       end_key=end_key,
+                       prefix=f'rewarded_decisions/{model_name}')
+                   if is_correct_s3_key(s3_key)]
 
         # TODO should s3_keys be checked for empty folders?
         if len(s3_keys) == 0:
@@ -293,6 +296,13 @@ def get_sorted_s3_prefixes(df, model_name, reset_index=False):
         return s3_prefixes.sort_values()
 
     return s3_prefixes.sort_values().reset_index(drop=True)
+
+
+def is_correct_s3_key(s3_key):
+    # regexp = r"rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\w+-([A-Za-z0-9]{9})-\w+-([A-Za-z0-9]{9})-[A-Za-z0-9]{27}.parquet"
+    if re.match(REWARDED_DECISIONS_S3_KEY_REGEXP, s3_key):
+        return True
+    return False
 
 
 def get_min_max_truncated_decision_ids_from_s3_key(s3_key):
