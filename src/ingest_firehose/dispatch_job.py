@@ -54,4 +54,4 @@ def lambda_handler(event, context):
         }
     )
 
-    print(f"submitted batch job {r['jobArn']}")
+    print(f"submitted batch job {r['jobArn']} to ingest s3://{s3_bucket}/{s3_key}")
