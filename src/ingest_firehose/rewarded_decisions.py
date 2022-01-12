@@ -21,7 +21,8 @@ from utils import is_valid_model_name, json_dumps, list_s3_keys_containing
 
 
 ISO_8601_BASIC_FORMAT = '%Y%m%dT%H%M%SZ'
-REWARDED_DECISIONS_S3_KEY_REGEXP = r"rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\d{8}T\d{6}Z\-(.*){36}\.parquet"
+REWARDED_DECISIONS_S3_KEY_REGEXP = r"rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\d{8}T\d{6}Z\-\d{8}T\d{6}Z\-(.){36}\.parquet"
+
 
 class RewardedDecisionPartition:
 
