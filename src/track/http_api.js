@@ -62,7 +62,7 @@ function errorResponse(message) {
   console.log(message)
   const response = {
     statusCode: 400,
-    body: JSON.stringify({ error: { message: message }})
+    body: JSON.stringify({ error: { message: message } })
   }
   return response
 }
