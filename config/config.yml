@@ -5,26 +5,26 @@
 #
 # 'organization' and 'project' may contain only lowercase letters and numbers
 #
-region: us-east-1
 organization: acme # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
 project: demo # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
 contact: your_email@example.com # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
 
+region: us-east-1
+
+
 #
 # decision models to train
 #
-# 'appconfig' is the default decision model used by the "Improve" helper class
-#
 models:
-  appconfig:
+#  config: # uncomment to train a model named 'config'
 
 
 training:
-  # get your training image URL by subscribing to the decision model trainer at 
+  # get your training image URL by subscribing to the Improve AI Trainer at 
   # XXX
   image: XXX.dkr.ecr.us-east-1.amazonaws.com/improveai-trainer:latest # !!! CHANGE ME BEFORE FIRST DEPLOYMENT !!!
-  schedule: rate(24 hours)
-  worker_instance_type: ml.m5.large
+  schedule: rate(15 minutes)
+  worker_instance_type: ml.m5.xlarge
   worker_count: 2
-  max_runtime: 4 hours # 4 hours
+  max_runtime: 4 hours # AWS instances sometimes hang. This caps training costs when that occurs.
   volume_size_in_gb: 10
