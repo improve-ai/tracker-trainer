@@ -20,21 +20,15 @@ module.exports.track = async function(event, context) {
 
   const record = JSON.parse(event.body)
 
-  const messageId = record.message_id
-  
-  if (!isValidKsuid(messageId)) {
+  if (!isValidKsuid(record.message_id)) {
     return errorResponse('invalid message_id field')
   }
   
-  const timestamp = record.timestamp
-  
-  if (!isValidDate(timestamp)) {
+  if (!isValidDate(record.timestamp)) {
     return errorResponse('invalid timestamp field')
   }
   
-  const type = record.type
-  
-  if (!isValidType(type)) {
+  if (!isValidType(record.type)) {
     return errorResponse('invalid type field')
   }
   
