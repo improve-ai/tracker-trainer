@@ -28,4 +28,4 @@ training:
   worker_count: 2
   max_runtime: 4 hours # AWS instances sometimes hang. This caps training costs when that occurs.
   volume_size_in_gb: 10
-  max_decision_records: 20000000 # If using the free trainer, there is a hard cap of 100,000 decision records
+  max_decision_records: 20000000 # Note: the free trainer is capped at 100,000 decision records
