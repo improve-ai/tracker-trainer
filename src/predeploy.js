@@ -68,6 +68,18 @@ function parseMaxRuntimeString(maxRuntimeString){
 }
 
 
+const MAX_DECISION_RECORDS_NEGATIVE_OR_NULL =
+    '\n###########################################################\n' +
+    '###    max_decision_records must be > 0 and not null    ###\n' +
+    '###########################################################\n';
+
+function parseMaxDecisionRecords(maxDecisionRecords){
+    assert(!(maxDecisionRecords == null), MAX_DECISION_RECORDS_NEGATIVE_OR_NULL);
+    assert(maxDecisionRecords  > 0, MAX_DECISION_RECORDS_NEGATIVE_OR_NULL);
+    return maxDecisionRecords
+}
+
+
 function setTrainSchedulingEvents(scheduleEventPattern){
   //defaults
   var defaultScheduleString = module.exports.config['training']['schedule'];
@@ -76,6 +88,7 @@ function setTrainSchedulingEvents(scheduleEventPattern){
   var defaultMaxRecordsPerWorker = module.exports.config['training']['max_records_per_worker'];
   var defaultMaxRuntimeInSeconds = module.exports.config['training']['max_runtime'];
   var defaultVolumeSizeInGB = module.exports.config['training']['volume_size_in_gb'];
+  var defaultMaxRowsCount = module.exports.config['training']['max_decision_records'];
 
   var currentScheduleEventDef = null;
   var currentModelTrainingConfig = {};
@@ -113,6 +126,10 @@ function setTrainSchedulingEvents(scheduleEventPattern){
           parseMaxRuntimeString(get(currentModelTrainingConfig, 'max_runtime', defaultMaxRuntimeInSeconds));
       currentScheduleEventDef['schedule']['input']['volume_size_in_gb'] =
           get(currentModelTrainingConfig, 'volume_size_in_gb', defaultVolumeSizeInGB);
+      currentScheduleEventDef['schedule']['input']['max_decision_records'] =
+            parseMaxDecisionRecords(get(currentModelTrainingConfig, 'max_decision_records', defaultMaxRowsCount));
+
+
       module.exports.trainSchedulingEvents.push(currentScheduleEventDef)
   }
 }

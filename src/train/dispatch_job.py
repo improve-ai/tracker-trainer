@@ -1,3 +1,5 @@
+import re
+
 import boto3
 import os
 
@@ -89,7 +91,7 @@ def create_sagemaker_training_job(
     return response
 
 
-def get_hyperparameters_for_model(model_name: str):
+def get_hyperparameters_for_model(model_name: str, max_rows_count: int):
     """
     Gets hyperparameter set for provided model name
 
@@ -98,6 +100,8 @@ def get_hyperparameters_for_model(model_name: str):
     model_name: str
         name of the model for which SageMaker's hyperparameter set should be
         returned
+    max_rows_count: int
+        upper limit of rows to load for training
 
     Returns
     -------
@@ -105,8 +109,10 @@ def get_hyperparameters_for_model(model_name: str):
         set of hyperparameters for training job of a <model name>
 
     """
+
     return {
-        tc.MODEL_NAME_HYPERPARAMS_KEY: model_name
+        tc.MODEL_NAME_HYPERPARAMS_KEY: model_name,
+        tc.MAX_DECISION_RECORDS_HYPERPARAMS_KEY: max_rows_count
     }
 
 
@@ -138,7 +144,12 @@ def lambda_handler(event, context):
     model_name = event.get(tc.EVENT_MODEL_NAME_KEY)
     assert is_valid_model_name(model_name=model_name)
 
-    hyperparameters = get_hyperparameters_for_model(model_name=model_name)
+    # int comes from orjson.loads() but SageMaker expects string in hyperparameters
+    max_rows_count = str(event.get(tc.EVENT_MAX_DECISION_RECORDS_KEY))
+    assert int(max_rows_count) > 0
+
+    hyperparameters = \
+        get_hyperparameters_for_model(model_name=model_name, max_rows_count=max_rows_count)
 
     print(f'creating training job for model: {model_name}')
     response = \
