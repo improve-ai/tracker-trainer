@@ -1,5 +1,7 @@
-# External imports
+# Built-in imports
 from datetime import datetime
+
+# External imports
 from pytest_cases import parametrize_with_cases
 import pandas as pd
 from pandas._testing import assert_frame_equal
@@ -17,21 +19,21 @@ from firehose_record import REWARD_KEY
 from firehose_record import REWARDS_KEY
 from firehose_record import DECISION_ID_KEY
 from firehose_record import DF_SCHEMA
-
 from tests.ingest_firehose.utils import dicts_to_df
 
+
 ENGINE="fastparquet"
+
+"""
+Tests asserting that saving and loading a Rewarded Decision Record to a Parquet file 
+maintains the original RDR intact.
+
+"""
 
 class CasesMergeOfRewardedDecisions:
 
     def case_one_full_decision_one_partial(self, get_rewarded_decision_rec, get_partial_rewarded_dec_rec):
 
-        # rewarded_records_df = pd.concat([
-        #     to_pandas_df(get_rewarded_decision_rec()),
-        #     to_pandas_df([get_partial_rewarded_dec_rec()])
-        # ], ignore_index=True)
-        #
-        # return rewarded_records_df
         return dicts_to_df(
             dicts=[get_rewarded_decision_rec(), get_partial_rewarded_dec_rec()],
             columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
@@ -40,9 +42,6 @@ class CasesMergeOfRewardedDecisions:
 @parametrize_with_cases("rewarded_records_df", cases=CasesMergeOfRewardedDecisions)
 def test_parquet(rewarded_records_df, tmp_path):
     """
-    Test that a rewarded decision record saved to a Parquet file 
-    and reading it back again produces the same rewarded decision 
-    record.
 
     Parameters
     ----------
@@ -64,6 +63,13 @@ def test_parquet(rewarded_records_df, tmp_path):
 
 
 def test_parquet_types_unrewarded_rewarded_decision_record(tmp_path):
+    """
+
+    Parameters
+    ----------
+    tmp_path : Pathlib.Path
+        Pytest fixture
+    """
 
     temp_parquet_file = tmp_path / "temp.parquet"
 
@@ -93,7 +99,6 @@ def test_parquet_types_unrewarded_rewarded_decision_record(tmp_path):
 
     records = [rdr1, rdr2]
 
-    # df = to_pandas_df(records)
     df = dicts_to_df(dicts=records, columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
     df.to_parquet(temp_parquet_file, engine=ENGINE, index=False) 
     restored = pd.read_parquet(temp_parquet_file, engine=ENGINE)
@@ -101,6 +106,13 @@ def test_parquet_types_unrewarded_rewarded_decision_record(tmp_path):
 
 
 def test_parquet_types_rewarded_decision_record(tmp_path):
+    """
+
+    Parameters
+    ----------
+    tmp_path : Pathlib.Path
+        Pytest fixture
+    """
     temp_parquet_file = tmp_path / "temp.parquet"
 
     # A rewarded decision record that HAS been rewarded
@@ -132,7 +144,6 @@ def test_parquet_types_rewarded_decision_record(tmp_path):
 
     records = [rdr1, rdr2]
 
-    # df = to_pandas_df(records)
     df = dicts_to_df(dicts=records, columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
     df.to_parquet(temp_parquet_file, engine=ENGINE, index=False)
     restored = pd.read_parquet(temp_parquet_file, engine=ENGINE)
@@ -141,6 +152,11 @@ def test_parquet_types_rewarded_decision_record(tmp_path):
 
 def test_parquet_types_partial_rewarded_decision_record(tmp_path):
     """
+    
+    Parameters
+    ----------
+    tmp_path : Pathlib.Path
+        Pytest fixture
     """
 
     temp_parquet_file = tmp_path / "temp.parquet"
@@ -159,7 +175,6 @@ def test_parquet_types_partial_rewarded_decision_record(tmp_path):
 
     records = [rdr1, rdr2]
 
-    # df = to_pandas_df(records)
     df = dicts_to_df(dicts=records, columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
     df.to_parquet(temp_parquet_file, engine=ENGINE, index=False)
     restored = pd.read_parquet(temp_parquet_file, engine=ENGINE)

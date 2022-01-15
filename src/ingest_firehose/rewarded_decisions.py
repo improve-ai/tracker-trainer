@@ -255,7 +255,6 @@ class RewardedDecisionPartition:
         # TODO should s3_keys be checked for empty folders?
         if len(s3_keys) == 0:
             return [RewardedDecisionPartition(model_name, rdrs_df)]
-                # RewardedDecisionPartition(model_name, firehose_record_group.to_pandas_df())]
 
         warn('Processing following s3 keys from train bucket: {}'.format(s3_keys))
 
@@ -325,8 +324,6 @@ def min_max_decision_ids(partitions):
     min_decision_id = min([None] if not min_per_partitions else min_per_partitions)
     max_decision_id = max([None] if not max_per_partitions else max_per_partitions)
 
-    # min_decision_id = min(map(lambda x: x.min_decision_id, partitions))
-    # max_decision_id = max(map(lambda x: x.max_decision_id, partitions))
     return min_decision_id, max_decision_id
 
 

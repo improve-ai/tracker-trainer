@@ -1,15 +1,15 @@
 # Built-in imports
-import orjson
 import re
 import datetime
 from dateutil import parser
 
 # External imports
+import orjson
 from ksuid import Ksuid
 
 # Local imports
 from config import s3client
-# import config
+
 
 ZERO = datetime.timedelta(0)
 
