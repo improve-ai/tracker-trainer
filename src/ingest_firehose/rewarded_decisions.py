@@ -18,10 +18,9 @@ import portion as P
 from config import s3client, TRAIN_BUCKET
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA
 from utils import is_valid_model_name, json_dumps, list_s3_keys_containing
-
+from firehose_record import is_valid_message_id
 
 ISO_8601_BASIC_FORMAT = '%Y%m%dT%H%M%SZ'
-REWARDED_DECISIONS_S3_KEY_REGEXP = r"rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\d{8}T\d{6}Z\-\d{8}T\d{6}Z\-(.){36}\.parquet"
 
 
 class RewardedDecisionPartition:
@@ -60,6 +59,11 @@ class RewardedDecisionPartition:
 
 
     def load(self):
+        """
+        Raises:
+            ValueError: If invalid records are found
+        """
+        
         if not self.s3_key:
             # nothing to load, just use the incoming firehose records
             return
@@ -67,6 +71,15 @@ class RewardedDecisionPartition:
         # TODO split load into s3 request and parse.  If fail on s3 then throw exception
         # and fail job.  If parse error, move bad records to /unrecoverable 
         s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{self.s3_key}')
+
+        # TODO: add more validations
+        valid_idxs = s3_df.decision_id.apply(is_valid_message_id)
+        if not valid_idxs.all():
+            unrecoverable_key = f'unrecoverable/{self.s3_key}'
+            s3_df.to_parquet(f's3://{TRAIN_BUCKET}/{unrecoverable_key}', compression='ZSTD')
+            s3client.delete_object(Bucket=TRAIN_BUCKET, Key=self.s3_key)
+            raise ValueError(f"Invalid records found in '{self.s3_key}'. Moved to s3://{TRAIN_BUCKET}/{unrecoverable_key}'")
+
         self.df = pd.concat([self.df, s3_df], ignore_index=True)
 
 
@@ -244,13 +257,11 @@ class RewardedDecisionPartition:
         start_after_key = s3_key_prefix(model_name, min_decision_id)
         end_key = s3_key_prefix(model_name, max_decision_id)
 
-        s3_keys = [s3_key for s3_key in
-                   list_s3_keys_containing(
-                       bucket_name=os.environ['TRAIN_BUCKET'],
-                       start_after_key=start_after_key,
-                       end_key=end_key,
-                       prefix=f'rewarded_decisions/{model_name}')
-                   if is_correct_s3_key(s3_key)]
+        s3_keys = list_s3_keys_containing(
+            bucket_name=TRAIN_BUCKET,
+            start_after_key=start_after_key,
+            end_key=end_key,
+            prefix=f'rewarded_decisions/{model_name}')
 
         # TODO should s3_keys be checked for empty folders?
         if len(s3_keys) == 0:
@@ -297,13 +308,6 @@ def get_sorted_s3_prefixes(df, model_name, reset_index=False):
         return s3_prefixes.sort_values()
 
     return s3_prefixes.sort_values().reset_index(drop=True)
-
-
-def is_correct_s3_key(s3_key):
-    # regexp = r"rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\w+-([A-Za-z0-9]{9})-\w+-([A-Za-z0-9]{9})-[A-Za-z0-9]{27}.parquet"
-    if re.match(REWARDED_DECISIONS_S3_KEY_REGEXP, s3_key):
-        return True
-    return False
 
 
 def get_min_max_truncated_decision_ids_from_s3_key(s3_key):
