@@ -5,9 +5,9 @@
 #
 # 'organization' and 'project' may contain only lowercase letters and numbers
 #
-organization: acme # !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
-project: demo # !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
-contact: your_email@example.com # !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
+organization: acme # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
+project: demo # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
+contact: your_email@example.com # ⬅️ !! CHANGE BEFORE FIRST DEPLOYMENT !!!
 
 region: us-east-1
 
@@ -22,7 +22,7 @@ models:
 training:
   # get your training image URL by subscribing to the Improve AI Trainer at 
   # XXX
-  image: XXX.dkr.ecr.us-east-1.amazonaws.com/improveai-trainer:latest # !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
+  image: XXX.dkr.ecr.us-east-1.amazonaws.com/improveai-trainer:latest # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
   schedule: rate(15 minutes)
   worker_instance_type: ml.m5.xlarge
   worker_count: 2
