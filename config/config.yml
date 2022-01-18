@@ -1,7 +1,7 @@
 ---
 #
-# The names of provisioned AWS resources depend on 'organization' and 'project'. They
-# will generally follow the pattern 'improveai-<organization>-<project>-<stage>-<resource>'
+# The names of provisioned AWS resources depend on 'organization' and 'project'. AWS resource
+# names generally follow the pattern 'improveai-<organization>-<project>-<stage>-<resource>'
 #
 # 'organization' and 'project' may contain only lowercase letters and numbers
 #
