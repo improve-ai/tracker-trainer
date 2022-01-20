@@ -135,11 +135,8 @@ def list_s3_keys_containing(bucket_name, start_after_key, end_key, prefix='', va
 
         for obj in resp['Contents']:
             key = obj['Key']
-            
-            if valid_keys_only:
-                if is_correct_s3_key(key):
-                    keys.append(key)
-            else:
+
+            if (valid_keys_only and is_correct_s3_key(key)) or not valid_keys_only:
                 keys.append(key)
 
         try:

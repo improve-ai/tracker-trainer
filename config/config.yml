@@ -7,7 +7,7 @@
 #
 organization: acme # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
 project: demo # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
-contact: your_email@example.com # ⬅️ !! CHANGE BEFORE FIRST DEPLOYMENT !!!
+contact: your_email@example.com # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
 
 region: us-east-1
 
