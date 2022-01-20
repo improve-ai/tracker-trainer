@@ -1,6 +1,4 @@
 # Built-in imports
-import gzip
-from io import BytesIO
 import operator
 import uuid
 import random
@@ -10,7 +8,6 @@ from datetime import timezone
 
 # External imports
 import pandas as pd
-import orjson
 from pandas._testing import assert_frame_equal
 from ksuid import Ksuid
 

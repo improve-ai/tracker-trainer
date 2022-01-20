@@ -8,7 +8,6 @@ from rewarded_decisions import RewardedDecisionPartition
 from firehose_record import DF_SCHEMA, REWARD_KEY, REWARDS_KEY, TYPE_KEY
 from firehose_record import FirehoseRecordGroup, FirehoseRecord, assert_valid_rewarded_decision_record
 from utils import json_dumps
-# to_pandas_df = FirehoseRecordGroup._to_pandas_df
 
 from tests.ingest_firehose.utils import dicts_to_df
 
@@ -40,16 +39,9 @@ class CasesMergeOfRewardedDecisions:
         expected_rewarded_record[REWARDS_KEY] = json_dumps({ "000000000000000000000000001" : -10 })
         assert_valid_rewarded_decision_record(expected_rewarded_record, record[TYPE_KEY])
 
-        # rewarded_records_df = pd.concat([
-        #     to_pandas_df(get_rewarded_decision_rec()),
-        #     to_pandas_df(get_partial_rewarded_dec_rec())
-        # ], ignore_index=True)
-
         rewarded_records_df = dicts_to_df(
             dicts=[get_rewarded_decision_rec(), get_partial_rewarded_dec_rec()],
             columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
-
-        # expected_df = to_pandas_df(expected_rewarded_record)
 
         expected_df = dicts_to_df(
             dicts=[expected_rewarded_record], columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
@@ -101,7 +93,6 @@ class CasesMergeOfRewardedDecisions:
 
             partial_rewarded_decision_rec = helpers.to_rewarded_decision_record(reward_rec)
 
-            # records.append(to_pandas_df(partial_rewarded_decision_rec))
             records.append(
                 dicts_to_df(dicts=[partial_rewarded_decision_rec],
                             columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA))
@@ -121,7 +112,6 @@ class CasesMergeOfRewardedDecisions:
 
         dfs = pd.concat(records, ignore_index=True)
 
-        # expected_df = to_pandas_df(expected_rewarded_record)
         expected_df = \
             dicts_to_df(dicts=[expected_rewarded_record], columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
         
@@ -141,7 +131,6 @@ class CasesMergeOfRewardedDecisions:
             )
 
             partial_rewarded_decision_rec = helpers.to_rewarded_decision_record(reward_rec)
-            # dup_records.append(to_pandas_df(partial_rewarded_decision_rec))
             dup_records.append(
                 dicts_to_df(dicts=[partial_rewarded_decision_rec],
                             columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA))
@@ -153,7 +142,6 @@ class CasesMergeOfRewardedDecisions:
         assert_valid_rewarded_decision_record(expected_rewarded_record, record[TYPE_KEY])
 
         dfs = pd.concat(dup_records, ignore_index=True)
-        # expected_df = to_pandas_df(expected_rewarded_record)
         expected_df = \
             dicts_to_df(dicts=[expected_rewarded_record], columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
         
@@ -178,16 +166,10 @@ class CasesMergeOfRewardedDecisions:
         expected_rewarded_record[REWARDS_KEY] = json_dumps({})
         assert_valid_rewarded_decision_record(expected_rewarded_record, record[TYPE_KEY])
 
-        # dfs = pd.concat([
-        #     to_pandas_df(rewarded_decision_record1),
-        #     to_pandas_df(rewarded_decision_record2)
-        # ], ignore_index=True)
-
         dfs = dicts_to_df(
             dicts=[rewarded_decision_record1, rewarded_decision_record2],
             columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
 
-        # expected_df = to_pandas_df(expected_rewarded_record)
         expected_df = \
             dicts_to_df(dicts=[expected_rewarded_record], columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
         

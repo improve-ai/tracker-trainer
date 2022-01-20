@@ -242,14 +242,6 @@ class FirehoseRecordGroup:
         return list(map(lambda x: x.to_rewarded_decision_dict(), self.records))
 
 
-    # # TODO delete this method
-    # @staticmethod
-    # def _to_pandas_df(rewarded_decision_records):
-    #     if isinstance(rewarded_decision_records, dict):
-    #         rewarded_decision_records = [rewarded_decision_records]
-    #     return pd.DataFrame(rewarded_decision_records, columns=DF_SCHEMA.keys()).astype(DF_SCHEMA)
-
-
     def to_pandas_df(self):
         return pd.DataFrame(self.to_rewarded_decision_dicts(), columns=DF_SCHEMA.keys()).astype(DF_SCHEMA)
 

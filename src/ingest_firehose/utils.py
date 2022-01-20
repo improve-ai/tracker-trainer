@@ -1,15 +1,15 @@
 # Built-in imports
-import orjson
 import re
 import datetime
 from dateutil import parser
 
 # External imports
+import orjson
 from ksuid import Ksuid
 
 # Local imports
 from config import s3client
-# import config
+
 
 ZERO = datetime.timedelta(0)
 REWARDED_DECISIONS_S3_KEY_REGEXP = r"rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\d{8}T\d{6}Z\-\d{8}T\d{6}Z\-(.){36}\.parquet"
