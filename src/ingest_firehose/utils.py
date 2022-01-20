@@ -12,7 +12,7 @@ from config import s3client
 # import config
 
 ZERO = datetime.timedelta(0)
-
+REWARDED_DECISIONS_S3_KEY_REGEXP = r"rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\d{8}T\d{6}Z\-\d{8}T\d{6}Z\-(.){36}\.parquet"
 
 class UTC(datetime.tzinfo):
     def utcoffset(self, dt):
@@ -23,6 +23,13 @@ class UTC(datetime.tzinfo):
         return ZERO
 
 utc = UTC()
+
+
+def is_correct_s3_key(s3_key):
+    """ Validate if an s3 key complies with the expected format """
+    if re.match(REWARDED_DECISIONS_S3_KEY_REGEXP, s3_key):
+        return True
+    return False
 
 
 def find_first_gte(x: str, l: list):
@@ -47,7 +54,7 @@ def find_first_gte(x: str, l: list):
     return next(((i,v) for i,v in enumerate(sorted(l)) if v >= x), (None, None))
 
 
-def list_s3_keys_containing(bucket_name, start_after_key, end_key, prefix=''):
+def list_s3_keys_containing(bucket_name, start_after_key, end_key, prefix='', valid_keys_only=True):
     """
     Return a list of keys between the given `start_after_key` and 
     `end_key` in the given S3 bucket (`bucket_name`). 
@@ -83,6 +90,9 @@ def list_s3_keys_containing(bucket_name, start_after_key, end_key, prefix=''):
     prefix : str
         Passed directly to the S3 call. Limits the response to keys 
         that begin with the specified prefix.
+    valid_keys_only : bool
+        Flag to check validity of s3 key format.
+        Set to False in the tests to simplify the used cases.
 
     Returns
     -------
@@ -124,7 +134,13 @@ def list_s3_keys_containing(bucket_name, start_after_key, end_key, prefix=''):
             return []
 
         for obj in resp['Contents']:
-            keys.append(obj['Key'])
+            key = obj['Key']
+            
+            if valid_keys_only:
+                if is_correct_s3_key(key):
+                    keys.append(key)
+            else:
+                keys.append(key)
 
         try:
             kwargs['ContinuationToken'] = resp['NextContinuationToken']

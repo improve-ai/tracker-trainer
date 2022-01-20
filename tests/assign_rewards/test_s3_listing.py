@@ -1,7 +1,6 @@
 # Built-in imports
 import string
 import io
-import os 
 
 # External imports
 import pytest
@@ -12,11 +11,12 @@ from pytest_cases import parametrize
 import utils
 from utils import find_first_gte
 from utils import list_s3_keys_containing
+from config import TRAIN_BUCKET
+from firehose_record import DF_SCHEMA
+from tests.ingest_firehose.utils import dicts_to_df
 
-import src.ingest_firehose.config
-import src.ingest_firehose.firehose_record
 
-TRAIN_BUCKET = os.environ['TRAIN_BUCKET']
+ENGINE = "fastparquet"
 
 """
 Some characters (from string.printable) ordered by their Unicode code point:
@@ -271,7 +271,7 @@ def test_list_s3_keys_containing(s3, current_cases, mocker, keys):
         for s3_key in keys:
             s3.put_object(Bucket=TRAIN_BUCKET, Body=io.BytesIO(), Key=s3_key)
 
-        selected_keys = list_s3_keys_containing(TRAIN_BUCKET, p_start, p_end)
+        selected_keys = list_s3_keys_containing(TRAIN_BUCKET, p_start, p_end, valid_keys_only=False)
 
         assert isinstance(selected_keys, list)
         assert len(selected_keys) == len(expected)
@@ -354,3 +354,53 @@ def test_find_first_gte(keys, current_cases):
     assert v == expected
 
 
+def test_incorrectly_named_s3_key(s3, tmp_path, get_rewarded_decision_rec):
+    """
+    Assert that keys that don't comply with:
+        src.ingest_firehose.utils.REWARDED_DECISIONS_S3_KEY_REGEXP
+    won't not be returned.
+    
+    Parameters:
+        s3 : pytest fixture
+        tmp_path : pytest fixture
+        get_rewarded_decision_rec : pytest fixture
+    """
+    
+    # Create mock bucket
+    s3.create_bucket(Bucket=TRAIN_BUCKET)
+
+    # Create a dummy parquet file
+    filename = 'file.parquet'
+    parquet_filepath = tmp_path / filename
+    rdr = get_rewarded_decision_rec()
+    df = dicts_to_df(dicts=[rdr], columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
+    df.to_parquet(parquet_filepath, engine=ENGINE, index=False)
+
+    model_name = 'messages-2.0'
+    s3_key = f'rewarded_decisions/{model_name}/parquet/{filename}'
+
+    # Upload file with a key that doesn't comply with the expected format
+    with parquet_filepath.open(mode='rb') as f:
+        s3.upload_fileobj(
+            Fileobj   = f,
+            Bucket    = TRAIN_BUCKET,
+            Key       = s3_key,
+            ExtraArgs = { 'ContentType': 'application/gzip' })
+
+
+    # Ensure the key is really there
+    response = s3.list_objects_v2(
+        Bucket = TRAIN_BUCKET,
+        Prefix = f'rewarded_decisions/{model_name}')
+    all_keys = [x['Key'] for x in response['Contents']]
+    assert s3_key in all_keys
+
+
+    # Ensure the key is not listed by the function of interest
+    s3_keys = list_s3_keys_containing(
+        bucket_name     = TRAIN_BUCKET,
+        start_after_key = f'rewarded_decisions/{model_name}/parquet/',
+        end_key         = f'rewarded_decisions/{model_name}/parquet/ZZZZ',
+        prefix          = f'rewarded_decisions/{model_name}')
+
+    assert s3_key not in s3_keys

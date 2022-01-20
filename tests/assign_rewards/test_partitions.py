@@ -22,23 +22,7 @@ import firehose_record
 from firehose_record import DF_SCHEMA, FirehoseRecordGroup, DECISION_ID_KEY, MESSAGE_ID_KEY
 from rewarded_decisions import RewardedDecisionPartition, s3_key_prefix, repair_overlapping_keys
 from tests.ingest_firehose.utils import dicts_to_df
-
-
-def upload_gzipped_jsonl_records_to_firehose_bucket(s3client, records):
-    
-    fileobj = BytesIO()
-    with gzip.GzipFile(fileobj=fileobj, mode="wb") as gzf:
-        for record in records:
-            gzf.write(orjson.dumps(record) + b'\n')
-    fileobj.seek(0)
-
-    # Put some gzipped jsonl files in a bucket
-    s3client.upload_fileobj(
-        Fileobj   = fileobj,
-        Bucket    = config.FIREHOSE_BUCKET,
-        Key       = config.INCOMING_FIREHOSE_S3_KEY,
-        ExtraArgs = { 'ContentType': 'application/gzip' }
-    )
+from tests.ingest_firehose.utils import upload_gzipped_jsonl_records_to_firehose_bucket
 
 
 def upload_rdrs_as_parquet_files_to_train_bucket(rdrs, model_name):
