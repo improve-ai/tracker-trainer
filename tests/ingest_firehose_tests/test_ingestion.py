@@ -11,13 +11,13 @@ from config import TRAIN_BUCKET
 import utils
 from worker import worker
 import firehose_record
-from firehose_record import assert_valid_record
+# from firehose_record import assert_valid_record
 from firehose_record import DECISION_ID_KEY
 from firehose_record import DF_SCHEMA
 import rewarded_decisions
 from rewarded_decisions import s3_key
-from tests.ingest_firehose.utils import upload_gzipped_jsonl_records_to_firehose_bucket
-from tests.ingest_firehose.utils import dicts_to_df
+from ingest_firehose_tests.utils import upload_gzipped_jsonl_records_to_firehose_bucket
+from ingest_firehose_tests.utils import dicts_to_df
 
 
 ENGINE = 'fastparquet'

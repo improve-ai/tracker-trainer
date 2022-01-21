@@ -9,7 +9,7 @@ from firehose_record import DF_SCHEMA, REWARD_KEY, REWARDS_KEY, TYPE_KEY
 from firehose_record import FirehoseRecordGroup, FirehoseRecord, assert_valid_rewarded_decision_record
 from utils import json_dumps
 
-from tests.ingest_firehose.utils import dicts_to_df
+from ingest_firehose_tests.utils import dicts_to_df
 
 # TODO: start at jsons and end up merging
 

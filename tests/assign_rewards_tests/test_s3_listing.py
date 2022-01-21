@@ -13,7 +13,7 @@ from utils import find_first_gte
 from utils import list_s3_keys_containing
 from config import TRAIN_BUCKET
 from firehose_record import DF_SCHEMA
-from tests.ingest_firehose.utils import dicts_to_df
+from ingest_firehose_tests.utils import dicts_to_df
 
 
 ENGINE = "fastparquet"

@@ -18,8 +18,8 @@ import utils
 import firehose_record
 from firehose_record import DF_SCHEMA, FirehoseRecordGroup, DECISION_ID_KEY, MESSAGE_ID_KEY
 from rewarded_decisions import RewardedDecisionPartition, s3_key_prefix, repair_overlapping_keys
-from tests.ingest_firehose.utils import dicts_to_df
-from tests.ingest_firehose.utils import upload_gzipped_jsonl_records_to_firehose_bucket
+from ingest_firehose_tests.utils import dicts_to_df
+from ingest_firehose_tests.utils import upload_gzipped_jsonl_records_to_firehose_bucket
 
 
 def upload_rdrs_as_parquet_files_to_train_bucket(rdrs, model_name):
