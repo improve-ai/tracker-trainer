@@ -9,7 +9,7 @@ organization: acme # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
 project: demo # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
 contact: your_email@example.com # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
 
-region: us-east-1
+aws_region: us-east-1
 
 
 #
@@ -18,14 +18,15 @@ region: us-east-1
 models:
 #  config: # uncomment to train a model named 'config'
 
-
+# Default training configuration
 training:
   # get your training image URL by subscribing to the Improve AI Trainer at 
   # XXX
   image: XXX.dkr.ecr.us-east-1.amazonaws.com/improveai-trainer:latest # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
   schedule: rate(15 minutes)
-  worker_instance_type: ml.m5.xlarge
-  worker_count: 2
+  instance_type: ml.m5.xlarge
+  instance_count: 2
   max_runtime: 4 hours # AWS instances sometimes hang. This caps training costs when that occurs.
-  volume_size_in_gb: 10
-  max_decision_records: 20000000 # Note: the free trainer is capped at 100,000 decision records per model
+  volume_size: 10 GB # GB is the only allowed unit string
+  hyperparameters:
+    max_decision_records: 20000000 # Note: the free trainer is capped at 100,000 decision records per model

@@ -7,7 +7,7 @@ service: improveai-${self:custom.config.organization}-${self:custom.config.proje
 provider:
   lambdaHashingVersion: 20201221 # can be removed in serverless v3
   name: aws
-  region: ${self:custom.config.region}
+  region: ${self:custom.config.aws_region}
   runtime: python3.8
   memorySize: 192
   timeout: 6

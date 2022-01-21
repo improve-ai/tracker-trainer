@@ -1,11 +1,6 @@
 const assert = require('assert')
 const fs = require('fs');
 
-const empty_models_error =
-    '\n###################################################################\n' +
-    '### No model specified in `models` section of config/config.yml ###\n' +
-    '###################################################################\n';
-
 let yaml = null;
 
 try {
@@ -67,28 +62,14 @@ function parseMaxRuntimeString(maxRuntimeString){
     return maxRuntimeValue * MAX_RUNTIME_UNITS_TO_SECONDS[maxRuntimeUnit]
 }
 
-
-const MAX_DECISION_RECORDS_NEGATIVE_OR_NULL =
-    '\n###########################################################\n' +
-    '###    max_decision_records must be > 0 and not null    ###\n' +
-    '###########################################################\n';
-
-function parseMaxDecisionRecords(maxDecisionRecords){
-    assert(!(maxDecisionRecords == null), MAX_DECISION_RECORDS_NEGATIVE_OR_NULL);
-    assert(maxDecisionRecords  > 0, MAX_DECISION_RECORDS_NEGATIVE_OR_NULL);
-    return maxDecisionRecords
-}
-
-
 function setTrainSchedulingEvents(scheduleEventPattern){
   //defaults
   var defaultScheduleString = module.exports.config['training']['schedule'];
-  var defaultWorkerInstanceType = module.exports.config['training']['worker_instance_type'];
-  var defaultWorkerCount = module.exports.config['training']['worker_count'];
-  var defaultMaxRecordsPerWorker = module.exports.config['training']['max_records_per_worker'];
+  var defaultWorkerInstanceType = module.exports.config['training']['instance_type'];
+  var defaultWorkerCount = module.exports.config['training']['instance_count'];
   var defaultMaxRuntimeInSeconds = module.exports.config['training']['max_runtime'];
-  var defaultVolumeSizeInGB = module.exports.config['training']['volume_size_in_gb'];
-  var defaultMaxRowsCount = module.exports.config['training']['max_decision_records'];
+  var defaultVolumeSize = module.exports.config['training']['volume_size'];
+  var defaultHyperparameters = module.exports.config['training']['hyperparameters'];
 
   var currentScheduleEventDef = null;
   var currentModelTrainingConfig = {};
@@ -116,18 +97,16 @@ function setTrainSchedulingEvents(scheduleEventPattern){
 
       // pass env vars as parameters
       currentScheduleEventDef['schedule']['input']['model_name'] = modelName;
-      currentScheduleEventDef['schedule']['input']['worker_instance_type'] =
-          get(currentModelTrainingConfig, 'worker_instance_type', defaultWorkerInstanceType);
-      currentScheduleEventDef['schedule']['input']['worker_count'] =
-          get(currentModelTrainingConfig, 'worker_count', defaultWorkerCount);
-      currentScheduleEventDef['schedule']['input']['max_records_per_worker'] =
-          get(currentModelTrainingConfig, 'max_records_per_worker', defaultMaxRecordsPerWorker);
+      currentScheduleEventDef['schedule']['input']['instance_type'] =
+          get(currentModelTrainingConfig, 'instance_type', defaultWorkerInstanceType);
+      currentScheduleEventDef['schedule']['input']['instance_count'] =
+          get(currentModelTrainingConfig, 'instance_count', defaultWorkerCount);
       currentScheduleEventDef['schedule']['input']['max_runtime'] =
           parseMaxRuntimeString(get(currentModelTrainingConfig, 'max_runtime', defaultMaxRuntimeInSeconds));
-      currentScheduleEventDef['schedule']['input']['volume_size_in_gb'] =
-          get(currentModelTrainingConfig, 'volume_size_in_gb', defaultVolumeSizeInGB);
-      currentScheduleEventDef['schedule']['input']['max_decision_records'] =
-            parseMaxDecisionRecords(get(currentModelTrainingConfig, 'max_decision_records', defaultMaxRowsCount));
+      currentScheduleEventDef['schedule']['input']['volume_size'] =
+          get(currentModelTrainingConfig, 'volume_size', defaultVolumeSize);
+      currentScheduleEventDef['schedule']['input']['hyperparameters'] =
+            parseMaxDecisionRecords(get(currentModelTrainingConfig, 'hyperparameters', defaultHyperparameters));
 
 
       module.exports.trainSchedulingEvents.push(currentScheduleEventDef)
@@ -171,6 +150,9 @@ if(image == '' || image == null){
       "\n[WARNING] <<Info about image subscription will be placed here shortly>>\n");
 }
 
+function isDict(x) {
+    return x.constructor === Object;
+  }
 
 assert(organization.match(orgAndProjNameRegex), 'config/config.yml:organization may contain only lowercase letters and numbers');
 assert(project.match(orgAndProjNameRegex), 'config/config.yml:project may contain only lowercase letters and numbers');
@@ -178,12 +160,19 @@ assert(project.match(orgAndProjNameRegex), 'config/config.yml:project may contai
 assert(organization != '', 'config/config.yml:organization is an empty string');
 assert(project != '', 'config/config.yml:project is an empty string');
 
-assert(module.exports.config['models'] != null, empty_models_error);
-// model names should be validated according to model naming rules
-for (const [key, value] of Object.entries(module.exports.config['models'])) {
-  assert(key.match(modelNameRegex), `Invalid model name: ${key}`)
-}
-
-
 module.exports.trainSchedulingEvents = [];
-setTrainSchedulingEvents(scheduleEventPattern)
+if (module.exports.config['models'] === null) {
+
+    console.warn("No models were found, no models will be trained.");
+
+} else {
+    
+    assert(isDict(module.exports.config['models']), "models' entries should be dictionaries");
+    
+    // model names should be validated according to model naming rules
+    for (const [key, value] of Object.entries(module.exports.config['models'])) {
+      assert(key.match(modelNameRegex), `Invalid model name: ${key}`)
+    }
+    
+    setTrainSchedulingEvents(scheduleEventPattern)
+}
