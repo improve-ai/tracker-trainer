@@ -9,10 +9,9 @@ from ksuid import Ksuid
 
 # Local imports
 from config import s3client
-
+from constants import MODEL_NAME_REGEXP, REWARDED_DECISIONS_S3_KEY_REGEXP
 
 ZERO = datetime.timedelta(0)
-REWARDED_DECISIONS_S3_KEY_REGEXP = r"rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\d{8}T\d{6}Z\-\d{8}T\d{6}Z\-(.){36}\.parquet"
 
 class UTC(datetime.tzinfo):
     def utcoffset(self, dt):
@@ -164,7 +163,7 @@ def is_valid_model_name(model_name):
     if not isinstance(model_name, str) \
             or len(model_name) == 0 \
             or len(model_name) > 64 \
-            or not re.match('^[a-zA-Z0-9][\w\-.]{0,63}$', model_name):
+            or not re.match(MODEL_NAME_REGEXP, model_name):
         return False
         
     return True

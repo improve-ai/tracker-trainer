@@ -309,19 +309,6 @@ def get_sorted_s3_prefixes(df, model_name, reset_index=False):
     return s3_prefixes.sort_values().reset_index(drop=True)
 
 
-def get_min_max_truncated_decision_ids_from_s3_key(s3_key):
-    """Extract the min and max truncated decision ids found in a S3 key str"""
-
-    regexp = r"rewarded_decisions/.+/parquet/\d{4}/\d{2}/\d{2}/\w+-([A-Za-z0-9]{9})-\w+-([A-Za-z0-9]{9})-[A-Za-z0-9]{27}.parquet"
-
-    result = re.match(regexp, s3_key)
-    if result is not None:
-        max_decision_id, min_decision_id = result.groups()
-        return min_decision_id, max_decision_id
-    
-    raise ValueError('Problem with the format of the parquet file')
-
-
 def min_max_decision_ids(partitions):
     min_per_partitions = list(map(lambda x: x.min_decision_id, partitions))
     max_per_partitions = list(map(lambda x: x.max_decision_id, partitions))
