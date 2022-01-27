@@ -243,7 +243,9 @@ class FirehoseRecordGroup:
 
 
     def to_pandas_df(self):
-        return pd.DataFrame(self.to_rewarded_decision_dicts(), columns=DF_SCHEMA.keys()).astype(DF_SCHEMA)
+        df = pd.DataFrame(self.to_rewarded_decision_dicts(), columns=DF_SCHEMA.keys())
+        df[TIMESTAMP_KEY] = pd.to_datetime(df[TIMESTAMP_KEY], utc=True)
+        return df.astype(DF_SCHEMA)
 
 
     @staticmethod
