@@ -1,8 +1,10 @@
-import re
-
-import boto3
+# Built-in imports
 import os
 
+# External imports
+import boto3
+
+# Local imports
 import src.train.constants as tc
 from src.train.naming import get_train_job_name, get_training_s3_uri_for_model, \
     get_s3_model_save_uri, is_valid_model_name
@@ -11,8 +13,9 @@ from src.train.naming import get_train_job_name, get_training_s3_uri_for_model, 
 def create_sagemaker_training_job(
         sagemaker_client, hyperparameters: dict, event: dict):
     """
-    Gets boto3 sagemaker api (client.create_training_job()) kwargs with info
-    from environment
+    Start a model training job.
+    Refer to:
+    https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker.html#SageMaker.Client.create_training_job
 
     Parameters
     ----------
@@ -22,12 +25,10 @@ def create_sagemaker_training_job(
         hyperparameters for desired model train job
     event: dict
         event dict provided by scheduler
-
     Returns
     -------
     dict
-        kwargs for create_training_job() call
-
+        Training job ARN. E.g.: { 'TrainingJobArn': 'string' }
     """
 
     model_name = event[tc.EVENT_MODEL_NAME_KEY]
@@ -38,7 +39,7 @@ def create_sagemaker_training_job(
 
     instance_count = event[tc.EVENT_WORKER_COUNT_KEY]
     instance_type = event[tc.EVENT_WORKER_INSTANCE_TYPE_KEY]
-    volume_size_in_gb = event[tc.EVENT_VOLUME_SIZE_IN_GB_KEY]
+    volume_size = event[tc.EVENT_VOLUME_SIZE_KEY]
 
     subnets = [os.getenv(tc.SUBNET_ENVVAR)]
     security_groups_ids = \
@@ -74,7 +75,7 @@ def create_sagemaker_training_job(
         ResourceConfig={
             'InstanceType': instance_type,
             'InstanceCount': instance_count,
-            'VolumeSizeInGB': volume_size_in_gb  #  tc.VOLUME_SIZE_IN_GB,
+            'VolumeSizeInGB': volume_size
         },
         VpcConfig={
             'SecurityGroupIds': security_groups_ids,
@@ -91,40 +92,40 @@ def create_sagemaker_training_job(
     return response
 
 
-def get_hyperparameters_for_model(model_name: str, max_rows_count: int):
+def get_hyperparameters_for_model(model_name: str, event: dict):
     """
     Gets hyperparameter set for provided model name
-
     Parameters
     ----------
     model_name: str
         name of the model for which SageMaker's hyperparameter set should be
         returned
-    max_rows_count: int
-        upper limit of rows to load for training
-
+    event: Lambda function event object. Contains data about the event
+           that triggered the Lambda function.
     Returns
     -------
     dict
         set of hyperparameters for training job of a <model name>
-
     """
 
-    return {
-        tc.MODEL_NAME_HYPERPARAMS_KEY: model_name,
-        tc.MAX_DECISION_RECORDS_HYPERPARAMS_KEY: max_rows_count
-    }
+    hyperparams = event.get(tc.HYPERPARAMETERS_KEY, {})
+    hyperparams[tc.MODEL_NAME_HYPERPARAMS_KEY] = model_name
+
+    assert int(hyperparams.get(tc.EVENT_MAX_DECISION_RECORDS_KEY)) > 0
+
+    # int comes from orjson.loads() but SageMaker expects string in hyperparameters
+    hyperparams[tc.EVENT_MAX_DECISION_RECORDS_KEY] = str(hyperparams.get(tc.EVENT_MAX_DECISION_RECORDS_KEY))
+
+    return hyperparams
 
 
 def check_v6_train_job_properties(event: dict):
     """
     Checks if event dict contains all expected / desired keys and that they are
     not None
-
     Parameters
     ----------
     event: dict
-
     """
 
     job_parameters = [event.get(param, None) for param in tc.EXPECTED_EVENT_ENTRIES]
@@ -136,7 +137,6 @@ def check_v6_train_job_properties(event: dict):
 
 
 def lambda_handler(event, context):
-
     sagemaker_client = boto3.client('sagemaker')
 
     check_v6_train_job_properties(event=event)
@@ -144,12 +144,7 @@ def lambda_handler(event, context):
     model_name = event.get(tc.EVENT_MODEL_NAME_KEY)
     assert is_valid_model_name(model_name=model_name)
 
-    # int comes from orjson.loads() but SageMaker expects string in hyperparameters
-    max_rows_count = str(event.get(tc.EVENT_MAX_DECISION_RECORDS_KEY))
-    assert int(max_rows_count) > 0
-
-    hyperparameters = \
-        get_hyperparameters_for_model(model_name=model_name, max_rows_count=max_rows_count)
+    hyperparameters = get_hyperparameters_for_model(model_name, event)
 
     print(f'creating training job for model: {model_name}')
     response = \
