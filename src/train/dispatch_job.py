@@ -13,11 +13,10 @@ from src.train.naming import get_train_job_name, get_training_s3_uri_for_model, 
 def create_sagemaker_training_job(
         sagemaker_client, hyperparameters: dict, event: dict):
     """
-
     Start a model training job.
     Refer to:
-    https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker.html#SageMaker.Client.create_training_job 
-   
+    https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker.html#SageMaker.Client.create_training_job
+
     Parameters
     ----------
     sagemaker_client: boto3.client
@@ -26,7 +25,6 @@ def create_sagemaker_training_job(
         hyperparameters for desired model train job
     event: dict
         event dict provided by scheduler
-
     Returns
     -------
     dict
@@ -97,28 +95,26 @@ def create_sagemaker_training_job(
 def get_hyperparameters_for_model(model_name: str, event: dict):
     """
     Gets hyperparameter set for provided model name
-
     Parameters
     ----------
     model_name: str
         name of the model for which SageMaker's hyperparameter set should be
         returned
-    event: Lambda function event object. Contains data about the event 
+    event: Lambda function event object. Contains data about the event
            that triggered the Lambda function.
-
     Returns
     -------
     dict
         set of hyperparameters for training job of a <model name>
-
     """
 
     hyperparams = event.get(tc.HYPERPARAMETERS_KEY, {})
     hyperparams[tc.MODEL_NAME_HYPERPARAMS_KEY] = model_name
 
+    assert int(hyperparams.get(tc.EVENT_MAX_DECISION_RECORDS_KEY)) > 0
+
     # int comes from orjson.loads() but SageMaker expects string in hyperparameters
-    max_rows_count = str(hyperparams.get(tc.EVENT_MAX_DECISION_RECORDS_KEY))
-    assert int(max_rows_count) > 0
+    hyperparams[tc.EVENT_MAX_DECISION_RECORDS_KEY] = str(hyperparams.get(tc.EVENT_MAX_DECISION_RECORDS_KEY))
 
     return hyperparams
 
@@ -127,11 +123,9 @@ def check_v6_train_job_properties(event: dict):
     """
     Checks if event dict contains all expected / desired keys and that they are
     not None
-
     Parameters
     ----------
     event: dict
-
     """
 
     job_parameters = [event.get(param, None) for param in tc.EXPECTED_EVENT_ENTRIES]
@@ -143,7 +137,6 @@ def check_v6_train_job_properties(event: dict):
 
 
 def lambda_handler(event, context):
-
     sagemaker_client = boto3.client('sagemaker')
 
     check_v6_train_job_properties(event=event)

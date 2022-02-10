@@ -1,4 +1,4 @@
-const assert = require('assert')
+const assert = require('assert');
 const fs = require('fs');
 
 let yaml = null;
@@ -20,6 +20,24 @@ function get(object, key, default_value) {
 }
 
 
+
+function checkFixAndSplitValueWithUnit(checkedString, emptyOrNullStringError, checkedParameterName){
+    assert(!(checkedString == null), emptyOrNullStringError);
+    assert(!(checkedString == ''), emptyOrNullStringError);
+    // replace multiple spaces, tabs, etc with single space
+    var checkedStringFixed = checkedString.toString().replace(/\s\s+/g, ' ').trim();
+    // split on space to separate value and unit
+    var checkedStringArray = checkedStringFixed.split(' ');
+
+    var bad_length_message =
+        '\n###########################################################\n' +
+           `###              ${checkedParameterName} has bad format             ###\n` +
+           '###########################################################\n';
+
+    assert(checkedStringArray.length == 2, bad_length_message)
+    return checkedStringArray
+}
+
 const MAX_RUNTIME_UNITS_TO_SECONDS = {seconds: 1, minutes: 60, hours: 3600, days: 86400};
 
 const MAX_RUNTIME_NULL_ERROR =
@@ -32,21 +50,19 @@ const MAX_RUNTIME_NOT_POSITIVE =
     '###               max_runtime must be > 0               ###\n' +
     '###########################################################\n';
 
-const BAD_UNIT_ERROR =
+const BAD_TIME_UNIT_ERROR =
     '\n###########################################################\n' +
     '###         Provided time unit is not supported         ###\n' +
     '###########################################################\n';
 
 function parseMaxRuntimeString(maxRuntimeString){
-    assert(!(maxRuntimeString == null), MAX_RUNTIME_NULL_ERROR);
-    assert(!(maxRuntimeString == ''), MAX_RUNTIME_NULL_ERROR);
-    // replace multiple spaces, tabs, etc with single space
-    var maxRuntimeStringFixed = maxRuntimeString.replace(/\s\s+/g, ' ').trim();
-    // split on space to separate value and unit
-    var maxRuntimeArray = maxRuntimeStringFixed.split(' ');
+
+    var maxRuntimeParameterName = 'max_runtime';
+    var maxRuntimeArray = checkFixAndSplitValueWithUnit(
+        maxRuntimeString, MAX_RUNTIME_NULL_ERROR, maxRuntimeParameterName);
     var maxRuntimeUnit = maxRuntimeArray[1].toLowerCase();
 
-    assert(Object.keys(MAX_RUNTIME_UNITS_TO_SECONDS).includes(maxRuntimeUnit), BAD_UNIT_ERROR);
+    assert(Object.keys(MAX_RUNTIME_UNITS_TO_SECONDS).includes(maxRuntimeUnit), BAD_TIME_UNIT_ERROR);
 
     var maxRuntimeValue = -1;
 
@@ -62,8 +78,84 @@ function parseMaxRuntimeString(maxRuntimeString){
     return maxRuntimeValue * MAX_RUNTIME_UNITS_TO_SECONDS[maxRuntimeUnit]
 }
 
+
+const VOLUME_SIZE_NULL_ERROR =
+    '\n###########################################################\n' +
+      '###            volume_size must not be empty            ###\n' +
+      '###########################################################\n';
+
+
+const VOLUME_SIZE_NEGATIVE_ERROR =
+    '\n###########################################################\n' +
+      '###               volume_size must be > 0               ###\n' +
+      '###########################################################\n';
+
+
+const BAD_VOLUME_UNIT_ERROR =
+    '\n###########################################################\n' +
+      '###      Provided volume unit is not supported          ###\n' +
+      '###########################################################\n';
+
+
+function parseVolumeSize(volumeSizeString){
+
+    var volumeSizeParameterName = 'volume_size';
+    var volumeSizeArray = checkFixAndSplitValueWithUnit(
+        volumeSizeString, VOLUME_SIZE_NULL_ERROR, volumeSizeParameterName);
+    var volumeSizeUnit = volumeSizeArray[1];
+
+    assert(volumeSizeUnit == 'GB', BAD_VOLUME_UNIT_ERROR);
+
+    var volumeSizeValue = -1;
+
+    try {
+
+        volumeSizeValue  = Math.ceil(parseFloat(volumeSizeArray[0]));
+        if (parseFloat(volumeSizeArray[0]) != volumeSizeValue){
+            console.warn(
+                `[WARNING] Provided 'volume_size': ${volumeSizeArray[0]} is not an integer but it should be -> rounding up to closest integer: ${volumeSizeValue}\n`);
+        }
+
+    } catch(error) {
+        throw '\n#####################################################\n' +
+                '### Unable to parse provided value of volume size ###\n' +
+                '#####################################################\n';
+    }
+
+    assert(volumeSizeValue > 0, VOLUME_SIZE_NEGATIVE_ERROR)
+    // returning volume size GBs
+    return volumeSizeValue
+
+
+}
+
+
+const MAX_DECISION_RECORDS_NEGATIVE_OR_NULL =
+    '\n###########################################################\n' +
+    '###    max_decision_records must be > 0 and not null    ###\n' +
+    '###########################################################\n';
+
+
+function parseMaxDecisionRecords(maxDecisionRecords){
+    assert(!(maxDecisionRecords == null), MAX_DECISION_RECORDS_NEGATIVE_OR_NULL);
+    assert(maxDecisionRecords  > 0, MAX_DECISION_RECORDS_NEGATIVE_OR_NULL);
+    return maxDecisionRecords
+}
+
+
+function parseHyperparameters(hyperparameters){
+    for (const [parameterName, parameterValue] of Object.entries(hyperparameters)){
+        if(parameterName == 'max_decision_records'){
+            hyperparameters[parameterName] = parseMaxDecisionRecords(parameterValue);
+        }
+    }
+    return hyperparameters
+
+}
+
 function setTrainSchedulingEvents(scheduleEventPattern){
-  //defaults
+  console.log(`[INFO] Loading default training config\n`)
+    //defaults
   var defaultScheduleString = module.exports.config['training']['schedule'];
   var defaultWorkerInstanceType = module.exports.config['training']['instance_type'];
   var defaultWorkerCount = module.exports.config['training']['instance_count'];
@@ -77,14 +169,21 @@ function setTrainSchedulingEvents(scheduleEventPattern){
 
   for (const [modelName, modelConfig] of Object.entries(module.exports.config['models'])) {
 
+      console.log(`[INFO] Processing training configuration for model: ${modelName}\n`)
       if (modelConfig == null) {
           currentModelTrainingConfig = {};
       } else {
           currentModelTrainingConfig = get(modelConfig, 'training', {});
+          if(currentModelTrainingConfig === {}){
+              console.warn(`[WARNING] No 'training' section found in model config for model: ${modelName}\n`)
+          }
       }
 
       // deep copy dict
       currentScheduleEventDef = JSON.parse(JSON.stringify(scheduleEventPattern))
+      // set rule name
+      currentScheduleEventDef['schedule']['name'] =
+          `improveai-${module.exports.config['organization']}-${module.exports.config['project']}-` + '${opt:stage, self:provider.stage}' + `-${modelName}-schedule`;
       // pass scheduling info
       currentScheduleEventDef['schedule']['rate'] =
           get(currentModelTrainingConfig, 'schedule', defaultScheduleString);
@@ -104,12 +203,12 @@ function setTrainSchedulingEvents(scheduleEventPattern){
       currentScheduleEventDef['schedule']['input']['max_runtime'] =
           parseMaxRuntimeString(get(currentModelTrainingConfig, 'max_runtime', defaultMaxRuntimeInSeconds));
       currentScheduleEventDef['schedule']['input']['volume_size'] =
-          get(currentModelTrainingConfig, 'volume_size', defaultVolumeSize);
+          parseVolumeSize(get(currentModelTrainingConfig, 'volume_size', defaultVolumeSize));
       currentScheduleEventDef['schedule']['input']['hyperparameters'] =
-            parseMaxDecisionRecords(get(currentModelTrainingConfig, 'hyperparameters', defaultHyperparameters));
-
+            parseHyperparameters(get(currentModelTrainingConfig, 'hyperparameters', defaultHyperparameters));
 
       module.exports.trainSchedulingEvents.push(currentScheduleEventDef)
+
   }
 }
 
@@ -141,7 +240,7 @@ assert(!(project == null), 'config/config.yml:project is null or undefined');
 
 if(organization == 'acme'){
   console.warn(
-      "\n[WARNING] Please change 'organization' in config/config.yml - " +
+      "[WARNING] Please change 'organization' in config/config.yml - " +
       'currently detected example organization => `acme`\n')
 }
 
@@ -163,16 +262,16 @@ assert(project != '', 'config/config.yml:project is an empty string');
 module.exports.trainSchedulingEvents = [];
 if (module.exports.config['models'] === null) {
 
-    console.warn("No models were found, no models will be trained.");
+    console.warn("[WARNING] No models were found, no models will be trained.");
 
 } else {
-    
+
     assert(isDict(module.exports.config['models']), "models' entries should be dictionaries");
-    
+
     // model names should be validated according to model naming rules
     for (const [key, value] of Object.entries(module.exports.config['models'])) {
       assert(key.match(modelNameRegex), `Invalid model name: ${key}`)
     }
-    
+
     setTrainSchedulingEvents(scheduleEventPattern)
 }
