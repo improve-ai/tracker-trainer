@@ -5,6 +5,7 @@ import re
 import string
 
 import src.train.constants as tc
+from src.ingest_firehose.constants import MODEL_NAME_REGEXP
 
 
 def get_training_s3_uri_for_model(model_name: str):
@@ -68,10 +69,10 @@ def is_valid_model_name(model_name: str) -> bool:
         is the model name valid?
 
     """
-    if not re.match(tc.MODEL_NAME_REGEXP, model_name):
+    if not re.match(MODEL_NAME_REGEXP, model_name):
         print(
             'Model name: {} failed to pass through the regex: {}'
-            .format(model_name, tc.MODEL_NAME_REGEXP))
+            .format(model_name, MODEL_NAME_REGEXP))
         return False
     return True
 
@@ -88,7 +89,7 @@ def get_start_dt() -> str:
     """
     raw_dt_str = str(datetime.now()).split('.')[0]
 
-    return re.sub('\.|\-|:|\s', '', raw_dt_str)
+    return re.sub(tc.DIGITS_DT_REGEXP, '', raw_dt_str)
 
 
 def generate_random_string(size, chars=string.ascii_letters + string.digits):

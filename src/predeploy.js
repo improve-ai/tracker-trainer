@@ -212,7 +212,9 @@ function setTrainSchedulingEvents(scheduleEventPattern){
   }
 }
 
+// Unit-tested in tests/test_regexps.py:test_predeploy_org_and_project_name_regexp()
 const orgAndProjNameRegex = '^[a-z0-9]+$'
+// Unit-tested in tests/test_regexps.py:test_model_name_regexp()
 const modelNameRegex = /^[a-zA-Z0-9][\w\-.]{0,63}$/i
 const config_file = fs.readFileSync('./config/config.yml', 'utf8');
 // Apply defaults to this pattern

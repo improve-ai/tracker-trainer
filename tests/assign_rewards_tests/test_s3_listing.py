@@ -357,7 +357,7 @@ def test_find_first_gte(keys, current_cases):
 def test_incorrectly_named_s3_key(s3, tmp_path, get_rewarded_decision_rec):
     """
     Assert that keys that don't comply with:
-        src.ingest_firehose.utils.REWARDED_DECISIONS_S3_KEY_REGEXP
+        src.ingest_firehose.constants.REWARDED_DECISIONS_S3_KEY_REGEXP
     won't not be returned.
     
     Parameters:
