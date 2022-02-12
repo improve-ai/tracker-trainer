@@ -27,6 +27,6 @@ training:
   instance_type: ml.m5.xlarge
   instance_count: 2
   max_runtime: 4 hours # AWS instances sometimes hang. This caps training costs when that occurs.
-  volume_size: 10 GB # GB is the only allowed unit string
+  volume_size: 10 GB
   hyperparameters:
     max_decision_records: 20000000 # Note: the free trainer is capped at 100,000 decision records per model
