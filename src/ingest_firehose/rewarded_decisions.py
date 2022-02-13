@@ -32,6 +32,14 @@ class RewardedDecisionPartition:
 
         self.model_name = model_name
         self.df = df
+
+        """        
+        This implementation intentionally only supports a single s3 key to ensure that
+        partitions_from_firehose_record_group() only ever associates a single key with each partition.
+        See comments in partitions_from_firehose_record_group() for a deeper explanation.
+        The tradeoff is that repair() has to do slightly more work with loading, merging,
+        and deleting multiple S3 keys.
+        """
         self.s3_key = s3_key
 
         self.sorted = False
@@ -240,6 +248,13 @@ class RewardedDecisionPartition:
             sorted list_objects_v2 results, rather than send one list request per decision_id to S3, we just send a few list requests for 
             the range of decision_id prefixes that we’re interested in.  We then use those listing results to partition the decisions by the 
             s3_key that may contain the same decision_ids.
+            
+        This function assumes a consistent system where there is a maximum of one partition that a decision_id could be found within. This assumption
+        allows using a s3 list function that stops returning s3 keys after the maximum KSUID timestamp of the firehose_record_group. If this function
+        assumed an inconsistent state and were to associate multiple s3 keys with a single partition, then the S3 list function would have to continue
+        returning results until the lexicographically maximum s3 key was reached since even the largest maximum key could still have a minimum decision id
+        that overlaps with the current firehose_record_group.  Inconsisency is assumed to be a rare event that is handled by the repair() process so
+        we opt for the more efficient list operation.
         """
 
         model_name = firehose_record_group.model_name
