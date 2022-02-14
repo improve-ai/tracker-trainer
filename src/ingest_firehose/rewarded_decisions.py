@@ -249,12 +249,9 @@ class RewardedDecisionPartition:
             the range of decision_id prefixes that we’re interested in.  We then use those listing results to partition the decisions by the 
             s3_key that may contain the same decision_ids.
             
-        This function assumes a consistent system where there is a maximum of one partition that a decision_id could be found within. This assumption
-        allows using a s3 list function that stops returning s3 keys after the maximum KSUID timestamp of the firehose_record_group. If this function
-        assumed an inconsistent state and were to associate multiple s3 keys with a single partition, then the S3 list function would have to continue
-        returning results until the lexicographically maximum s3 key was reached since even the largest maximum key could still have a minimum decision id
-        that overlaps with the current firehose_record_group.  Inconsisency is assumed to be a rare event that is handled by the repair() process so
-        we opt for the more efficient list operation.
+        This function assumes a consistent system where there is a maximum of one partition that a decision_id could be found within. Inconsisency 
+        is assumed to be a rare event that is handled by the repair() process. This allows for less memory use than loading all possibly matching partitions
+        and we would rather repair() fail due to out of memory than the primary ingest process failing.
         """
 
         model_name = firehose_record_group.model_name
@@ -272,13 +269,24 @@ class RewardedDecisionPartition:
         start_after_key = s3_key_prefix(model_name, min_decision_id)
         end_key = s3_key_prefix(model_name, max_decision_id)
 
+        """
+        List the s3 keys.
+    
+        Since start_after_key is a prefix, it is guaranteed to match any keys which begin with those prefix characters. So the first
+        key returned is guaranteed to have a maximum timestamp equal to or greater than the min_decision_id's timestamp
+    
+
+        Design Note: Since the ingest process only loads a maximum of one s3 key per partition, we could have implemented an
+        early stopping on this list process, but in normal operation we are ingesting to the end of the timeline anyway
+        so most list operations would continue to the final s3 key. Thus for simplicity we opt for a simple start_after_key
+        semantic.
+        """
         s3_keys = list_s3_keys_containing(
             bucket_name=TRAIN_BUCKET,
             start_after_key=start_after_key,
             end_key=end_key,
             prefix=f'rewarded_decisions/{model_name}')
 
-        # TODO should s3_keys be checked for empty folders?
         if len(s3_keys) == 0:
             return [RewardedDecisionPartition(model_name, rdrs_df)]
 
@@ -353,7 +361,17 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
         
     min_decision_id, max_decision_id = min_max_decision_ids(partitions)
         
-    # Load from s3 based on above min max
+    """
+    List the s3 keys.
+    
+    Since start_after_key is a prefix, it is guaranteed to match any keys which begin with those prefix characters. So the first
+    key returned is guaranteed to have a maximum timestamp equal to or greater than the min_decision_id's timestamp
+    
+    Design Note: Since the repair process only needs to operate on a bounded range of keys, we could have implemented an
+    early stopping on this list process, but in normal operation we are ingesting to the end of the timeline anyway
+    so most list operations would continue to the final s3 key. Thus for simplicity we opt for a simple start_after_key
+    semantic.
+    """
     train_s3_keys = list_s3_keys_containing(
         bucket_name     = TRAIN_BUCKET,
         start_after_key = s3_key_prefix(model_name, min_decision_id),
