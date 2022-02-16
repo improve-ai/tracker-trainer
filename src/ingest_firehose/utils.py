@@ -24,13 +24,6 @@ class UTC(datetime.tzinfo):
 utc = UTC()
 
 
-def is_correct_s3_key(s3_key):
-    """ Validate if an s3 key complies with the expected format """
-    if re.match(REWARDED_DECISIONS_S3_KEY_REGEXP, s3_key):
-        return True
-    return False
-
-
 def list_s3_keys_after(bucket_name, key, prefix=''):
     """
     Return a lexicographically sorted list of keys after the given `key`.
@@ -107,7 +100,14 @@ def list_s3_keys_after(bucket_name, key, prefix=''):
 
 def list_partitions_after(bucket_name, key, prefix='', valid_keys_only=True):
     keys = list_s3_keys_after(bucket_name=bucket_name, key=key, prefix=prefix)
-    return keys if not valid_keys_only else [k for k in keys if is_correct_s3_key(k)]
+    return keys if not valid_keys_only else [k for k in keys if is_valid_rewarded_decisions_s3_key(k)]
+
+
+def is_valid_rewarded_decisions_s3_key(s3_key):
+    """ Validate if an s3 key complies with the expected format """
+    if re.match(REWARDED_DECISIONS_S3_KEY_REGEXP, s3_key):
+        return True
+    return False
 
 
 def is_valid_model_name(model_name):   
