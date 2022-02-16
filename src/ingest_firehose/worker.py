@@ -1,7 +1,6 @@
 import signal
 import sys
 import concurrent.futures
-import pandas as pd
 import itertools
 
 from firehose_record import FirehoseRecordGroup

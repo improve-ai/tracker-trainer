@@ -257,9 +257,9 @@ class FirehoseRecordGroup:
         
         records_by_model = {}
         invalid_records = []
-        
+
         print(f'loading s3://{FIREHOSE_BUCKET}/{s3_key}')
-    
+
         # download and parse the firehose file
         s3obj = s3client.get_object(Bucket=FIREHOSE_BUCKET, Key=s3_key)['Body']
         with gzip.GzipFile(fileobj=s3obj) as gzf:

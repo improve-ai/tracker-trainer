@@ -15,11 +15,11 @@ from ksuid import Ksuid
 import config
 import rewarded_decisions
 import utils
-import firehose_record
+import firehose_record as firehose_record
 from firehose_record import DF_SCHEMA, FirehoseRecordGroup, DECISION_ID_KEY, MESSAGE_ID_KEY
 from rewarded_decisions import RewardedDecisionPartition, s3_key_prefix, repair_overlapping_keys
-from ingest_firehose_tests.utils import dicts_to_df
-from ingest_firehose_tests.utils import upload_gzipped_jsonl_records_to_firehose_bucket
+from tests_utils import dicts_to_df
+from tests_utils import upload_gzipped_jsonl_records_to_firehose_bucket
 
 
 def upload_rdrs_as_parquet_files_to_train_bucket(rdrs, model_name):
@@ -97,7 +97,10 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
 
     # Replace the S3 client used in the app with a mock
     # mocker.patch('config.s3client', new=s3)
-    utils.s3client = rewarded_decisions.s3client = firehose_record.s3client = s3
+    config.s3client = \
+        utils.s3client = \
+        rewarded_decisions.s3client = \
+        firehose_record.s3client = s3
 
     # Create buckets in the Moto's virtual AWS account
     s3.create_bucket(Bucket=config.FIREHOSE_BUCKET)
@@ -298,7 +301,10 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
     MODEL_NAME = "test-model-name-1.0"
 
     # Replace the used s3 client with a mocked one 
-    utils.s3client = rewarded_decisions.s3client = s3
+    config.s3client = \
+        utils.s3client = \
+        rewarded_decisions.s3client = \
+        firehose_record.s3client = s3
 
     # Create a mocked bucket
     s3.create_bucket(Bucket=config.TRAIN_BUCKET)
@@ -318,7 +324,9 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
     # fcbd04c3-4021-4ef7-8ca5-a5a19e4d6e3c <- 8th
     # b4862b21-fb97-4435-8856-1712e8e5216a <- 9th
     # 259f4329-e6f4-490b-9a16-4106cf6a659e <- 10th
-    mocker.patch('rewarded_decisions.uuid4', new=lambda: uuid.UUID(int=rd.getrandbits(128), version=4))
+
+    # mocker.patch('rewarded_decisions.uuid4', new=lambda: uuid.UUID(int=rd.getrandbits(128), version=4))
+    rewarded_decisions.uuid4 = lambda: uuid.UUID(int=rd.getrandbits(128), version=4)
 
 
     ##########################################################################
@@ -404,7 +412,7 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
 
     response = s3.list_objects_v2(
         Bucket = config.TRAIN_BUCKET,
-        Prefix = f'rewarded_decisions/{MODEL_NAME}')
+        Prefix = f'rewarded_decisions/{MODEL_NAME}/')
     keys_in_bucket = [x['Key'] for x in response['Contents']]
 
     for i in original_keys:

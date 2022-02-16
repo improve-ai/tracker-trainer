@@ -31,36 +31,9 @@ def is_correct_s3_key(s3_key):
     return False
 
 
-def find_first_gte(x: str, l: list):
+def list_s3_keys_after(bucket_name, key, prefix=''):
     """
-    Return the index and value of the first element that's greater or 
-    equal than x.
-
-    Returns
-    -------
-    int or None
-        Index of the first element that is greater or equal than x. None if no 
-        element greater or equal than x can be found.
-    str or None
-        First element that is greater or equal than x. None if no element 
-        greater or equal than x can be found.
-    
-    Modified from: https://stackoverflow.com/a/2236935/1253729
-    """
-    if x is None:
-        return (None, None)
-
-    return next(((i,v) for i,v in enumerate(sorted(l)) if v >= x), (None, None))
-
-
-def list_s3_keys_containing(bucket_name, start_after_key, end_key, prefix='', valid_keys_only=True):
-    """
-    Return a list of keys between the given `start_after_key` and 
-    `end_key` in the given S3 bucket (`bucket_name`). 
-    `end_key` is  inclusive but if there is no match for `end_key`, 
-    return the closest key that's greater than `end_key`. 
-    The comparisons of keys is done comparing the Unicode code point 
-    numbers of individual characters.
+    Return a lexicographically sorted list of keys after the given `key`.
     
     Listing S3's keys returns them in UTF8-binary order:
         "List results are always returned in UTF-8 binary order". [3]
@@ -80,12 +53,8 @@ def list_s3_keys_containing(bucket_name, start_after_key, end_key, prefix='', va
     ----------
     bucket_name : str
         AWS S3 bucket name
-    start_after_key : str
+    key : str
         Key after which to start the subset selection
-    end_key : str
-        The subset selection will be done up to this key or, if not 
-        available, up to the closes key with a greater Unicode code 
-        point number.
     prefix : str
         Passed directly to the S3 call. Limits the response to keys 
         that begin with the specified prefix.
@@ -111,19 +80,20 @@ def list_s3_keys_containing(bucket_name, start_after_key, end_key, prefix='', va
     """  
 
     if not isinstance(bucket_name, str) or \
-       not isinstance(start_after_key, str) or \
-       not isinstance(end_key, str) or \
+       not isinstance(key, str) or \
        not isinstance(prefix, str):
-       raise TypeError
-
-    if start_after_key > end_key:
-        raise ValueError
+        raise TypeError
 
     kwargs = {
         'Bucket': bucket_name,
-        'StartAfter': start_after_key,
+        'StartAfter': key,
         'Prefix': prefix
     }
+
+    # print('### KWARGS ###')
+    # print(kwargs)
+    # buckets = s3client.list_buckets()
+    # print(buckets)
 
     keys = []
     while True:
@@ -133,30 +103,23 @@ def list_s3_keys_containing(bucket_name, start_after_key, end_key, prefix='', va
             return []
 
         for obj in resp['Contents']:
-            key = obj['Key']
+            # key = obj['Key']
+            keys.append(obj['Key'])
 
-            if (valid_keys_only and is_correct_s3_key(key)) or not valid_keys_only:
-                keys.append(key)
+            # if (valid_keys_only and is_correct_s3_key(key)) or not valid_keys_only:
+            #     keys.append(key)
 
         try:
             kwargs['ContinuationToken'] = resp['NextContinuationToken']
         except KeyError:
             break
 
-    keys.sort()
+    return keys
 
-    if len(keys) == 0:
-        return []
 
-    # Find the index of the last key
-    idx_end_gte, end_gte = find_first_gte(end_key, keys)
-
-    if idx_end_gte is None:
-        result = keys
-    else:
-        result = keys[:idx_end_gte+1]
-    
-    return result
+def list_partitions_after(bucket_name, key, prefix='', valid_keys_only=True):
+    keys = list_s3_keys_after(bucket_name=bucket_name, key=key, prefix=prefix)
+    return keys if not valid_keys_only else [k for k in keys if is_correct_s3_key(k)]
 
 
 def is_valid_model_name(model_name):   
