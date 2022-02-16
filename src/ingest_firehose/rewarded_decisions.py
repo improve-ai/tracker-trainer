@@ -389,7 +389,7 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
     min_decision_id = get_min_decision_id(partitions)
 
     # attempt to desync semi-parallel jobs
-    time.sleep(get_wait_time())
+    time.sleep(2 * ATTEMPT * np.random.rand())
 
     """
     List the s3 keys.

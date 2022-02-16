@@ -342,8 +342,10 @@ def run_batch_ingest_with_threads(s3_keys, s3, ingest_interval: int = None):
                     and len(finished_threads_results) == len(futures):
                 break
 
+            failed_threads = 0
             for s3_key, result in finished_threads_results.items():
                 if result == 1:
+                    failed_threads += 1
                     # restart thread
                     futures[s3_key]['attempts'] += 1
                     if futures[s3_key]['attempts'] > 5:
@@ -354,7 +356,9 @@ def run_batch_ingest_with_threads(s3_keys, s3, ingest_interval: int = None):
                         executor.submit(
                             run_worker_with_s3_key, s3_key, futures[s3_key]['attempts'], s3)
                     futures[s3_key]['future'] = future
+                    time.sleep(0.1)
 
+            print(f'### FAILED THREADS: {failed_threads} ###')
             time.sleep(1)
 
 
@@ -433,7 +437,7 @@ def test_successful_batch_after_batch_ingest(s3, **kwargs):
     ensure_results_are_correct(s3, test_case_json)
 
 
-# TODO figure out why this test sometimes fails
+# # TODO figure out why this test sometimes fails
 # def test_successful_batch_reingest(s3, **kwargs):
 #     # firehose_record.s3client = utils.s3client = rewarded_decisions.s3client = s3
 #     config.s3client = \
@@ -455,7 +459,7 @@ def test_successful_batch_after_batch_ingest(s3, **kwargs):
 #     run_batch_ingest_with_threads(s3_keys=ingested_s3_keys, s3=s3)
 #
 #     print('Waiting 10 seconds before batch reingest')
-#     time.sleep(10)
+#     time.sleep(15)
 #
 #     reingested_keys = \
 #         list(np.random.choice(ingested_s3_keys, int(len(ingested_s3_keys) / 2), replace=False))
