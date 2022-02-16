@@ -1,18 +1,21 @@
+import concurrent.futures
+import itertools
+import random
 import signal
 import sys
-import concurrent.futures
-import pandas as pd
-import itertools
+import time
 
+from config import ATTEMPT, INCOMING_FIREHOSE_S3_KEY, TRAIN_BUCKET, THREAD_WORKER_COUNT, stats
 from firehose_record import FirehoseRecordGroup
 from rewarded_decisions import RewardedDecisionPartition, repair_overlapping_keys
-from config import INCOMING_FIREHOSE_S3_KEY, TRAIN_BUCKET, THREAD_WORKER_COUNT, stats
 
 
 SIGTERM = False
 
 
 def worker():
+    # de-synchronize jobs which may run in parallel
+    time.sleep(2 ** (ATTEMPT + 1 + random.random()))
     print(f'starting firehose ingest')
     
     # load the incoming firehose file and group records by model name

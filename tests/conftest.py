@@ -18,14 +18,10 @@ from firehose_record import COUNT_KEY
 from firehose_record import RUNNERS_UP_KEY
 from firehose_record import SAMPLE_KEY
 from firehose_record import REWARD_KEY
-from firehose_record import REWARDS_KEY
 from firehose_record import DECISION_ID_KEY
 from firehose_record import FirehoseRecord
 from firehose_record import assert_valid_record
 from firehose_record import assert_valid_rewarded_decision_record
-from utils import utc
-from utils import get_valid_timestamp
-from utils import json_dumps_wrapping_primitive, json_dumps
 
 
 @pytest.fixture(scope='function')

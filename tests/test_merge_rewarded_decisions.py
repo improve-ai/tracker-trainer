@@ -4,12 +4,12 @@ import pandas as pd
 from pandas._testing import assert_frame_equal
 
 # Local imports
-from rewarded_decisions import RewardedDecisionPartition
-from firehose_record import DF_SCHEMA, REWARD_KEY, REWARDS_KEY, TYPE_KEY
-from firehose_record import FirehoseRecordGroup, FirehoseRecord, assert_valid_rewarded_decision_record
-from utils import json_dumps
+from src.ingest_firehose.rewarded_decisions import RewardedDecisionPartition
+from src.ingest_firehose.firehose_record import DF_SCHEMA, REWARD_KEY, REWARDS_KEY,\
+    TYPE_KEY, FirehoseRecordGroup, FirehoseRecord, assert_valid_rewarded_decision_record
+from src.ingest_firehose.utils import json_dumps
 
-from ingest_firehose_tests.utils import dicts_to_df
+from tests_utils import dicts_to_df
 
 # TODO: start at jsons and end up merging
 

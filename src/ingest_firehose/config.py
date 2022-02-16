@@ -1,8 +1,6 @@
-from pathlib import Path
 import boto3
 import botocore
 import os
-from datetime import timedelta
 
 from stats import Stats
 
@@ -21,3 +19,4 @@ FIREHOSE_BUCKET = os.environ['FIREHOSE_BUCKET']
 
 # the incoming firehose file to ingest
 INCOMING_FIREHOSE_S3_KEY = os.environ['S3_KEY']
+ATTEMPT = int(os.getenv('AWS_BATCH_JOB_ATTEMPT'))

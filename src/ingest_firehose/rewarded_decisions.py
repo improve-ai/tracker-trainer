@@ -1,24 +1,21 @@
 # Built-in imports
 from collections import ChainMap
 import itertools
-import re
-import os
-from uuid import uuid4
-from warnings import warn
 from typing import List
 
 # External imports
-import pandas as pd
 from ksuid import Ksuid
 import orjson
+import pandas as pd
 import portion as P
+from uuid import uuid4
 
 
 # Local imports
 from config import s3client, TRAIN_BUCKET
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA
-from utils import is_valid_model_name, json_dumps, list_s3_keys_containing
 from firehose_record import is_valid_message_id
+from utils import is_valid_model_name, json_dumps, list_partitions_after
 
 ISO_8601_BASIC_FORMAT = '%Y%m%dT%H%M%SZ'
 
@@ -130,10 +127,7 @@ class RewardedDecisionPartition:
         This process is idempotent. It may be safely repeated on 
         duplicate records and performed in any order.
         If fields collide, one will win, but which one is unspecified.  
-        
-        Parameters
-        ----------
-        rewarded_decision_records : pandas.DataFrame
+
         """
         
         assert self.sorted
@@ -267,7 +261,6 @@ class RewardedDecisionPartition:
             (rdrs_df['decision_id'].iloc[0], rdrs_df['decision_id'].iloc[-1])
 
         start_after_key = s3_key_prefix(model_name, min_decision_id)
-        end_key = s3_key_prefix(model_name, max_decision_id)
 
         """
         List the s3 keys.
@@ -281,16 +274,14 @@ class RewardedDecisionPartition:
         so most list operations would continue to the final s3 key. Thus for simplicity we opt for a simple start_after_key
         semantic.
         """
-        s3_keys = list_s3_keys_containing(
+        s3_keys = list_partitions_after(
             bucket_name=TRAIN_BUCKET,
-            start_after_key=start_after_key,
-            end_key=end_key,
-            prefix=f'rewarded_decisions/{model_name}')
-
+            key=start_after_key,
+            prefix=f'rewarded_decisions/{model_name}/')
         if len(s3_keys) == 0:
             return [RewardedDecisionPartition(model_name, rdrs_df)]
 
-        warn('Processing following s3 keys from train bucket: {}'.format(s3_keys))
+        print('Processing following s3 keys from train bucket: {}'.format(s3_keys))
 
         map_of_s3_keys_to_rdrs = {}
         for i, s3_key in enumerate(sorted(s3_keys)):
@@ -312,7 +303,7 @@ class RewardedDecisionPartition:
         partitions_s3 = [
             RewardedDecisionPartition(
                 model_name=model_name,
-                df=df, s3_key=s3_key) for s3_key, df in map_of_s3_keys_to_rdrs.items()]
+                df=df, s3_key=s3k) for s3k, df in map_of_s3_keys_to_rdrs.items()]
 
         if not rdrs_df.empty:
             partitions_s3.append(RewardedDecisionPartition(model_name=model_name, df=rdrs_df))
@@ -332,13 +323,41 @@ def get_sorted_s3_prefixes(df, model_name, reset_index=False):
     return s3_prefixes.sort_values().reset_index(drop=True)
 
 
-def min_max_decision_ids(partitions):
+def get_min_decision_id(partitions):
     min_per_partitions = list(map(lambda x: x.min_decision_id, partitions))
-    max_per_partitions = list(map(lambda x: x.max_decision_id, partitions))
     min_decision_id = min([None] if not min_per_partitions else min_per_partitions)
-    max_decision_id = max([None] if not max_per_partitions else max_per_partitions)
 
-    return min_decision_id, max_decision_id
+    return min_decision_id
+
+
+def get_unique_overlapping_keys(single_overlap_keys):
+    return set(itertools.chain(*single_overlap_keys.values()))
+
+
+def get_all_overlaps(keys_to_repair):
+    # Create list of "Interval" objects
+    train_s3_intervals = []
+    for key in keys_to_repair:
+        maxts_key, mints_key = key.split('/')[-1].split('-')[:2]
+        interval = P.IntervalDict({P.closed(mints_key, maxts_key): [key]})
+        train_s3_intervals.append(interval)
+
+    # Modified from:
+    # https://www.csestack.org/merge-overlapping-intervals/
+    overlaps = [train_s3_intervals[0]]
+    for i in range(1, len(train_s3_intervals)):
+
+        pop_element = overlaps.pop()
+        next_element = train_s3_intervals[i]
+
+        if pop_element.domain().overlaps(next_element.domain()):
+            new_element = pop_element.combine(next_element, how=lambda a, b: a + b)
+            overlaps.append(new_element)
+        else:
+            overlaps.append(pop_element)
+            overlaps.append(next_element)
+
+    return overlaps
 
 
 def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPartition]):
@@ -359,8 +378,8 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
     for partition in partitions:
         assert partition.model_name == model_name
         
-    min_decision_id, max_decision_id = min_max_decision_ids(partitions)
-        
+    min_decision_id = get_min_decision_id(partitions)
+
     """
     List the s3 keys.
     
@@ -372,11 +391,10 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
     so most list operations would continue to the final s3 key. Thus for simplicity we opt for a simple start_after_key
     semantic.
     """
-    train_s3_keys = list_s3_keys_containing(
-        bucket_name     = TRAIN_BUCKET,
-        start_after_key = s3_key_prefix(model_name, min_decision_id),
-        end_key         = s3_key_prefix(model_name, max_decision_id),
-        prefix          = f'rewarded_decisions/{model_name}')
+    train_s3_keys = list_partitions_after(
+        bucket_name=TRAIN_BUCKET,
+        key=s3_key_prefix(model_name, min_decision_id),
+        prefix=f'rewarded_decisions/{model_name}/')
 
     # if there are no files in s3 yet there is nothing to fix
     if len(train_s3_keys) <= 1:
@@ -386,36 +404,12 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
     train_s3_keys.reverse()
 
     assert train_s3_keys[0] > train_s3_keys[-1]
-    
-    # Create list of "Interval" objects
-    train_s3_intervals = []
-    for key in train_s3_keys:
-        maxts_key, mints_key = key.split('/')[-1].split('-')[:2]
-        interval = P.IntervalDict({ P.closed(mints_key, maxts_key): [key] })
-        train_s3_intervals.append(interval)
 
-    # Modified from:
-    # https://www.csestack.org/merge-overlapping-intervals/
-    merged_list= [ train_s3_intervals[0] ]
-    for i in range(1, len(train_s3_intervals)):
-        
-        pop_element  = merged_list.pop()
-        next_element = train_s3_intervals[i]
-
-        if pop_element.domain().overlaps(next_element.domain()):
-            new_element = pop_element.combine(next_element, how=lambda a,b: a + b)
-            merged_list.append(new_element)
-        else:
-            merged_list.append(pop_element)
-            merged_list.append(next_element)
-
-
-    def get_unique_keys_from_interval(interval):
-        return set(itertools.chain(*interval.values()))
+    overlaps = get_all_overlaps(keys_to_repair=train_s3_keys)
 
     # If there are overlapping ranges, load parquet files, consolidate them, save them
-    for interval in merged_list:
-        keys = get_unique_keys_from_interval(interval)
+    for overlap in overlaps:
+        keys = get_unique_overlapping_keys(overlap)
         if len(keys) > 1:
 
             dfs = [pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}') for s3_key in keys]
@@ -443,7 +437,6 @@ def s3_key_prefix(model_name, max_decision_id):
     # The max timestamp is encoded first in the path so that a lexicographically sorted
     # search of file names starting at the prefix of the target decision_id will provide
     # the .parquet that should contain that decision_id, if it exists
-    # TODO change from /rewarded_decisions/... to rewarded_decisions/... (?)
     return f'rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{max_timestamp}'
     
     

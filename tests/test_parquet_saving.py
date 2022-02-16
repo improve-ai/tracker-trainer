@@ -19,7 +19,7 @@ from firehose_record import REWARD_KEY
 from firehose_record import REWARDS_KEY
 from firehose_record import DECISION_ID_KEY
 from firehose_record import DF_SCHEMA
-from ingest_firehose_tests.utils import dicts_to_df
+from tests_utils import dicts_to_df
 
 
 ENGINE="fastparquet"
