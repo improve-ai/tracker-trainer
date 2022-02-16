@@ -330,6 +330,36 @@ def get_min_decision_id(partitions):
     return min_decision_id
 
 
+def get_unique_overlapping_keys(single_overlap_keys):
+    return set(itertools.chain(*single_overlap_keys.values()))
+
+
+def get_all_overlaps(keys_to_repair):
+    # Create list of "Interval" objects
+    train_s3_intervals = []
+    for key in keys_to_repair:
+        maxts_key, mints_key = key.split('/')[-1].split('-')[:2]
+        interval = P.IntervalDict({P.closed(mints_key, maxts_key): [key]})
+        train_s3_intervals.append(interval)
+
+    # Modified from:
+    # https://www.csestack.org/merge-overlapping-intervals/
+    overlaps = [train_s3_intervals[0]]
+    for i in range(1, len(train_s3_intervals)):
+
+        pop_element = overlaps.pop()
+        next_element = train_s3_intervals[i]
+
+        if pop_element.domain().overlaps(next_element.domain()):
+            new_element = pop_element.combine(next_element, how=lambda a, b: a + b)
+            overlaps.append(new_element)
+        else:
+            overlaps.append(pop_element)
+            overlaps.append(next_element)
+
+    return overlaps
+
+
 def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPartition]):
     """
     Detect parquet files which contain decision ids from overlapping 
@@ -375,35 +405,7 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
 
     assert train_s3_keys[0] > train_s3_keys[-1]
 
-    def get_all_overlaps(keys_to_repair):
-        # Create list of "Interval" objects
-        train_s3_intervals = []
-        for key in keys_to_repair:
-            maxts_key, mints_key = key.split('/')[-1].split('-')[:2]
-            interval = P.IntervalDict({P.closed(mints_key, maxts_key): [key]})
-            train_s3_intervals.append(interval)
-
-        # Modified from:
-        # https://www.csestack.org/merge-overlapping-intervals/
-        overlaps = [train_s3_intervals[0]]
-        for i in range(1, len(train_s3_intervals)):
-
-            pop_element = overlaps.pop()
-            next_element = train_s3_intervals[i]
-
-            if pop_element.domain().overlaps(next_element.domain()):
-                new_element = pop_element.combine(next_element, how=lambda a, b: a + b)
-                overlaps.append(new_element)
-            else:
-                overlaps.append(pop_element)
-                overlaps.append(next_element)
-
-        return overlaps
-
     overlaps = get_all_overlaps(keys_to_repair=train_s3_keys)
-
-    def get_unique_overlapping_keys(single_overlap_keys):
-        return set(itertools.chain(*single_overlap_keys.values()))
 
     # If there are overlapping ranges, load parquet files, consolidate them, save them
     for overlap in overlaps:

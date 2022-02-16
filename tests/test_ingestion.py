@@ -19,34 +19,14 @@ import pytest
 import config
 import firehose_record
 import rewarded_decisions
-from rewarded_decisions import repair_overlapping_keys, DECISION_ID_KEY, DF_SCHEMA
+from rewarded_decisions import repair_overlapping_keys, get_all_overlaps, get_unique_overlapping_keys, \
+    DECISION_ID_KEY, DF_SCHEMA
 import utils
 import worker
 
 s3_key = rewarded_decisions.s3_key
 
 from tests_utils import dicts_to_df, upload_gzipped_jsonl_records_to_firehose_bucket
-
-# extract desired code objects from repair_overlapping_keys
-DESIRED_REPAIR_OVERLAPPING_KEYS_NESTED_FUNCTION_NAMES = \
-    ['get_all_overlaps', 'get_unique_overlapping_keys']
-NESTED_FUNCTIONS = \
-    {f.co_name: f for f in repair_overlapping_keys.__code__.co_consts
-     if hasattr(f, 'co_name') and f.co_name in DESIRED_REPAIR_OVERLAPPING_KEYS_NESTED_FUNCTION_NAMES}
-
-
-# create surrogates
-def get_all_overlaps():
-    pass
-
-
-def get_unique_overlapping_keys():
-    pass
-
-
-# inject code
-get_all_overlaps.__code__ = NESTED_FUNCTIONS['get_all_overlaps']
-get_unique_overlapping_keys.__code__ = NESTED_FUNCTIONS['get_unique_overlapping_keys']
 
 
 ENGINE = 'fastparquet'
