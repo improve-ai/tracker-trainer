@@ -32,6 +32,7 @@ def worker():
     # if multiple ingests happen simultaneously it is possible for keys to overlap, which must be fixed
     sort_key = lambda x: x.model_name
     for model_name, model_decision_partitions in itertools.groupby(sorted(decision_partitions, key=sort_key), sort_key):
+        # execute each serially in one thread to have maximum memory available for loading overlapping partitions
         repair_overlapping_keys(model_name, model_decision_partitions)
 
     print(stats)
