@@ -58,9 +58,6 @@ def list_s3_keys_after(bucket_name, key, prefix=''):
     prefix : str
         Passed directly to the S3 call. Limits the response to keys 
         that begin with the specified prefix.
-    valid_keys_only : bool
-        Flag to check validity of s3 key format.
-        Set to False in the tests to simplify the used cases.
 
     Returns
     -------
@@ -90,11 +87,6 @@ def list_s3_keys_after(bucket_name, key, prefix=''):
         'Prefix': prefix
     }
 
-    # print('### KWARGS ###')
-    # print(kwargs)
-    # buckets = s3client.list_buckets()
-    # print(buckets)
-
     keys = []
     while True:
         resp = s3client.list_objects_v2(**kwargs)
@@ -103,11 +95,7 @@ def list_s3_keys_after(bucket_name, key, prefix=''):
             return []
 
         for obj in resp['Contents']:
-            # key = obj['Key']
             keys.append(obj['Key'])
-
-            # if (valid_keys_only and is_correct_s3_key(key)) or not valid_keys_only:
-            #     keys.append(key)
 
         try:
             kwargs['ContinuationToken'] = resp['NextContinuationToken']

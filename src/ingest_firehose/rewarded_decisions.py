@@ -5,16 +5,14 @@ from typing import List
 
 # External imports
 from ksuid import Ksuid
-import numpy as np
 import orjson
 import pandas as pd
 import portion as P
-import time
 from uuid import uuid4
 
 
 # Local imports
-from config import s3client, TRAIN_BUCKET, ATTEMPT
+from config import s3client, TRAIN_BUCKET
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA
 from firehose_record import is_valid_message_id
 from utils import is_valid_model_name, json_dumps, list_partitions_after
@@ -77,13 +75,7 @@ class RewardedDecisionPartition:
 
         # TODO split load into s3 request and parse.  If fail on s3 then throw exception
         # and fail job.  If parse error, move bad records to /unrecoverable 
-        try:
-            s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{self.s3_key}')
-        except FileNotFoundError as fnferr:
-            wait_time = get_wait_time() if ATTEMPT < 5 else 0
-            print(f'Desired s3 key {self.s3_key} was not found - waiting {wait_time} seconds before retry')
-            time.sleep(wait_time)
-            raise FileNotFoundError()
+        s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{self.s3_key}')
 
         # TODO: add more validations
         valid_idxs = s3_df.decision_id.apply(is_valid_message_id)
@@ -338,36 +330,6 @@ def get_min_decision_id(partitions):
     return min_decision_id
 
 
-def get_unique_overlapping_keys(single_overlap_keys):
-    return set(itertools.chain(*single_overlap_keys.values()))
-
-
-def get_all_overlaps(keys_to_repair):
-    # Create list of "Interval" objects
-    train_s3_intervals = []
-    for key in keys_to_repair:
-        maxts_key, mints_key = key.split('/')[-1].split('-')[:2]
-        interval = P.IntervalDict({P.closed(mints_key, maxts_key): [key]})
-        train_s3_intervals.append(interval)
-
-    # Modified from:
-    # https://www.csestack.org/merge-overlapping-intervals/
-    overlaps = [train_s3_intervals[0]]
-    for i in range(1, len(train_s3_intervals)):
-
-        pop_element = overlaps.pop()
-        next_element = train_s3_intervals[i]
-
-        if pop_element.domain().overlaps(next_element.domain()):
-            new_element = pop_element.combine(next_element, how=lambda a, b: a + b)
-            overlaps.append(new_element)
-        else:
-            overlaps.append(pop_element)
-            overlaps.append(next_element)
-
-    return overlaps
-
-
 def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPartition]):
     """
     Detect parquet files which contain decision ids from overlapping 
@@ -387,9 +349,6 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
         assert partition.model_name == model_name
         
     min_decision_id = get_min_decision_id(partitions)
-
-    # attempt to desync semi-parallel jobs
-    time.sleep(2 * ATTEMPT * np.random.rand())
 
     """
     List the s3 keys.
@@ -415,21 +374,43 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
     train_s3_keys.reverse()
 
     assert train_s3_keys[0] > train_s3_keys[-1]
+
+    def get_all_overlaps(keys_to_repair):
+        # Create list of "Interval" objects
+        train_s3_intervals = []
+        for key in keys_to_repair:
+            maxts_key, mints_key = key.split('/')[-1].split('-')[:2]
+            interval = P.IntervalDict({P.closed(mints_key, maxts_key): [key]})
+            train_s3_intervals.append(interval)
+
+        # Modified from:
+        # https://www.csestack.org/merge-overlapping-intervals/
+        overlaps = [train_s3_intervals[0]]
+        for i in range(1, len(train_s3_intervals)):
+
+            pop_element = overlaps.pop()
+            next_element = train_s3_intervals[i]
+
+            if pop_element.domain().overlaps(next_element.domain()):
+                new_element = pop_element.combine(next_element, how=lambda a, b: a + b)
+                overlaps.append(new_element)
+            else:
+                overlaps.append(pop_element)
+                overlaps.append(next_element)
+
+        return overlaps
+
     overlaps = get_all_overlaps(keys_to_repair=train_s3_keys)
 
-    # # If there are overlapping ranges, load parquet files, consolidate them, save them
+    def get_unique_overlapping_keys(single_overlap_keys):
+        return set(itertools.chain(*single_overlap_keys.values()))
+
+    # If there are overlapping ranges, load parquet files, consolidate them, save them
     for overlap in overlaps:
         keys = get_unique_overlapping_keys(overlap)
         if len(keys) > 1:
 
-            try:
-                dfs = [pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}') for s3_key in keys]
-            except FileNotFoundError as fnferr:
-                wait_time = get_wait_time() if ATTEMPT < 5 else 0
-                print('One of keys was not found - waiting before retry')
-                time.sleep(wait_time)
-                raise FileNotFoundError()
-
+            dfs = [pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}') for s3_key in keys]
             df = pd.concat(dfs, ignore_index=True)
             RDP = RewardedDecisionPartition(model_name, df=df)
             RDP.process()
@@ -442,10 +423,6 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
             )
 
     return
-
-
-def get_wait_time():
-    return 2 ** (ATTEMPT + 1 + np.random.rand())
 
 
 def s3_key_prefix(model_name, max_decision_id):
