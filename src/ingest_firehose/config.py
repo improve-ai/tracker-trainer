@@ -19,4 +19,5 @@ FIREHOSE_BUCKET = os.environ['FIREHOSE_BUCKET']
 
 # the incoming firehose file to ingest
 INCOMING_FIREHOSE_S3_KEY = os.environ['S3_KEY']
+
 BATCH_JOB_ATTEMPT = int(os.getenv('AWS_BATCH_JOB_ATTEMPT'))
