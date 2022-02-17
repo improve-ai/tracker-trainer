@@ -6,10 +6,7 @@ let yaml = null;
 try {
     yaml = require('yaml');
 } catch(error) {
-    console.log(
-        '#############################################################\n' +
-        '### Please run `npm install` before deploying application ###\n' +
-        '#############################################################\n');
+    fatal('Please run `npm install` before deploying application');
     throw(error);
 }
 
@@ -20,6 +17,15 @@ function get(object, key, default_value) {
 }
 
 
+function fatal(msg) {
+    console.error(`[FATAL] ${msg}`)
+}
+
+
+function warn(msg) {
+    console.warn(`[WARNING] ${msg}`)
+}
+
 
 function checkFixAndSplitValueWithUnit(checkedString, emptyOrNullStringError, checkedParameterName){
     assert(!(checkedString == null), emptyOrNullStringError);
@@ -29,82 +35,43 @@ function checkFixAndSplitValueWithUnit(checkedString, emptyOrNullStringError, ch
     // split on space to separate value and unit
     var checkedStringArray = checkedStringFixed.split(' ');
 
-    var bad_length_message =
-        '\n###########################################################\n' +
-           `###              ${checkedParameterName} has bad format             ###\n` +
-           '###########################################################\n';
-
-    assert(checkedStringArray.length == 2, bad_length_message)
+    assert(checkedStringArray.length == 2,  `${checkedParameterName} has bad format`)
     return checkedStringArray
 }
 
-const MAX_RUNTIME_UNITS_TO_SECONDS = {seconds: 1, minutes: 60, hours: 3600, days: 86400};
-
-const MAX_RUNTIME_NULL_ERROR =
-    '\n###########################################################\n' +
-    '###            max_runtime must not be empty            ###\n' +
-    '###########################################################\n';
-
-const MAX_RUNTIME_NOT_POSITIVE =
-    '\n###########################################################\n' +
-    '###               max_runtime must be > 0               ###\n' +
-    '###########################################################\n';
-
-const BAD_TIME_UNIT_ERROR =
-    '\n###########################################################\n' +
-    '###         Provided time unit is not supported         ###\n' +
-    '###########################################################\n';
 
 function parseMaxRuntimeString(maxRuntimeString){
 
+    const MAX_RUNTIME_UNITS_TO_SECONDS = {seconds: 1, minutes: 60, hours: 3600, days: 86400};
+
     var maxRuntimeParameterName = 'max_runtime';
     var maxRuntimeArray = checkFixAndSplitValueWithUnit(
-        maxRuntimeString, MAX_RUNTIME_NULL_ERROR, maxRuntimeParameterName);
+        maxRuntimeString, 'max_runtime must not be empty', maxRuntimeParameterName);
     var maxRuntimeUnit = maxRuntimeArray[1].toLowerCase();
 
-    assert(Object.keys(MAX_RUNTIME_UNITS_TO_SECONDS).includes(maxRuntimeUnit), BAD_TIME_UNIT_ERROR);
+    assert(Object.keys(MAX_RUNTIME_UNITS_TO_SECONDS).includes(maxRuntimeUnit), "Time unit must be one of 'seconds', 'minutes', 'hours', 'days'");
 
     var maxRuntimeValue = -1;
 
     try {
         maxRuntimeValue = parseInt(maxRuntimeArray[0]);
     } catch(error) {
-        throw '\n#####################################################\n' +
-                '### Unable to parse provided value of max runtime ###\n' +
-                '#####################################################\n';
+        throw 'Unable to parse provided value of max_runtime';
     }
 
-    assert(maxRuntimeValue > 0, MAX_RUNTIME_NOT_POSITIVE)
+    assert(maxRuntimeValue > 0, 'max_runtime must be > 0')
     return maxRuntimeValue * MAX_RUNTIME_UNITS_TO_SECONDS[maxRuntimeUnit]
 }
-
-
-const VOLUME_SIZE_NULL_ERROR =
-    '\n###########################################################\n' +
-      '###            volume_size must not be empty            ###\n' +
-      '###########################################################\n';
-
-
-const VOLUME_SIZE_NEGATIVE_ERROR =
-    '\n###########################################################\n' +
-      '###               volume_size must be > 0               ###\n' +
-      '###########################################################\n';
-
-
-const BAD_VOLUME_UNIT_ERROR =
-    '\n###########################################################\n' +
-      '###      Provided volume unit is not supported          ###\n' +
-      '###########################################################\n';
 
 
 function parseVolumeSize(volumeSizeString){
 
     var volumeSizeParameterName = 'volume_size';
     var volumeSizeArray = checkFixAndSplitValueWithUnit(
-        volumeSizeString, VOLUME_SIZE_NULL_ERROR, volumeSizeParameterName);
+        volumeSizeString, 'volume_size must not be empty', volumeSizeParameterName);
     var volumeSizeUnit = volumeSizeArray[1];
 
-    assert(volumeSizeUnit == 'GB', BAD_VOLUME_UNIT_ERROR);
+    assert(volumeSizeUnit == 'GB', "volume_size unit must be 'GB'");
 
     var volumeSizeValue = -1;
 
@@ -117,12 +84,10 @@ function parseVolumeSize(volumeSizeString){
         }
 
     } catch(error) {
-        throw '\n#####################################################\n' +
-                '### Unable to parse provided value of volume size ###\n' +
-                '#####################################################\n';
+        throw 'Unable to parse provided value of volume_size';
     }
 
-    assert(volumeSizeValue > 0, VOLUME_SIZE_NEGATIVE_ERROR)
+    assert(volumeSizeValue > 0, 'volume_size must be > 0')
     // returning volume size GBs
     return volumeSizeValue
 
@@ -130,15 +95,9 @@ function parseVolumeSize(volumeSizeString){
 }
 
 
-const MAX_DECISION_RECORDS_NEGATIVE_OR_NULL =
-    '\n###########################################################\n' +
-    '###    max_decision_records must be > 0 and not null    ###\n' +
-    '###########################################################\n';
-
-
 function parseMaxDecisionRecords(maxDecisionRecords){
-    assert(!(maxDecisionRecords == null), MAX_DECISION_RECORDS_NEGATIVE_OR_NULL);
-    assert(maxDecisionRecords  > 0, MAX_DECISION_RECORDS_NEGATIVE_OR_NULL);
+    assert(!(maxDecisionRecords == null), 'max_decision_records must be not null');
+    assert(maxDecisionRecords  > 0, 'max_decision_records must be > 0');
     return maxDecisionRecords
 }
 
@@ -241,14 +200,12 @@ assert(!(organization == null), 'config/config.yml:organization is null or undef
 assert(!(project == null), 'config/config.yml:project is null or undefined');
 
 if(organization == 'acme'){
-  console.warn(
-      "[WARNING] Please change 'organization' in config/config.yml - " +
-      'currently detected example organization => `acme`\n')
+  warn("Please change 'organization' in config/config.yml - currently detected example organization => 'acme'")
 }
 
 if(image == '' || image == null){
-  console.warn(
-      "\n[WARNING] <<Info about image subscription will be placed here shortly>>\n");
+    //TODO
+  warn("<<Info about image subscription will be placed here shortly>>\n");
 }
 
 function isDict(x) {
@@ -264,7 +221,7 @@ assert(project != '', 'config/config.yml:project is an empty string');
 module.exports.trainSchedulingEvents = [];
 if (module.exports.config['models'] === null) {
 
-    console.warn("[WARNING] No models were found, no models will be trained.");
+    warn("No models configured in config/config.yml, no models will be trained.");
 
 } else {
 
