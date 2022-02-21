@@ -477,3 +477,57 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
         # Assert the contents
         df = pd.read_parquet(f's3://{config.TRAIN_BUCKET}/{expected_key}')
         assert df.shape[0] == expected_n_records
+
+
+def test_get_all_overlaps_really_sorts_its_data():   
+    """
+    This test was crafted with the intention of ensuring that 
+    `get_all_overlaps` really sorts its data before running its merge
+    algorithm. The data to be sorted aren't these S3 keys, but the 
+    objects created using them inside `get_all_overlaps` (these keys 
+    are sorted by max_ts, the objects created using them should be 
+    sorted by min_ts).
+    
+    Input:
+    
+    235300-----------------235310------------------------------------
+    -------------------------------------235312--------235314--------
+    -------235305----------------------------------------------235316
+    
+    Expected:
+        A single merged interval
+    
+    """
+
+    keys = [
+        "rewarded_decisions/appconfig/parquet/2022/01/01/20220101T235310Z-20220101T235300Z-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.parquet", 
+        "rewarded_decisions/appconfig/parquet/2022/01/01/20220101T235314Z-20220101T235312Z-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab.parquet", 
+        "rewarded_decisions/appconfig/parquet/2022/01/01/20220101T235316Z-20220101T235305Z-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaac.parquet"
+    ]
+
+
+    ##########################################################################
+    # Ensure the custom crafted input data is correct
+    ##########################################################################
+
+    # Assert the list of keys is sorted lexicographically 
+    # (just like the S3 keys returned from aws)
+    keys_copy = keys.copy()
+    keys_copy.sort()
+    assert all(a == b for a,b in zip(keys, keys_copy))
+
+    for key in keys:
+        assert utils.is_valid_rewarded_decisions_s3_key(key)
+    
+    for key in keys:
+        maxts_key, mints_key = key.split('/')[-1].split('-')[:2]
+        assert mints_key <= maxts_key
+
+
+    ##########################################################################
+    # Assertions
+    ##########################################################################
+
+    overlaps = get_all_overlaps(keys)
+    
+    assert len(overlaps) == 1
