@@ -335,6 +335,36 @@ def get_unique_overlapping_keys(single_overlap_keys):
 
 
 def get_all_overlaps(keys_to_repair):
+    """
+    Given a list of S3 keys, where each one has:
+
+        - the min timestamp of the records in its corresponding Parquet file
+        - the max timestamp of the records in its corresponding Parquet file
+    
+    Create one `IntervalDict`s [1] for each S3 key: a closed `Interval`
+    [2] acts as a key and a list with the S3 key acts as the value.
+
+        -> This `Interval` is an object representing the interval between:
+            - the min timestamp of the records in its corresponding Parquet file
+            - the max timestamp of the records in its corresponding Parquet file
+            
+        -> The list which contains the S3 key is for storing the S3 keys that 
+           are part of this interval (in this case, only one)
+    
+    This `IntervalDict` will later be merged with other `IntervalDict` 
+    (if both have overlapping `Interval`s) and a new `IntervalDict` 
+    will be created, with an updated `Interval` and a list with all the
+    combined s3 keys of the original `IntervalDicts`.
+
+    Return a list of `IntervalDict`s covering all the timestamp range of 
+    the given S3 keys. Some or all of these `IntervalDict`s may be 
+    created out of the merge of multiple `IntervalDicts`, so such 
+    merged objects will contain multiple S3 keys.
+    
+    [1] https://github.com/AlexandreDecan/portion#map-intervals-to-data
+    [2] https://github.com/AlexandreDecan/portion#interval-creation
+    """
+    
     # Create list of "Interval" objects
     train_s3_intervals = []
     for key in keys_to_repair:
@@ -344,6 +374,7 @@ def get_all_overlaps(keys_to_repair):
 
     # Modified from:
     # https://www.csestack.org/merge-overlapping-intervals/
+    train_s3_intervals.sort(key = lambda x: x.domain().lower)
     overlaps = [train_s3_intervals[0]]
     for i in range(1, len(train_s3_intervals)):
 
