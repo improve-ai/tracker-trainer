@@ -81,7 +81,6 @@ functions:
     handler: src/train/dispatch_job.lambda_handler
     events: ${file(src/predeploy.js):trainSchedulingEvents}
     environment:
-      TRAINING_IMAGE: ${self:custom.config.training.image}
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
       TRAINING_SUBNET: !Ref Subnet
       TRAINING_SECURITY_GROUP: !Ref SecurityGroup

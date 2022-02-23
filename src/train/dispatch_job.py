@@ -35,7 +35,7 @@ def create_sagemaker_training_job(
 
     role = os.getenv(tc.IAM_ROLE_EVVAR)
 
-    image_uri = os.getenv(tc.IMAGE_URI_ENVVAR)
+    image_uri = event[tc.EVENT_IMAGE_KEY]
 
     instance_count = event[tc.EVENT_WORKER_COUNT_KEY]
     instance_type = event[tc.EVENT_WORKER_INSTANCE_TYPE_KEY]
@@ -111,15 +111,10 @@ def get_hyperparameters_for_model(model_name: str, event: dict):
     hyperparams = event.get(tc.HYPERPARAMETERS_KEY, {})
     hyperparams[tc.MODEL_NAME_HYPERPARAMS_KEY] = model_name
 
-    assert int(hyperparams.get(tc.EVENT_MAX_DECISION_RECORDS_KEY)) > 0
-
-    # int comes from orjson.loads() but SageMaker expects string in hyperparameters
-    hyperparams[tc.EVENT_MAX_DECISION_RECORDS_KEY] = str(hyperparams.get(tc.EVENT_MAX_DECISION_RECORDS_KEY))
-
     return hyperparams
 
 
-def check_v6_train_job_properties(event: dict):
+def check_train_job_properties(event: dict):
     """
     Checks if event dict contains all expected / desired keys and that they are
     not None
@@ -139,7 +134,7 @@ def check_v6_train_job_properties(event: dict):
 def lambda_handler(event, context):
     sagemaker_client = boto3.client('sagemaker')
 
-    check_v6_train_job_properties(event=event)
+    check_train_job_properties(event=event)
 
     model_name = event.get(tc.EVENT_MODEL_NAME_KEY)
     assert is_valid_model_name(model_name=model_name)

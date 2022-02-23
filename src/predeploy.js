@@ -4,117 +4,99 @@ const fs = require('fs');
 let yaml = null;
 
 try {
-    yaml = require('yaml');
-} catch(error) {
-    fatal('Please run `npm install` before deploying application');
-    throw(error);
+  yaml = require('yaml');
+}
+catch (error) {
+  fatal('Please run `npm install` before deploying');
+  throw (error);
 }
 
 
 function get(object, key, default_value) {
-    var result = object[key];
-    return (typeof result !== "undefined") ? result : default_value;
+  var result = object[key];
+  return (typeof result !== "undefined") ? result : default_value;
 }
 
 
 function fatal(msg) {
-    console.error(`[FATAL] ${msg}`)
+  console.error(`[FATAL] ${msg}`)
 }
 
 
 function warn(msg) {
-    console.warn(`[WARNING] ${msg}`)
+  console.warn(`[WARNING] ${msg}`)
+}
+
+function checkFixAndSplitValueWithUnit(checkedString, emptyOrNullStringError, checkedParameterName) {
+  assert(!(checkedString == null), emptyOrNullStringError);
+  assert(!(checkedString == ''), emptyOrNullStringError);
+  // replace multiple spaces, tabs, etc with single space
+  var checkedStringFixed = checkedString.toString().replace(/\s\s+/g, ' ').trim();
+  // split on space to separate value and unit
+  var checkedStringArray = checkedStringFixed.split(' ');
+
+  assert(checkedStringArray.length == 2, `${checkedParameterName} has bad format`)
+  return checkedStringArray
 }
 
 
-function checkFixAndSplitValueWithUnit(checkedString, emptyOrNullStringError, checkedParameterName){
-    assert(!(checkedString == null), emptyOrNullStringError);
-    assert(!(checkedString == ''), emptyOrNullStringError);
-    // replace multiple spaces, tabs, etc with single space
-    var checkedStringFixed = checkedString.toString().replace(/\s\s+/g, ' ').trim();
-    // split on space to separate value and unit
-    var checkedStringArray = checkedStringFixed.split(' ');
+function parseMaxRuntimeString(maxRuntimeString) {
 
-    assert(checkedStringArray.length == 2,  `${checkedParameterName} has bad format`)
-    return checkedStringArray
+  const MAX_RUNTIME_UNITS_TO_SECONDS = { seconds: 1, minutes: 60, hours: 3600, days: 86400 };
+
+  var maxRuntimeParameterName = 'max_runtime';
+  var maxRuntimeArray = checkFixAndSplitValueWithUnit(
+    maxRuntimeString, 'max_runtime must not be empty', maxRuntimeParameterName);
+  var maxRuntimeUnit = maxRuntimeArray[1].toLowerCase();
+
+  assert(Object.keys(MAX_RUNTIME_UNITS_TO_SECONDS).includes(maxRuntimeUnit), "Time unit must be one of 'seconds', 'minutes', 'hours', 'days'");
+
+  var maxRuntimeValue = -1;
+
+  try {
+    maxRuntimeValue = parseInt(maxRuntimeArray[0]);
+  }
+  catch (error) {
+    throw 'Unable to parse provided value of max_runtime';
+  }
+
+  assert(maxRuntimeValue > 0, 'max_runtime must be > 0')
+  return maxRuntimeValue * MAX_RUNTIME_UNITS_TO_SECONDS[maxRuntimeUnit]
 }
 
 
-function parseMaxRuntimeString(maxRuntimeString){
+function parseVolumeSize(volumeSizeString) {
 
-    const MAX_RUNTIME_UNITS_TO_SECONDS = {seconds: 1, minutes: 60, hours: 3600, days: 86400};
+  var volumeSizeParameterName = 'volume_size';
+  var volumeSizeArray = checkFixAndSplitValueWithUnit(
+    volumeSizeString, 'volume_size must not be empty', volumeSizeParameterName);
+  var volumeSizeUnit = volumeSizeArray[1];
 
-    var maxRuntimeParameterName = 'max_runtime';
-    var maxRuntimeArray = checkFixAndSplitValueWithUnit(
-        maxRuntimeString, 'max_runtime must not be empty', maxRuntimeParameterName);
-    var maxRuntimeUnit = maxRuntimeArray[1].toLowerCase();
+  assert(volumeSizeUnit == 'GB', "volume_size unit must be 'GB'");
 
-    assert(Object.keys(MAX_RUNTIME_UNITS_TO_SECONDS).includes(maxRuntimeUnit), "Time unit must be one of 'seconds', 'minutes', 'hours', 'days'");
+  var volumeSizeValue = -1;
 
-    var maxRuntimeValue = -1;
+  try {
 
-    try {
-        maxRuntimeValue = parseInt(maxRuntimeArray[0]);
-    } catch(error) {
-        throw 'Unable to parse provided value of max_runtime';
+    volumeSizeValue = Math.ceil(parseFloat(volumeSizeArray[0]));
+    if (parseFloat(volumeSizeArray[0]) != volumeSizeValue) {
+      console.warn(
+        `[WARNING] Provided 'volume_size': ${volumeSizeArray[0]} is not an integer but it should be -> rounding up to closest integer: ${volumeSizeValue}`);
     }
 
-    assert(maxRuntimeValue > 0, 'max_runtime must be > 0')
-    return maxRuntimeValue * MAX_RUNTIME_UNITS_TO_SECONDS[maxRuntimeUnit]
+  }
+  catch (error) {
+    throw 'Unable to parse provided value of volume_size';
+  }
+
+  assert(volumeSizeValue > 0, 'volume_size must be > 0')
+  // returning volume size GBs
+  return volumeSizeValue
 }
 
-
-function parseVolumeSize(volumeSizeString){
-
-    var volumeSizeParameterName = 'volume_size';
-    var volumeSizeArray = checkFixAndSplitValueWithUnit(
-        volumeSizeString, 'volume_size must not be empty', volumeSizeParameterName);
-    var volumeSizeUnit = volumeSizeArray[1];
-
-    assert(volumeSizeUnit == 'GB', "volume_size unit must be 'GB'");
-
-    var volumeSizeValue = -1;
-
-    try {
-
-        volumeSizeValue  = Math.ceil(parseFloat(volumeSizeArray[0]));
-        if (parseFloat(volumeSizeArray[0]) != volumeSizeValue){
-            console.warn(
-                `[WARNING] Provided 'volume_size': ${volumeSizeArray[0]} is not an integer but it should be -> rounding up to closest integer: ${volumeSizeValue}\n`);
-        }
-
-    } catch(error) {
-        throw 'Unable to parse provided value of volume_size';
-    }
-
-    assert(volumeSizeValue > 0, 'volume_size must be > 0')
-    // returning volume size GBs
-    return volumeSizeValue
-
-
-}
-
-
-function parseMaxDecisionRecords(maxDecisionRecords){
-    assert(!(maxDecisionRecords == null), 'max_decision_records must be not null');
-    assert(maxDecisionRecords  > 0, 'max_decision_records must be > 0');
-    return maxDecisionRecords
-}
-
-
-function parseHyperparameters(hyperparameters){
-    for (const [parameterName, parameterValue] of Object.entries(hyperparameters)){
-        if(parameterName == 'max_decision_records'){
-            hyperparameters[parameterName] = parseMaxDecisionRecords(parameterValue);
-        }
-    }
-    return hyperparameters
-
-}
 
 function setTrainSchedulingEvents(scheduleEventPattern){
-  console.log(`[INFO] Loading default training config\n`)
-    //defaults
+  //defaults
   var defaultScheduleString = module.exports.config['training']['schedule'];
   var defaultWorkerInstanceType = module.exports.config['training']['instance_type'];
   var defaultWorkerCount = module.exports.config['training']['instance_count'];
@@ -128,48 +110,56 @@ function setTrainSchedulingEvents(scheduleEventPattern){
 
   for (const [modelName, modelConfig] of Object.entries(module.exports.config['models'])) {
 
-      console.log(`[INFO] Processing training configuration for model: ${modelName}\n`)
-      if (modelConfig == null) {
-          currentModelTrainingConfig = {};
-      } else {
-          currentModelTrainingConfig = get(modelConfig, 'training', {});
-          if(currentModelTrainingConfig === {}){
-              console.warn(`[WARNING] No 'training' section found in model config for model: ${modelName}\n`)
-          }
-      }
+    if (modelConfig == null) {
+        currentModelTrainingConfig = {};
+    } else {
+        currentModelTrainingConfig = get(modelConfig, 'training', {});
+        if(currentModelTrainingConfig === {}){
+            console.warn(`[WARNING] No 'training' section found in model config for model: ${modelName}`)
+        }
+    }
 
-      // deep copy dict
-      currentScheduleEventDef = JSON.parse(JSON.stringify(scheduleEventPattern))
-      // set rule name
-      currentScheduleEventDef['schedule']['name'] =
-          `improveai-${module.exports.config['organization']}-${module.exports.config['project']}-` + '${opt:stage, self:provider.stage}' + `-${modelName}-schedule`;
-      // pass scheduling info
-      currentScheduleEventDef['schedule']['rate'] =
-          get(currentModelTrainingConfig, 'schedule', defaultScheduleString);
+    // deep copy dict
+    currentScheduleEventDef = JSON.parse(JSON.stringify(scheduleEventPattern))
+    // set rule name
+    currentScheduleEventDef['schedule']['name'] =
+        `improveai-${module.exports.config['organization']}-${module.exports.config['project']}-` + '${opt:stage, self:provider.stage}' + `-${modelName}-schedule`;
+    // pass scheduling info
+    currentScheduleEventDef['schedule']['rate'] =
+        get(currentModelTrainingConfig, 'schedule', defaultScheduleString);
 
-      // pass description
-      currentScheduleEventDef['schedule']['description'] =
-          `${currentScheduleEventDef['schedule']['rate']} schedule of ${modelName} model`;
+    // pass description
+    currentScheduleEventDef['schedule']['description'] =
+        `${currentScheduleEventDef['schedule']['rate']} schedule of ${modelName} model`;
 
-      currentScheduleEventDef['schedule']['input'] = {};
+    currentScheduleEventDef['schedule']['input'] = {};
 
-      // pass env vars as parameters
-      currentScheduleEventDef['schedule']['input']['model_name'] = modelName;
-      currentScheduleEventDef['schedule']['input']['instance_type'] =
-          get(currentModelTrainingConfig, 'instance_type', defaultWorkerInstanceType);
-      currentScheduleEventDef['schedule']['input']['instance_count'] =
-          get(currentModelTrainingConfig, 'instance_count', defaultWorkerCount);
-      currentScheduleEventDef['schedule']['input']['max_runtime'] =
-          parseMaxRuntimeString(get(currentModelTrainingConfig, 'max_runtime', defaultMaxRuntimeInSeconds));
-      currentScheduleEventDef['schedule']['input']['volume_size'] =
-          parseVolumeSize(get(currentModelTrainingConfig, 'volume_size', defaultVolumeSize));
-      currentScheduleEventDef['schedule']['input']['hyperparameters'] =
-            parseHyperparameters(get(currentModelTrainingConfig, 'hyperparameters', defaultHyperparameters));
+    // pass env vars as parameters
+    currentScheduleEventDef['schedule']['input']['model_name'] = modelName;
+    currentScheduleEventDef['schedule']['input']['instance_type'] =
+        get(currentModelTrainingConfig, 'instance_type', defaultWorkerInstanceType);
+    currentScheduleEventDef['schedule']['input']['instance_count'] =
+        get(currentModelTrainingConfig, 'instance_count', defaultWorkerCount);
+    currentScheduleEventDef['schedule']['input']['max_runtime'] =
+        parseMaxRuntimeString(get(currentModelTrainingConfig, 'max_runtime', defaultMaxRuntimeInSeconds));
+    currentScheduleEventDef['schedule']['input']['volume_size'] =
+        parseVolumeSize(get(currentModelTrainingConfig, 'volume_size', defaultVolumeSize));
+    currentScheduleEventDef['schedule']['input']['hyperparameters'] =
+        get(currentModelTrainingConfig, 'hyperparameters', defaultHyperparameters);
+          
+    const image = module.exports.config['training']['image']
+
+    if(image == '' || image == null){
+        //TODO
+      warn("<<Info about image subscription will be placed here shortly>>\n");
+    }
+
 
       module.exports.trainSchedulingEvents.push(currentScheduleEventDef)
 
   }
 }
+
 
 // Unit-tested in tests/test_regexps.py:test_predeploy_org_and_project_name_regexp()
 const orgAndProjNameRegex = '^[a-z0-9]+$'
@@ -178,13 +168,13 @@ const modelNameRegex = /^[a-zA-Z0-9][\w\-.]{0,63}$/i
 const config_file = fs.readFileSync('./config/config.yml', 'utf8');
 // Apply defaults to this pattern
 const scheduleEventPattern = {
-    "schedule": {
-        "name": null,
-        "description": "default schedule",
-        "rate": null,
-        "enabled": true,
-        "input": null
-    }
+  "schedule": {
+      "name": null,
+      "description": "default schedule",
+      "rate": null,
+      "enabled": true,
+      "input": null
+  }
 };
 
 module.exports.config = yaml.parse(config_file);
@@ -192,26 +182,19 @@ module.exports.config_json = JSON.stringify(module.exports.config);
 
 // assert organization and project may contain only lowercase letters and
 // numbers and must be non-null, non-empty strings
-organization = module.exports.config['organization'];
-project = module.exports.config['project'];
-image = module.exports.config['training']['image']
+const organization = module.exports.config['organization'];
+const project = module.exports.config['project'];
 
 assert(!(organization == null), 'config/config.yml:organization is null or undefined');
 assert(!(project == null), 'config/config.yml:project is null or undefined');
 
 if(organization == 'acme'){
-  warn("Please change 'organization' in config/config.yml - currently detected example organization => 'acme'")
-}
-
-if(image == '' || image == null){
-    //TODO
-  warn("<<Info about image subscription will be placed here shortly>>\n");
+  warn("config/config.yml:organization - currently detected example organization => 'acme', please change")
 }
 
 function isDict(x) {
-    return x.constructor === Object;
-  }
-
+  return x.constructor === Object;
+}
 assert(organization.match(orgAndProjNameRegex), 'config/config.yml:organization may contain only lowercase letters and numbers');
 assert(project.match(orgAndProjNameRegex), 'config/config.yml:project may contain only lowercase letters and numbers');
 
@@ -221,16 +204,16 @@ assert(project != '', 'config/config.yml:project is an empty string');
 module.exports.trainSchedulingEvents = [];
 if (module.exports.config['models'] === null) {
 
-    warn("No models configured in config/config.yml, no models will be trained.");
+  warn("No models configured in config/config.yml, no models will be trained.");
 
 } else {
 
-    assert(isDict(module.exports.config['models']), "models' entries should be dictionaries");
+  assert(isDict(module.exports.config['models']), "models' entries should be dictionaries");
 
-    // model names should be validated according to model naming rules
-    for (const [key, value] of Object.entries(module.exports.config['models'])) {
-      assert(key.match(modelNameRegex), `Invalid model name: ${key}`)
-    }
+  // model names should be validated according to model naming rules
+  for (const [key, value] of Object.entries(module.exports.config['models'])) {
+    assert(key.match(modelNameRegex), `Invalid model name: ${key}`)
+  }
 
-    setTrainSchedulingEvents(scheduleEventPattern)
+  setTrainSchedulingEvents(scheduleEventPattern)
 }
