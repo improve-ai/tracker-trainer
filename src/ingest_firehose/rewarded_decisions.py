@@ -82,6 +82,7 @@ class RewardedDecisionPartition:
             
             # it is critical that the file at self.s3_key is not deleted because its records have not been merged
             self.s3_key = None
+            assert not self.s3_key
             
             return
 
@@ -97,10 +98,12 @@ class RewardedDecisionPartition:
 
 
     def save(self):
+        assert self.sorted
+
         # split the dataframe into multiple chunks if necessary
         for chunk in split(self.df):
+            # generate a unique s3 key for this chunk
             chunk_s3_key = s3_key(self.model_name, min_decision_id=chunk[DECISION_ID_KEY].iat[0], max_decision_id=chunk[DECISION_ID_KEY].iat[-1], count=chunk.shape[0])
-            # write the conslidated parquet file to a unique key
             chunk.to_parquet(f's3://{TRAIN_BUCKET}/{chunk_s3_key}', compression='ZSTD')
 
     
