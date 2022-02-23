@@ -1,32 +1,40 @@
 ---
 #
-# The names of provisioned AWS resources depend on 'organization' and 'project'. AWS resource
+# AWS resource names depend on 'organization' and 'project'. AWS resource
 # names generally follow the pattern 'improveai-<organization>-<project>-<stage>-<resource>'
 #
-# 'organization' and 'project' may contain only lowercase letters and numbers
+# 'organization' and 'project' may contain lowercase letters and numbers.
+# <organization>-<project> must be globally unique to create S3 buckets.
 #
 organization: acme # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
 project: demo # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
-contact: your_email@example.com # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
 
 aws_region: us-east-1
 
 
+images:
+  free: # ⬅️ !!! Subscribe at https://xxx and paste image url
+  pro: # ⬅️ !!! Subscribe at https://xxx and paste image url
+
+
 #
-# decision models to train
+# Configure the decision models to train
 #
 models:
 #  config: # uncomment to train a model named 'config'
+#    training: # each model can override the default training configuration
+#      schedule: rate(1 hour) # override the default training schedule
 
+
+#
 # Default training configuration
+#
 training:
-  # get your training image URL by subscribing to the Improve AI Trainer at 
-  # XXX
-  image: XXX.dkr.ecr.us-east-1.amazonaws.com/improveai-trainer:latest # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
-  schedule: rate(15 minutes)
-  instance_type: ml.m5.xlarge
-  instance_count: 2
-  max_runtime: 4 hours # AWS instances sometimes hang. This caps training costs when that occurs.
+  image: free # free version trains on up to 100,000 decision records per model. Use pro to uncap
+  schedule: rate(4 hours) # recommended rate for initial model training is 1 training per variant per week
+  instance_type: ml.m5.2xlarge # each 2xlarge instance can train on up to ~XXX decision records
+  instance_count: 4
+  max_runtime: 2 hours # AWS instances sometimes hang. This caps training runtime when that occurs.
   volume_size: 10 GB
   hyperparameters:
-    max_decision_records: 20000000 # Note: the free trainer is capped at 100,000 decision records per model
+    max_decision_records: 20000000

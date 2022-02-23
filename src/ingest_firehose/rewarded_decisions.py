@@ -2,6 +2,7 @@
 from collections import ChainMap
 import itertools
 from typing import List
+import math
 
 # External imports
 from ksuid import Ksuid
@@ -12,7 +13,7 @@ from uuid import uuid4
 
 
 # Local imports
-from config import s3client, TRAIN_BUCKET
+from config import s3client, TRAIN_BUCKET, PARQUET_FILE_MAX_DECISION_RECORDS
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA
 from firehose_record import is_valid_message_id
 from utils import is_valid_model_name, json_dumps, list_partitions_after
@@ -89,8 +90,10 @@ class RewardedDecisionPartition:
 
 
     def save(self):
-        # write the conslidated parquet file to a unique key
-        self.df.to_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, self.min_decision_id, self.max_decision_id)}', compression='ZSTD')
+        # split the dataframe into multiple chunks if necessary
+        for chunk in split(self.df):
+            # write the conslidated parquet file to a unique key
+            chunk.to_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, chunk[DECISION_ID_KEY].iat[0], chunk[DECISION_ID_KEY].iat[-1], chunk.shape[0])}', compression='ZSTD')
 
     
     def filter_valid(self):
@@ -119,8 +122,8 @@ class RewardedDecisionPartition:
         assert self.sorted
         # use instance variable because it will be accessed after dataframe cleanup
         return self._max_decision_id
-        
-        
+
+
     def merge(self):
         """
         Merge full or partial "rewarded decision records".
@@ -427,6 +430,18 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
     return
 
 
+def split(df, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS):
+    
+    chunk_count = math.ceil(df.shape[0] / max_row_count)
+    
+    # adapted from https://stackoverflow.com/a/2135920/2590111 to split into roughly equal size chunks
+    def split_roughly_equal(df, n):
+        k, m = divmod(df.shape[0], n)
+        return (df.iloc[i*k+min(i, m):(i+1)*k+min(i+1, m)] for i in range(n))
+
+    return split_roughly_equal(df, chunk_count)
+
+
 def s3_key_prefix(model_name, max_decision_id):
     max_timestamp = Ksuid.from_base62(max_decision_id).datetime.strftime(ISO_8601_BASIC_FORMAT)
     
@@ -440,7 +455,7 @@ def s3_key_prefix(model_name, max_decision_id):
     return f'rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{max_timestamp}'
     
     
-def s3_key(model_name, min_decision_id, max_decision_id):
+def s3_key(model_name, min_decision_id, max_decision_id, count):
     min_timestamp = Ksuid.from_base62(min_decision_id).datetime.strftime(ISO_8601_BASIC_FORMAT)
     
     #
@@ -453,4 +468,4 @@ def s3_key(model_name, min_decision_id, max_decision_id):
     # The final UUID4 is simply to give the file a random name. For now, the characters following
     # the last dash should be considered an opaque string of random characters
     #
-    return f'{s3_key_prefix(model_name, max_decision_id)}-{min_timestamp}-{uuid4()}.parquet'
+    return f'{s3_key_prefix(model_name, max_decision_id)}-{min_timestamp}-{count}-{uuid4()}.parquet'
