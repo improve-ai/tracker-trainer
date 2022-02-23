@@ -103,7 +103,9 @@ class RewardedDecisionPartition:
         # split the dataframe into multiple chunks if necessary
         for chunk in split(self.df):
             # generate a unique s3 key for this chunk
-            chunk_s3_key = s3_key(self.model_name, min_decision_id=chunk[DECISION_ID_KEY].iat[0], max_decision_id=chunk[DECISION_ID_KEY].iat[-1], count=chunk.shape[0])
+            chunk_s3_key = parquet_s3_key(self.model_name, min_decision_id=chunk[DECISION_ID_KEY].iat[0], 
+                max_decision_id=chunk[DECISION_ID_KEY].iat[-1], count=chunk.shape[0])
+                
             chunk.to_parquet(f's3://{TRAIN_BUCKET}/{chunk_s3_key}', compression='ZSTD')
 
     
@@ -274,7 +276,7 @@ class RewardedDecisionPartition:
         min_decision_id, max_decision_id = \
             (rdrs_df['decision_id'].iloc[0], rdrs_df['decision_id'].iloc[-1])
 
-        start_after_key = s3_key_prefix(model_name, min_decision_id)
+        start_after_key = parquet_s3_key_prefix(model_name, min_decision_id)
 
         """
         List the s3 keys.
@@ -329,7 +331,7 @@ def get_sorted_s3_prefixes(df, model_name, reset_index=False):
     """ Get s3 prefixes based on decision_ids from DF of records """
 
     s3_prefixes = df['decision_id'].apply(
-        lambda x: s3_key_prefix(model_name=model_name, max_decision_id=x)).copy()
+        lambda x: parquet_s3_key_prefix(model_name=model_name, max_decision_id=x)).copy()
 
     if not reset_index:
         return s3_prefixes.sort_values()
@@ -407,7 +409,7 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
     """
     train_s3_keys = list_partitions_after(
         bucket_name=TRAIN_BUCKET,
-        key=s3_key_prefix(model_name, min_decision_id),
+        key=parquet_s3_key_prefix(model_name, min_decision_id),
         prefix=f'rewarded_decisions/{model_name}/')
 
     # if there are no files in s3 yet there is nothing to fix
@@ -453,7 +455,7 @@ def split(df, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS):
     return split_roughly_equal(df, chunk_count)
 
 
-def s3_key_prefix(model_name, max_decision_id):
+def parquet_s3_key_prefix(model_name, max_decision_id):
     max_timestamp = Ksuid.from_base62(max_decision_id).datetime.strftime(ISO_8601_BASIC_FORMAT)
     
     yyyy = max_timestamp[0:4]
@@ -466,7 +468,7 @@ def s3_key_prefix(model_name, max_decision_id):
     return f'rewarded_decisions/{model_name}/parquet/{yyyy}/{mm}/{dd}/{max_timestamp}'
     
     
-def s3_key(model_name, min_decision_id, max_decision_id, count):
+def parquet_s3_key(model_name, min_decision_id, max_decision_id, count):
     min_timestamp = Ksuid.from_base62(min_decision_id).datetime.strftime(ISO_8601_BASIC_FORMAT)
     
     #
@@ -479,4 +481,4 @@ def s3_key(model_name, min_decision_id, max_decision_id, count):
     # The final UUID4 is simply to give the file a random name. For now, the characters following
     # the last dash should be considered an opaque string of random characters
     #
-    return f'{s3_key_prefix(model_name, max_decision_id)}-{min_timestamp}-{count}-{uuid4()}.parquet'
+    return f'{parquet_s3_key_prefix(model_name, max_decision_id)}-{min_timestamp}-{count}-{uuid4()}.parquet'
