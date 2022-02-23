@@ -74,9 +74,16 @@ class RewardedDecisionPartition:
             # nothing to load, just use the incoming firehose records
             return
 
-        # TODO split load into s3 request and parse.  If fail on s3 then throw exception
-        # and fail job.  If parse error, move bad records to /unrecoverable 
-        s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{self.s3_key}')
+        # TODO split load into s3 request and parse.
+        try:
+            s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{self.s3_key}')
+        except IOError as e:
+            print(f'non-fatal error reading {self.s3_key} ignoring file, will likely trigger automatic repair (exception: {e})')
+            
+            # it is critiical that the file at self.s3_key is not deleted because its records have not been merged
+            self.s3_key = None
+            
+            return
 
         # TODO: add more validations
         valid_idxs = s3_df.decision_id.apply(is_valid_message_id)
