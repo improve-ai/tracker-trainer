@@ -80,7 +80,7 @@ class RewardedDecisionPartition:
         except IOError as e:
             print(f'non-fatal error reading {self.s3_key} ignoring file, will likely trigger automatic repair (exception: {e})')
             
-            # it is critiical that the file at self.s3_key is not deleted because its records have not been merged
+            # it is critical that the file at self.s3_key is not deleted because its records have not been merged
             self.s3_key = None
             
             return
@@ -99,8 +99,9 @@ class RewardedDecisionPartition:
     def save(self):
         # split the dataframe into multiple chunks if necessary
         for chunk in split(self.df):
+            chunk_s3_key = s3_key(self.model_name, min_decision_id=chunk[DECISION_ID_KEY].iat[0], max_decision_id=chunk[DECISION_ID_KEY].iat[-1], count=chunk.shape[0])
             # write the conslidated parquet file to a unique key
-            chunk.to_parquet(f's3://{TRAIN_BUCKET}/{s3_key(self.model_name, chunk[DECISION_ID_KEY].iat[0], chunk[DECISION_ID_KEY].iat[-1], chunk.shape[0])}', compression='ZSTD')
+            chunk.to_parquet(f's3://{TRAIN_BUCKET}/{chunk_s3_key}', compression='ZSTD')
 
     
     def filter_valid(self):
