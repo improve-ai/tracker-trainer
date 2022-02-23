@@ -16,13 +16,13 @@ const orgAndProjNameRegex = '^[a-z0-9]+$'
 const modelNameRegex = /^[a-zA-Z0-9][\w\-.]{0,63}$/i
 const config_file = fs.readFileSync('./config/config.yml', 'utf8');
 
-const config = yaml.parse(config_file);
+const config = yaml.parse(config_file)
 module.exports.config = config
 
 // assert organization and project may contain only lowercase letters and
 // numbers and must be non-null, non-empty strings
-const organization = config['organization'];
-const project = config['project'];
+const organization = config['organization']
+const project = config['project']
 
 assert(!(organization == null), 'config/config.yml:organization is null or undefined');
 assert(!(project == null), 'config/config.yml:project is null or undefined');
