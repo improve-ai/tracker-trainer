@@ -79,7 +79,7 @@ functions:
   dispatchTrainingJob:
     description: Dispatch Decision Model Training Jobs
     handler: src/train/dispatch_job.lambda_handler
-    events: ${file(src/predeploy.js):trainingSchedulingEvents}
+    events: ${file(src/predeploy.js):trainingScheduleEvents}
     environment:
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
       TRAINING_SUBNET: !Ref Subnet

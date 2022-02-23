@@ -25,8 +25,8 @@ function configure() {
   const organization = config['organization']
   const project = config['project']
   
-  assert(!(organization == null), 'config/config.yml:organization is null or undefined')
-  assert(!(project == null), 'config/config.yml:project is null or undefined')
+  assert(organization != null, 'config/config.yml:organization is null or undefined')
+  assert(project != null, 'config/config.yml:project is null or undefined')
   
   if(organization == 'acme'){
     warn("config/config.yml:organization - currently detected example organization => 'acme', please change")
@@ -38,109 +38,71 @@ function configure() {
   assert(organization != '', 'config/config.yml:organization is an empty string')
   assert(project != '', 'config/config.yml:project is an empty string')
   
-  if (config['models'] === null) {
+  const models = config['models']
+  assert(isDict(models), 'config/config.yml:models is not defined or is not a dictionary')
   
-    warn("no models configured in config/config.yml, no models will be trained.")
-  
-    return
-  } 
-  
-  assert(isDict(config['models']), "'models' entries should be dictionaries")
-  
-  // model names should be validated according to model naming rules
-  for (const [key, value] of Object.entries(config['models'])) {
-    assert(key.match(modelNameRegex), `invalid model name: ${key}`)
-  }
-  
-  module.exports.trainingSchedulingEvents = getTrainingSchedulingEvents(config)
-}
-
-function getTrainingSchedulingEvents(config) {
-  
-  // Apply defaults to this pattern
-  const scheduleEventPattern = {
-    "schedule": {
-        "name": null,
-        "description": "default schedule",
-        "rate": null,
-        "enabled": true,
-        "input": null
-    }
-  }
-
-  const trainingSchedulingEvents = []
+  const events = []
   const images = config['images']
   const trainingDefaults = config['training']
-  
-
-  //defaults
-  var defaultWorkerInstanceType = trainingDefaults['instance_type']
-  var defaultWorkerCount = trainingDefaults['instance_count']
-  var defaultMaxRuntimeInSeconds = trainingDefaults['max_runtime']
-  var defaultVolumeSize = trainingDefaults['volume_size']
-  var defaultHyperparameters = trainingDefaults['hyperparameters']
-
-  var currentScheduleEventDef = null
-  var currentModelTrainingConfig = {}
-
 
   for (const [modelName, modelConfig] of Object.entries(config['models'])) {
 
-    if (modelConfig == null) {
-        currentModelTrainingConfig = {}
-    } else {
-        currentModelTrainingConfig = get(modelConfig, 'training', {})
-        if(currentModelTrainingConfig === {}){
-            console.warn(`[WARNING] No 'training' section found in model config for model: ${modelName}`)
-        }
-    }
+    assert(modelName.match(modelNameRegex), `invalid model name: ${modelName}`)
+    assert(isDict(modelConfig), `config/config.yml:models/${modelName} is not a dictionary`)
+
+    // load the model config, fall back to defaults
+    const trainingConfig = Object.assign({}, trainingDefaults, modelConfig['training'])
 
     const event = {}
     const eventSchedule = {}
     event['schedule'] = eventSchedule
+
+    const eventScheduleInput = {}
+    eventSchedule['input'] = eventScheduleInput
     
     eventSchedule['enabled'] = true
 
     // set rule name
     eventSchedule['name'] = `improveai-${config['organization']}-${config['project']}-` + '${opt:stage, self:provider.stage}' + `-${modelName}-schedule`
     // pass scheduling info
-    eventSchedule['rate'] = get(currentModelTrainingConfig, 'schedule', trainingDefaults['schedule'])
+    eventSchedule['rate'] = trainingConfig['schedule']
 
     // pass description
     eventSchedule['description'] = `${eventSchedule['rate']} schedule of ${modelName} model`
 
-    const eventScheduleInput = {}
-    eventSchedule['input'] = eventScheduleInput
-
     // pass env vars as parameters
     eventScheduleInput['model_name'] = modelName
-    eventScheduleInput['instance_type'] = get(currentModelTrainingConfig, 'instance_type', defaultWorkerInstanceType)
-    eventScheduleInput['instance_count'] = get(currentModelTrainingConfig, 'instance_count', defaultWorkerCount)
-    eventScheduleInput['max_runtime'] = parseMaxRuntimeString(get(currentModelTrainingConfig, 'max_runtime', defaultMaxRuntimeInSeconds))
-    eventScheduleInput['volume_size'] = parseVolumeSize(get(currentModelTrainingConfig, 'volume_size', defaultVolumeSize))
-    eventScheduleInput['hyperparameters'] = get(currentModelTrainingConfig, 'hyperparameters', defaultHyperparameters)
-          
-    const image = trainingConfig['image']
+    
+    const imageKey = trainingConfig['image']
+    assert(imageKey, `config/config.yml:(models/${modelName}/image, training/image) not found`)
 
-    if(image == '' || image == null){
-        //TODO
-      warn("<<Info about image subscription will be placed here shortly>>\n")
+    const imageUri = images[imageKey]
+    if (!imageUri) {
+      if (imageKey === 'free') {
+        fatal(`config/config.yml:images/${imageKey} not configured. subscribe at <TODO> and paste image uri`)
+      } else if (imageKey === 'pro') {
+        fatal(`config/config.yml:images/${imageKey} not configured. subscribe at <TODO> and paste image uri`)
+      }
+      
+      throw Error(`config/config.yml:images/${imageKey} not configured`)
     }
 
+    // the resolved image uri is set on the event
+    eventScheduleInput['image'] = imageUri
+    eventScheduleInput['instance_type'] = trainingConfig['instance_type']
+    eventScheduleInput['instance_count'] = trainingConfig['instance_count']
+    eventScheduleInput['max_runtime'] = parseMaxRuntimeString(trainingConfig['max_runtime'])
+    eventScheduleInput['volume_size'] = parseVolumeSize(trainingConfig['volume_size'])
+    eventScheduleInput['hyperparameters'] = trainingConfig['hyperparameters']
 
-      trainingSchedulingEvents.push(currentScheduleEventDef)
+    events.push(event)
   }
   
-  return trainingSchedulingEvents
+  module.exports.trainingScheduleEvents = events
 }
 
 function isDict(x) {
-  return x.constructor === Object
-}
-
-function get(object, key, default_value) {
-  var result = object[key]
-  return (typeof result !== "undefined") ? result : default_value
+  return x && x.constructor === Object
 }
 
 
@@ -152,6 +114,7 @@ function fatal(msg) {
 function warn(msg) {
   console.warn(`[WARNING] ${msg}`)
 }
+
 
 function checkFixAndSplitValueWithUnit(checkedString, emptyOrNullStringError, checkedParameterName) {
   assert(!(checkedString == null), emptyOrNullStringError)
