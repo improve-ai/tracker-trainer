@@ -5,11 +5,57 @@ let yaml = null;
 
 try {
   yaml = require('yaml');
-}
-catch (error) {
+} catch (error) {
   fatal('Please run `npm install` before deploying');
   throw (error);
 }
+
+// Unit-tested in tests/test_regexps.py:test_predeploy_org_and_project_name_regexp()
+const orgAndProjNameRegex = '^[a-z0-9]+$'
+// Unit-tested in tests/test_regexps.py:test_model_name_regexp()
+const modelNameRegex = /^[a-zA-Z0-9][\w\-.]{0,63}$/i
+const config_file = fs.readFileSync('./config/config.yml', 'utf8');
+
+const config = yaml.parse(config_file);
+module.exports.config = config
+
+// assert organization and project may contain only lowercase letters and
+// numbers and must be non-null, non-empty strings
+const organization = config['organization'];
+const project = config['project'];
+
+assert(!(organization == null), 'config/config.yml:organization is null or undefined');
+assert(!(project == null), 'config/config.yml:project is null or undefined');
+
+if(organization == 'acme'){
+  warn("config/config.yml:organization - currently detected example organization => 'acme', please change")
+}
+
+function isDict(x) {
+  return x.constructor === Object;
+}
+assert(organization.match(orgAndProjNameRegex), 'config/config.yml:organization may contain only lowercase letters and numbers');
+assert(project.match(orgAndProjNameRegex), 'config/config.yml:project may contain only lowercase letters and numbers');
+
+assert(organization != '', 'config/config.yml:organization is an empty string');
+assert(project != '', 'config/config.yml:project is an empty string');
+
+module.exports.trainSchedulingEvents = [];
+if (config['models'] === null) {
+
+  warn("no models configured in config/config.yml, no models will be trained.");
+
+  return
+} 
+
+assert(isDict(config['models']), "'models' entries should be dictionaries");
+
+// model names should be validated according to model naming rules
+for (const [key, value] of Object.entries(config['models'])) {
+  assert(key.match(modelNameRegex), `invalid model name: ${key}`)
+}
+
+setTrainSchedulingEvents()
 
 
 function get(object, key, default_value) {
@@ -49,15 +95,14 @@ function parseMaxRuntimeString(maxRuntimeString) {
     maxRuntimeString, 'max_runtime must not be empty', maxRuntimeParameterName);
   var maxRuntimeUnit = maxRuntimeArray[1].toLowerCase();
 
-  assert(Object.keys(MAX_RUNTIME_UNITS_TO_SECONDS).includes(maxRuntimeUnit), "Time unit must be one of 'seconds', 'minutes', 'hours', 'days'");
+  assert(Object.keys(MAX_RUNTIME_UNITS_TO_SECONDS).includes(maxRuntimeUnit), "time unit must be one of 'seconds', 'minutes', 'hours', 'days'");
 
   var maxRuntimeValue = -1;
 
   try {
     maxRuntimeValue = parseInt(maxRuntimeArray[0]);
-  }
-  catch (error) {
-    throw 'Unable to parse provided value of max_runtime';
+  } catch (error) {
+    throw 'unable to max_runtime';
   }
 
   assert(maxRuntimeValue > 0, 'max_runtime must be > 0')
@@ -95,20 +140,31 @@ function parseVolumeSize(volumeSizeString) {
 }
 
 
-function setTrainSchedulingEvents(scheduleEventPattern){
+function setTrainSchedulingEvents() {
+  // Apply defaults to this pattern
+  const scheduleEventPattern = {
+    "schedule": {
+        "name": null,
+        "description": "default schedule",
+        "rate": null,
+        "enabled": true,
+        "input": null
+    }
+  };
+
   //defaults
-  var defaultScheduleString = module.exports.config['training']['schedule'];
-  var defaultWorkerInstanceType = module.exports.config['training']['instance_type'];
-  var defaultWorkerCount = module.exports.config['training']['instance_count'];
-  var defaultMaxRuntimeInSeconds = module.exports.config['training']['max_runtime'];
-  var defaultVolumeSize = module.exports.config['training']['volume_size'];
-  var defaultHyperparameters = module.exports.config['training']['hyperparameters'];
+  var defaultScheduleString = config['training']['schedule'];
+  var defaultWorkerInstanceType = config['training']['instance_type'];
+  var defaultWorkerCount = config['training']['instance_count'];
+  var defaultMaxRuntimeInSeconds = config['training']['max_runtime'];
+  var defaultVolumeSize = config['training']['volume_size'];
+  var defaultHyperparameters = config['training']['hyperparameters'];
 
   var currentScheduleEventDef = null;
   var currentModelTrainingConfig = {};
 
 
-  for (const [modelName, modelConfig] of Object.entries(module.exports.config['models'])) {
+  for (const [modelName, modelConfig] of Object.entries(config['models'])) {
 
     if (modelConfig == null) {
         currentModelTrainingConfig = {};
@@ -123,7 +179,7 @@ function setTrainSchedulingEvents(scheduleEventPattern){
     currentScheduleEventDef = JSON.parse(JSON.stringify(scheduleEventPattern))
     // set rule name
     currentScheduleEventDef['schedule']['name'] =
-        `improveai-${module.exports.config['organization']}-${module.exports.config['project']}-` + '${opt:stage, self:provider.stage}' + `-${modelName}-schedule`;
+        `improveai-${config['organization']}-${config['project']}-` + '${opt:stage, self:provider.stage}' + `-${modelName}-schedule`;
     // pass scheduling info
     currentScheduleEventDef['schedule']['rate'] =
         get(currentModelTrainingConfig, 'schedule', defaultScheduleString);
@@ -147,7 +203,7 @@ function setTrainSchedulingEvents(scheduleEventPattern){
     currentScheduleEventDef['schedule']['input']['hyperparameters'] =
         get(currentModelTrainingConfig, 'hyperparameters', defaultHyperparameters);
           
-    const image = module.exports.config['training']['image']
+    const image = config['training']['image']
 
     if(image == '' || image == null){
         //TODO
@@ -161,59 +217,3 @@ function setTrainSchedulingEvents(scheduleEventPattern){
 }
 
 
-// Unit-tested in tests/test_regexps.py:test_predeploy_org_and_project_name_regexp()
-const orgAndProjNameRegex = '^[a-z0-9]+$'
-// Unit-tested in tests/test_regexps.py:test_model_name_regexp()
-const modelNameRegex = /^[a-zA-Z0-9][\w\-.]{0,63}$/i
-const config_file = fs.readFileSync('./config/config.yml', 'utf8');
-// Apply defaults to this pattern
-const scheduleEventPattern = {
-  "schedule": {
-      "name": null,
-      "description": "default schedule",
-      "rate": null,
-      "enabled": true,
-      "input": null
-  }
-};
-
-module.exports.config = yaml.parse(config_file);
-module.exports.config_json = JSON.stringify(module.exports.config);
-
-// assert organization and project may contain only lowercase letters and
-// numbers and must be non-null, non-empty strings
-const organization = module.exports.config['organization'];
-const project = module.exports.config['project'];
-
-assert(!(organization == null), 'config/config.yml:organization is null or undefined');
-assert(!(project == null), 'config/config.yml:project is null or undefined');
-
-if(organization == 'acme'){
-  warn("config/config.yml:organization - currently detected example organization => 'acme', please change")
-}
-
-function isDict(x) {
-  return x.constructor === Object;
-}
-assert(organization.match(orgAndProjNameRegex), 'config/config.yml:organization may contain only lowercase letters and numbers');
-assert(project.match(orgAndProjNameRegex), 'config/config.yml:project may contain only lowercase letters and numbers');
-
-assert(organization != '', 'config/config.yml:organization is an empty string');
-assert(project != '', 'config/config.yml:project is an empty string');
-
-module.exports.trainSchedulingEvents = [];
-if (module.exports.config['models'] === null) {
-
-  warn("No models configured in config/config.yml, no models will be trained.");
-
-} else {
-
-  assert(isDict(module.exports.config['models']), "models' entries should be dictionaries");
-
-  // model names should be validated according to model naming rules
-  for (const [key, value] of Object.entries(module.exports.config['models'])) {
-    assert(key.match(modelNameRegex), `Invalid model name: ${key}`)
-  }
-
-  setTrainSchedulingEvents(scheduleEventPattern)
-}
