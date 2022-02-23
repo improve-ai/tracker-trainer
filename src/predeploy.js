@@ -164,18 +164,8 @@ function parseVolumeSize(volumeSizeString) {
 
   var volumeSizeValue = -1
 
-  try {
-
-    volumeSizeValue = Math.ceil(parseFloat(volumeSizeArray[0]))
-    if (parseFloat(volumeSizeArray[0]) != volumeSizeValue) {
-      console.warn(
-        `[WARNING] Provided 'volume_size': ${volumeSizeArray[0]} is not an integer but it should be -> rounding up to closest integer: ${volumeSizeValue}`)
-    }
-
-  }
-  catch (error) {
-    throw 'Unable to parse provided value of volume_size'
-  }
+  volumeSizeValue = parseFloat(volumeSizeArray[0])
+  assert(volumeSizeValue == Math.floor(volumeSizeValue), 'volume_size must be an integer')
 
   assert(volumeSizeValue > 0, 'volume_size must be > 0')
   // returning volume size GBs
