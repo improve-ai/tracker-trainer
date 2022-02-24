@@ -210,7 +210,7 @@ def ensure_results_are_correct(s3, test_case_json: dict):
         [entry['Key'] for entry in s3.list_objects_v2(Bucket=config.TRAIN_BUCKET)['Contents']]
 
     # check that all fetched keys are correct
-    assert all([utils.is_correct_s3_key(s3_key) for s3_key in s3_keys_in_train_bucket])
+    assert all([utils.is_valid_rewarded_decisions_s3_key(s3_key) for s3_key in s3_keys_in_train_bucket])
 
     # check that there is no overlap
     overlaps = get_all_overlaps(keys_to_repair=s3_keys_in_train_bucket)
