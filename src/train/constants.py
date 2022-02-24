@@ -8,6 +8,7 @@ MODEL_NAME_HYPERPARAMS_KEY = 'model_name'
 HYPERPARAMETERS_KEY = 'hyperparameters'
 
 SERVICE_NAME_ENVVAR = 'SERVICE_NAME'
+STAGE_ENVVAR = 'STAGE'
 
 JOB_NAME_PREFIX = 'improve-train-job'
 

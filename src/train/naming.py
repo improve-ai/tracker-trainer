@@ -111,31 +111,32 @@ def get_train_job_name(model_name: str) -> str:
         name of SageMaker train job
 
     """
-    start_dt = get_start_dt()[2:]
+    start_dt = get_start_dt()
 
     # assume
-    # 8 chars for datetime-like string YYmmDDHHMMSS
-    # min 4 random alnum chars
-    # 3 x `-` to separate <service>-<model name>-<dt string>-<random chars>
-    # max 28 chars for service name
+    # 10 chars for datetime-like string YYYYmmDDHHMMSS
+    # 3 x `-` to separate <service>-<stage>-<model>-<time>
+    # max 20 chars for service name
+    # max 10 chars for stage
     # max 20 chars for model name
 
-    truncated_service_name = os.getenv(tc.SERVICE_NAME_ENVVAR)[:28]
-    if truncated_service_name[-1] == tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR:
-        truncated_service_name = truncated_service_name[:-1]
+    service_name = os.getenv(tc.SERVICE_NAME_ENVVAR, None)
+    stage = os.getenv(tc.STAGE_ENVVAR, None)
 
-    truncated_model_name = model_name[:20]
-    if truncated_model_name[-1] == tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR:
-        truncated_model_name = truncated_model_name[:-1]
+    train_job_name_elements = [service_name, stage, model_name]
 
-    random_remainder_size = \
-        tc.SAGEMAKER_TRAIN_JOB_NAME_LENGTH - \
-        (len(truncated_service_name) + len(truncated_model_name) + len(start_dt) + 3)
+    assert all([val is not None for val in train_job_name_elements])
+    # this little syntactical nightmare is used in order to utilize list comprehension
+    truncated_train_job_name_components = \
+        [val[:max_chars] if val[-1:][0] != tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR else val[:max_chars - 1]
+         for val, max_chars in zip(train_job_name_elements, [20, 10, 20])]
 
-    random_remainder = generate_random_string(random_remainder_size)
+    truncated_service_name, truncated_stage, truncated_model_name = truncated_train_job_name_components
 
     raw_job_name = \
         tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR\
-        .join([truncated_service_name, truncated_model_name, start_dt + random_remainder])
+        .join([truncated_service_name, truncated_stage, truncated_model_name, start_dt])
 
-    return re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-', raw_job_name)
+    training_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-', raw_job_name)
+    assert len(training_job_name) <= 63
+    return training_job_name
