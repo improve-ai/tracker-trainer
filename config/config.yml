@@ -1,7 +1,7 @@
 ---
 #
-# AWS resource names depend on 'organization' and 'project'. AWS resource
-# names generally follow the pattern 'improveai-<organization>-<project>-<stage>-<resource>'
+# AWS resource names depend on 'organization' and 'project', generally 
+# following the pattern 'improveai-<organization>-<project>-<stage>-<resource>'
 #
 # 'organization' and 'project' may contain lowercase letters and numbers.
 # <organization>-<project> must be globally unique to create S3 buckets.
@@ -37,4 +37,4 @@ training:
   max_runtime: 2 hours # AWS instances sometimes hang. This caps training runtime when that occurs.
   volume_size: 10 GB
   hyperparameters:
-    max_decision_records: 20000000
+#    max_decision_records: 20000000

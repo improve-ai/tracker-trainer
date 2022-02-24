@@ -6,8 +6,7 @@ let yaml = null
 try {
   yaml = require('yaml')
 } catch (error) {
-  fatal('Please run `npm install` before deploying')
-  throw (error)
+  fatal("'yaml' not found, please run 'npm install' before deploying")
 }
 
 // Unit-tested in tests/test_regexps.py:test_predeploy_org_and_project_name_regexp()
@@ -38,17 +37,19 @@ function configure() {
   assert(organization != '', 'config/config.yml:organization is an empty string')
   assert(project != '', 'config/config.yml:project is an empty string')
   
-  const models = config['models']
-  assert(isDict(models), 'config/config.yml:models is not defined or is not a dictionary')
+  const models = config['models'] || {}
+  assert(isDict(models), 'config/config.yml:models is not a dictionary')
   
   const events = []
-  const images = config['images']
-  const trainingDefaults = config['training']
+  const images = config['images'] || {}
+  const trainingDefaults = config['training'] || {}
 
-  for (const [modelName, modelConfig] of Object.entries(config['models'])) {
+  for (let [modelName, modelConfig] of Object.entries(models)) {
 
     assert(modelName.match(modelNameRegex), `invalid model name: ${modelName}`)
-    assert(isDict(modelConfig), `config/config.yml:models/${modelName} is not a dictionary`)
+    
+    modelConfig = modelConfig || {}
+    assert(isDict(modelConfig), `config/config.yml:models.${modelName} is not a dictionary`)
 
     // load the model config, fall back to defaults
     const trainingConfig = Object.assign({}, trainingDefaults, modelConfig['training'])
@@ -74,17 +75,15 @@ function configure() {
     eventScheduleInput['model_name'] = modelName
     
     const imageKey = trainingConfig['image']
-    assert(imageKey, `config/config.yml:(models/${modelName}/image, training/image) not found`)
+    assert(imageKey, `config/config.yml:(models/${modelName}/image, training/image) - not found`)
 
     const imageUri = images[imageKey]
     if (!imageUri) {
       if (imageKey === 'free') {
-        fatal(`config/config.yml:images/${imageKey} not configured. subscribe at <TODO> and paste image uri`)
+        fatal(`config/config.yml:images.${imageKey} - value not configured. subscribe at <TODO> and paste image uri`)
       } else if (imageKey === 'pro') {
-        fatal(`config/config.yml:images/${imageKey} not configured. subscribe at <TODO> and paste image uri`)
+        fatal(`config/config.yml:images.${imageKey} - value not configured. subscribe at <TODO> and paste image uri`)
       }
-      
-      throw Error(`config/config.yml:images/${imageKey} not configured`)
     }
 
     // the resolved image uri is set on the event
@@ -98,6 +97,10 @@ function configure() {
     events.push(event)
   }
   
+  if (events.length == 0) {
+    warn('config/config.yml:models - no models configured, so none will be trained')
+  }
+  
   module.exports.trainingScheduleEvents = events
 }
 
@@ -108,6 +111,7 @@ function isDict(x) {
 
 function fatal(msg) {
   console.error(`[FATAL] ${msg}`)
+  throw msg
 }
 
 
