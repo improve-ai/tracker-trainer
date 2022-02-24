@@ -63,13 +63,13 @@ function configure() {
     
     eventSchedule['enabled'] = true
 
-    // set rule name
+    // set rule name. serverless interpolates the '${opt:stage... part
     eventSchedule['name'] = `improveai-${config['organization']}-${config['project']}-` + '${opt:stage, self:provider.stage}' + `-${modelName}-schedule`
     // pass scheduling info
     eventSchedule['rate'] = trainingConfig['schedule']
 
     // pass description
-    eventSchedule['description'] = `${eventSchedule['rate']} schedule of ${modelName} model`
+    eventSchedule['description'] = `training schedule and hyperparameters for ${modelName} model`
 
     // pass env vars as parameters
     eventScheduleInput['model_name'] = modelName
