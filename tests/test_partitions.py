@@ -17,7 +17,7 @@ import rewarded_decisions
 import utils
 import firehose_record as firehose_record
 from firehose_record import DF_SCHEMA, FirehoseRecordGroup, DECISION_ID_KEY, MESSAGE_ID_KEY
-from rewarded_decisions import RewardedDecisionPartition, s3_key_prefix, repair_overlapping_keys
+from rewarded_decisions import RewardedDecisionPartition, s3_key_prefix, repair_overlapping_keys, get_all_overlaps
 from tests_utils import dicts_to_df
 from tests_utils import upload_gzipped_jsonl_records_to_firehose_bucket
 
