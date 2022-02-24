@@ -84,6 +84,7 @@ function configure() {
       } else if (imageKey === 'pro') {
         fatal(`config/config.yml:images.${imageKey} - value not configured. subscribe at <TODO> and paste image uri`)
       }
+      throw `config/config.yml:images.${imageKey} - value not configured`
     }
 
     // the resolved image uri is set on the event
