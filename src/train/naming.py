@@ -137,7 +137,6 @@ def get_train_job_name(model_name: str) -> str:
     # max 10 chars for stage
     # max 20 chars for model name
 
-
     # this little syntactical nightmare is used in order to utilize list comprehension
     truncated_train_job_name_components = \
         [val[:max_chars] if val[-1:][0] != tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR else val[:max_chars - 1]
