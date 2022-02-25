@@ -116,27 +116,37 @@ def get_train_job_name(model_name: str) -> str:
     # assume
     # 10 chars for datetime-like string YYYYmmDDHHMMSS
     # 3 x `-` to separate <service>-<stage>-<model>-<time>
-    # max 20 chars for service name
-    # max 10 chars for stage
-    # max 20 chars for model name
 
     service_name = os.getenv(tc.SERVICE_NAME_ENVVAR, None)
     stage = os.getenv(tc.STAGE_ENVVAR, None)
 
-    train_job_name_elements = [service_name, stage, model_name]
+    train_job_name_elements = [service_name, stage, model_name, start_dt]
 
     assert all([val is not None for val in train_job_name_elements])
+
+    initial_job_name = \
+        tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR.join(
+            [val for val in train_job_name_elements if val])
+
+    if len(initial_job_name) <= 63:
+        return initial_job_name
+
+    # if full job name components form a job name which is longer than 63 characters
+    # (max length allowed by SageMaker) then allow:
+    # max 20 chars for service name
+    # max 10 chars for stage
+    # max 20 chars for model name
+
+
     # this little syntactical nightmare is used in order to utilize list comprehension
     truncated_train_job_name_components = \
         [val[:max_chars] if val[-1:][0] != tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR else val[:max_chars - 1]
-         for val, max_chars in zip(train_job_name_elements, [20, 10, 20])]
+         for val, max_chars in zip(train_job_name_elements, [20, 10, 20, 10])]
 
-    truncated_train_job_name_components += [start_dt]
-
-    raw_job_name = \
+    initial_truncated_job_name = \
         tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR\
         .join([val for val in truncated_train_job_name_components if val])
 
-    training_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-', raw_job_name)
+    training_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-', initial_truncated_job_name)
     assert len(training_job_name) <= 63
     return training_job_name
