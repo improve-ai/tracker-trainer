@@ -93,7 +93,7 @@ function configure() {
     eventScheduleInput['instance_count'] = trainingConfig['instance_count']
     eventScheduleInput['max_runtime'] = parseMaxRuntimeString(trainingConfig['max_runtime'])
     eventScheduleInput['volume_size'] = parseVolumeSize(trainingConfig['volume_size'])
-    eventScheduleInput['hyperparameters'] = trainingConfig['hyperparameters']
+    eventScheduleInput['hyperparameters'] = trainingConfig['hyperparameters'] || {}
 
     events.push(event)
   }
