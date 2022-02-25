@@ -131,11 +131,11 @@ def get_train_job_name(model_name: str) -> str:
         [val[:max_chars] if val[-1:][0] != tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR else val[:max_chars - 1]
          for val, max_chars in zip(train_job_name_elements, [20, 10, 20])]
 
-    truncated_service_name, truncated_stage, truncated_model_name = truncated_train_job_name_components
+    truncated_train_job_name_components += [start_dt]
 
     raw_job_name = \
         tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR\
-        .join([truncated_service_name, truncated_stage, truncated_model_name, start_dt])
+        .join([val for val in truncated_train_job_name_components if val])
 
     training_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-', raw_job_name)
     assert len(training_job_name) <= 63
