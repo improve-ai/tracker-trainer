@@ -408,6 +408,7 @@ def get_all_overlaps(keys_to_repair):
 
 
 def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPartition]):
+    print(f'starting repair for {model_name}')
     """
     Detect parquet files which contain decision ids from overlapping 
     time periods and fix them.
@@ -458,12 +459,13 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
     for overlap in overlaps:
         keys = get_unique_overlapping_keys(overlap)
         if len(keys) > 1:
-
+            print(f'loading overlaps: {keys}')
             dfs = [pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}') for s3_key in keys]
             df = pd.concat(dfs, ignore_index=True)
             RDP = RewardedDecisionPartition(model_name, df=df)
             RDP.process()
 
+            print(f'deleting overlaps: {keys}')
             response = s3client.delete_objects(
                 Bucket=TRAIN_BUCKET,
                 Delete={
