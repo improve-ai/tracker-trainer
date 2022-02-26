@@ -54,7 +54,7 @@ def worker():
             ))
 
     if DEBUG:
-        print(f'Finished firehose ingest', always_print=False)
+        print(f'Finished firehose ingest')
     
     print(stats)
 
