@@ -5,19 +5,6 @@ from functools import reduce
 import json
 import time
 
-BATCH_ID = os.environ['AWS_BATCH_JOB_ID']
-VERBOSE_LOG = True
-
-def custom_print(msg, model_name=None, always_print=True):
-    """
-    """
-
-    if VERBOSE_LOG or always_print:
-        if model_name:
-            print(f"{BATCH_ID}@{model_name} - {msg}")        
-        else:
-            print(f"{BATCH_ID} - {msg}")
-
 
 class Store:
     """
@@ -66,6 +53,14 @@ class Store:
             total_from_s3 += reduce(self.__sum_from_s3, partitions, 0)
 
         return total_from_partitions, total_from_s3
+
+
+    def total_jsonl_records_per_model(self):
+        summary = {}
+        for model, partitions in self.store.items():
+            summary[model] = reduce(self.__sum_from_partitions, partitions, 0)
+        return json.dumps(summary, indent=4) 
+        
     
     def __repr__(self):
         return json.dumps(self.store, indent=4)
@@ -89,7 +84,7 @@ class Timer:
         if self.t_store.get(section_name, {}).get('start'):
             raise RuntimeError(f"You were about to overwrite a time!")
         self.t_store[section_name]['start'] = time.time()
-        custom_print(f"Starting timer for '{section_name}'")
+        print(f"Starting timer for '{section_name}'")
     
     def stop(self, section_name):
         if self.t_store.get(section_name, {}).get('stop'):
@@ -101,9 +96,9 @@ class Timer:
         seconds = self.t_store[section_name]['stop'] - self.t_store[section_name]['start']
         self.t_store[section_name]['took'] = seconds
         if seconds >= 0.1:
-            custom_print(f"Stopping timer for '{section_name}', took: {seconds:.1f} s")
+            print(f"Stopping timer for '{section_name}', took: {seconds:.1f} s")
         else:
-            custom_print(f"Stopping timer for '{section_name}', took: {1000*seconds:.1f} ms")
+            print(f"Stopping timer for '{section_name}', took: {1000*seconds:.1f} ms")
 
     def __repr__(self):
         return json.dumps(self.t_store, indent=4)
@@ -111,16 +106,17 @@ class Timer:
     def __str__(self):
         return json.dumps(self.t_store, indent=4)
 
+
 class Stats:
     def __init__(self):
         self._lock = threading.Lock()
         self.parse_exception_counts = {}
         self.valid_records_count = 0
         self.invalid_records_count = 0
-        self.bad_s3_parquet_count = 0
+        self.bad_s3_parquet_names = []
         self.store = Store()
         self.records_after_merge_count = 0
-        self.s3_requests_count = 0       
+        self.s3_requests_count = defaultdict(int)
         # e.g. [3, 4, 5] means a set of 3 overlapping keys, a set of 4 overlapping keys, etc
         self.counts_of_set_of_overlapping_s3_keys = []
         self.timer = Timer()
@@ -144,10 +140,10 @@ class Stats:
             self.invalid_records_count += increment
 
 
-    def increment_bad_s3_parquet_count(self, increment=1):
+    def remember_bad_s3_parquet_file(self, filename, increment=1):
         """ To count the number of bad .parquet files found in S3 """
         with self._lock:
-            self.bad_s3_parquet_count += increment
+            self.bad_s3_parquet_names.append(filename)
 
 
     def increment_rewarded_decision_count(self, model_name, rdrs_from_partition, rdrs_from_s3=0):
@@ -164,10 +160,20 @@ class Stats:
             self.records_after_merge_count += increment
 
 
-    def increment_s3_requests_count(self, increment=1):
-        """ To count the number of S3 requests made (to retrieve, save or delete records) """
+    def increment_s3_requests_count(self, req_type, increment=1):
+        """
+        To count the number of S3 requests made (to retrieve, save or delete records)
+        
+        Parameters
+        ----------
+        req_type: str
+            Request type made to S3
+        increment: int
+            Quantity to increment
+        """
         with self._lock:
-            self.s3_requests_count += increment
+            assert req_type in ['list', 'put-post', 'get', 'delete']
+            self.s3_requests_count[req_type] += increment
 
 
     def increment_counts_of_set_of_overlapping_s3_keys(self, increment=1):
@@ -188,9 +194,9 @@ class Stats:
         self.parse_exception_counts = {}
         self.valid_records_count = 0
         self.invalid_records_count = 0
-        self.bad_s3_parquet_count = 0
+        self.bad_s3_parquet_names = []
         self.records_after_merge_count = 0
-        self.s3_requests_count = 0       
+        self.s3_requests_count = defaultdict(int)       
         self.counts_of_set_of_overlapping_s3_keys = []
         self.store = Store()
         self.timer = Timer()
@@ -199,11 +205,11 @@ class Stats:
     def __str__(self):
         with self._lock:
             return (
-                f'{self.valid_records_count} valid JSONL records\n'
-                f'{self.invalid_records_count} invalid JSONL records\n'
+                f'Valid JSONL records: {self.store.total_jsonl_records_per_model()}\n'
+                f'Invalid JSONL records: {self.invalid_records_count} \n'
                 f'JSONL parsing exceptions: {self.parse_exception_counts}\n'
-                f'{self.bad_s3_parquet_count} bad Parquet files\n'
-                f'{self.s3_requests_count} S3 requests\n'
-                f'{self.records_after_merge_count} records after merge\n'
+                f'Bad Parquet files: {self.bad_s3_parquet_names}\n'
+                f'S3 requests: {sum(self.s3_requests_count.values())}\n{json.dumps(self.s3_requests_count, indent=4)} \n'
+                f'Records after merge: {self.records_after_merge_count} \n'
                 f'{sum(self.counts_of_set_of_overlapping_s3_keys)} overlapping records turned into {len(self.counts_of_set_of_overlapping_s3_keys)}\n'
             )

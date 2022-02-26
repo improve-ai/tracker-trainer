@@ -4,6 +4,7 @@ import os
 
 from stats import Stats
 
+DEBUG = False
 stats = Stats()
 
 # The number of threads in this node's threadpool. Instance must have enough memory for each thread to load a full .parquet
