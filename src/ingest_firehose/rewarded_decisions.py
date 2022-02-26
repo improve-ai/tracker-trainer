@@ -316,8 +316,11 @@ class RewardedDecisionPartition:
         if len(s3_keys) == 0:
             return [RewardedDecisionPartition(model_name, rdrs_df)]
 
-        custom_print(f"Retrieved {len(s3_keys)} Parquet file key(s) from S3", model_name=model_name)
-        custom_print(f"Crafting RewardedDecisionPartitions...", model_name=model_name)
+        custom_print(
+            f"Retrieved {len(s3_keys)} Parquet file key(s) from S3",
+            model_name=model_name, always_print=False
+        )
+        custom_print(f"Crafting RewardedDecisionPartitions...", model_name=model_name, always_print=False)
 
         map_of_s3_keys_to_rdrs = {}
         for i, s3_key in enumerate(sorted(s3_keys)):
@@ -333,7 +336,7 @@ class RewardedDecisionPartition:
             custom_print("This RDP has {:02} (P)RDRs, {:02} unique decision_id(s) and a Parquet S3 key".format(
                 append_s3_to_firehose_records.sum(),
                 rdrs_df.loc[append_s3_to_firehose_records, "decision_id"].unique().shape[0]
-                ), model_name=model_name)
+                ), model_name=model_name, always_print=False)
 
             # append selected rows to list
             map_of_s3_keys_to_rdrs[s3_key] = \
@@ -351,12 +354,12 @@ class RewardedDecisionPartition:
                 "This RDP has {:02} (P)RDRs, {:02} unique decision_id(s) and no S3 key".format(
                     rdrs_df.shape[0],
                     rdrs_df.loc[:, "decision_id"].unique().shape[0]
-                    ), model_name=model_name)
+                    ), model_name=model_name, always_print=False)
             partitions_s3.append(RewardedDecisionPartition(model_name=model_name, df=rdrs_df))
 
         custom_print(
             f"{len(partitions_s3):02} RDPs were produced out of this FirehoseRecordGroup",
-            model_name=model_name)
+            model_name=model_name, always_print=False)
         
         return partitions_s3
 

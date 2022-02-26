@@ -89,6 +89,7 @@ class Timer:
         if self.t_store.get(section_name, {}).get('start'):
             raise RuntimeError(f"You were about to overwrite a time!")
         self.t_store[section_name]['start'] = time.time()
+        custom_print(f"Starting timer for '{section_name}'")
     
     def stop(self, section_name):
         if self.t_store.get(section_name, {}).get('stop'):
@@ -100,9 +101,9 @@ class Timer:
         seconds = self.t_store[section_name]['stop'] - self.t_store[section_name]['start']
         self.t_store[section_name]['took'] = seconds
         if seconds >= 0.1:
-            custom_print(f"Section '{section_name}' took: {seconds:.1f} s")
+            custom_print(f"Stopping timer for '{section_name}', took: {seconds:.1f} s")
         else:
-            custom_print(f"Section '{section_name}' took: {1000*seconds:.1f} ms")
+            custom_print(f"Stopping timer for '{section_name}', took: {1000*seconds:.1f} ms")
 
     def __repr__(self):
         return json.dumps(self.t_store, indent=4)

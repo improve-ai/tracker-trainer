@@ -24,31 +24,28 @@ def worker():
     firehose_record_groups = FirehoseRecordGroup.load_groups(INCOMING_FIREHOSE_S3_KEY)
     
 
-    custom_print("Loading RewardedDecisionPartition(s) from FirehoseRecordGroup(s)")
+    custom_print("Loading RewardedDecisionPartition(s) from FirehoseRecordGroup(s)", always_print=False)
     # create a flattened list of groups of incoming decisions to process
     decision_partitions = list(itertools.chain.from_iterable(map(RewardedDecisionPartition.partitions_from_firehose_record_group, firehose_record_groups)))
     
-    custom_print("Starting multithreading processing...")
+    stats.timer.start('multithreading')
     # process each group. download the s3_key, consolidate records, upload rewarded decisions to s3, and delete old s3_key
     with concurrent.futures.ThreadPoolExecutor(max_workers=THREAD_WORKER_COUNT) as executor:
         list(executor.map(process_decisions, decision_partitions))  # list() forces evaluation of generator
-    
-    custom_print("Finished multithreading processing")
+    stats.timer.stop('multithreading')
     
     total_from_partitions, total_from_s3 = stats.store.summarize_all()
     custom_print("Total (P)RDRs from JSONL: {}; Total (P)RDRs from Parquet files in S3: {}".format(
         total_from_partitions, total_from_s3) )    
     custom_print(f"Total (P)RDRs after merge: {stats.records_after_merge_count}")
     
-    custom_print(f"Repairing overlapping keys...")
-    stats.timer.start('keys_repair')
+    stats.timer.start('repair overlapping keys')
     # if multiple ingests happen simultaneously it is possible for keys to overlap, which must be fixed
     sort_key = lambda x: x.model_name
     for model_name, model_decision_partitions in itertools.groupby(sorted(decision_partitions, key=sort_key), sort_key):
         # execute each serially in one thread to have maximum memory available for loading overlapping partitions
         repair_overlapping_keys(model_name, model_decision_partitions)
-    custom_print(f"Finished repairing overlapping keys")
-    stats.timer.stop('keys_repair')
+    stats.timer.stop('repair overlapping keys')
 
     if sum(stats.counts_of_set_of_overlapping_s3_keys) > 0:
         custom_print("{} overlapping keys turned into {} keys".format(
