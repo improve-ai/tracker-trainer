@@ -125,7 +125,7 @@ class Stats:
     def add_parse_exception(self, e):
         """Exceptions found when loading records from a JSONL file."""
         with self._lock:
-            self.parse_exception_counts[str(e)] = self.parse_exception_counts.get(str(e), 0) + 1
+            self.parse_exception_counts[e] = self.parse_exception_counts.get(e, 0) + 1
 
 
     def increment_valid_records_count(self, increment=1):
