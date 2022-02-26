@@ -13,10 +13,11 @@ from uuid import uuid4
 
 
 # Local imports
-from config import s3client, TRAIN_BUCKET, PARQUET_FILE_MAX_DECISION_RECORDS
+from config import s3client, TRAIN_BUCKET, PARQUET_FILE_MAX_DECISION_RECORDS, stats
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA
 from firehose_record import is_valid_message_id
 from utils import is_valid_model_name, json_dumps, list_partitions_after
+from stats import custom_print
 
 ISO_8601_BASIC_FORMAT = '%Y%m%dT%H%M%SZ'
 
@@ -71,12 +72,14 @@ class RewardedDecisionPartition:
         """
         
         if not self.s3_key:
+            stats.increment_rewarded_decision_count(self.model_name, self.df.shape[0])
             # nothing to load, just use the incoming firehose records
             return
 
         # TODO split load into s3 request and parse.
         try:
             s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{self.s3_key}')
+            stats.increment_s3_requests_count()
         except IOError as e:
             print(f'non-fatal error reading {self.s3_key} ignoring file, will likely trigger automatic repair (exception: {e})')
             
@@ -92,8 +95,11 @@ class RewardedDecisionPartition:
             unrecoverable_key = f'unrecoverable/{self.s3_key}'
             s3_df.to_parquet(f's3://{TRAIN_BUCKET}/{unrecoverable_key}', compression='ZSTD')
             s3client.delete_object(Bucket=TRAIN_BUCKET, Key=self.s3_key)
+            stats.increment_bad_s3_parquet_count()
+            stats.increment_s3_requests_count()
             raise ValueError(f"Invalid records found in '{self.s3_key}'. Moved to s3://{TRAIN_BUCKET}/{unrecoverable_key}'")
 
+        stats.increment_rewarded_decision_count(self.model_name, self.df.shape[0], s3_df.shape[0])
         self.df = pd.concat([self.df, s3_df], ignore_index=True)
 
 
@@ -107,6 +113,7 @@ class RewardedDecisionPartition:
                 max_decision_id=chunk[DECISION_ID_KEY].iat[-1], count=chunk.shape[0])
                 
             chunk.to_parquet(f's3://{TRAIN_BUCKET}/{chunk_s3_key}', compression='ZSTD')
+            stats.increment_s3_requests_count()
 
     
     def filter_valid(self):
@@ -224,6 +231,7 @@ class RewardedDecisionPartition:
         """
 
         self.df = self.df.groupby("decision_id").agg(**aggregations).reset_index(drop=True).astype(DF_SCHEMA)
+        stats.increment_records_after_merge_count(self.df.shape[0])
 
 
     def cleanup(self):
@@ -231,6 +239,7 @@ class RewardedDecisionPartition:
             # delete the previous .parqet from s3
             # do this last in case there is a problem during processing that needs to be retried
             s3client.delete_object(Bucket=TRAIN_BUCKET, Key=self.s3_key)
+            stats.increment_s3_requests_count()
 
         # reclaim the dataframe memory
         # do not clean up min/max decision_ids since they will need to be used after processing
@@ -265,6 +274,11 @@ class RewardedDecisionPartition:
         """
 
         model_name = firehose_record_group.model_name
+
+        custom_print(
+            f"Working on the FirehoseRecordGroup of model: '{model_name}'",
+            always_print=False
+        )
         
         rdrs_df = firehose_record_group.to_pandas_df()
 
@@ -277,6 +291,11 @@ class RewardedDecisionPartition:
             (rdrs_df['decision_id'].iloc[0], rdrs_df['decision_id'].iloc[-1])
 
         start_after_key = parquet_s3_key_prefix(model_name, min_decision_id)
+        custom_print(
+            f"Model's decision ids span along: [{min_decision_id} - {max_decision_id}]",
+            model_name=model_name,
+            always_print=False
+        )
 
         """
         List the s3 keys.
@@ -297,7 +316,8 @@ class RewardedDecisionPartition:
         if len(s3_keys) == 0:
             return [RewardedDecisionPartition(model_name, rdrs_df)]
 
-        print('Processing following s3 keys from train bucket: {}'.format(s3_keys))
+        custom_print(f"Retrieved {len(s3_keys)} Parquet file key(s) from S3", model_name=model_name)
+        custom_print(f"Crafting RewardedDecisionPartitions...", model_name=model_name)
 
         map_of_s3_keys_to_rdrs = {}
         for i, s3_key in enumerate(sorted(s3_keys)):
@@ -309,6 +329,11 @@ class RewardedDecisionPartition:
 
             if not append_s3_to_firehose_records.any():
                 continue
+            
+            custom_print("This RDP has {:02} (P)RDRs, {:02} unique decision_id(s) and a Parquet S3 key".format(
+                append_s3_to_firehose_records.sum(),
+                rdrs_df.loc[append_s3_to_firehose_records, "decision_id"].unique().shape[0]
+                ), model_name=model_name)
 
             # append selected rows to list
             map_of_s3_keys_to_rdrs[s3_key] = \
@@ -322,8 +347,17 @@ class RewardedDecisionPartition:
                 df=df, s3_key=s3k) for s3k, df in map_of_s3_keys_to_rdrs.items()]
 
         if not rdrs_df.empty:
+            custom_print(
+                "This RDP has {:02} (P)RDRs, {:02} unique decision_id(s) and no S3 key".format(
+                    rdrs_df.shape[0],
+                    rdrs_df.loc[:, "decision_id"].unique().shape[0]
+                    ), model_name=model_name)
             partitions_s3.append(RewardedDecisionPartition(model_name=model_name, df=rdrs_df))
 
+        custom_print(
+            f"{len(partitions_s3):02} RDPs were produced out of this FirehoseRecordGroup",
+            model_name=model_name)
+        
         return partitions_s3
 
 
@@ -408,7 +442,6 @@ def get_all_overlaps(keys_to_repair):
 
 
 def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPartition]):
-    print(f'starting repair for {model_name}')
     """
     Detect parquet files which contain decision ids from overlapping 
     time periods and fix them.
@@ -446,7 +479,6 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
 
     # if there are no files in s3 yet there is nothing to fix
     if len(train_s3_keys) <= 1:
-        print('No overlapping keys detected')
         return
 
     train_s3_keys.reverse()
@@ -459,19 +491,25 @@ def repair_overlapping_keys(model_name: str, partitions: List[RewardedDecisionPa
     for overlap in overlaps:
         keys = get_unique_overlapping_keys(overlap)
         if len(keys) > 1:
-            print(f'loading overlaps: {keys}')
-            dfs = [pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}') for s3_key in keys]
+            custom_print(f"Found {len(keys)} overlapping S3 keys", model_name=model_name)
+            stats.increment_counts_of_set_of_overlapping_s3_keys(len(keys))
+
+            dfs = []
+            for s3_key in keys:
+                dfs.append(pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}'))
+                stats.increment_s3_requests_count()
+
             df = pd.concat(dfs, ignore_index=True)
             RDP = RewardedDecisionPartition(model_name, df=df)
             RDP.process()
 
-            print(f'deleting overlaps: {keys}')
             response = s3client.delete_objects(
                 Bucket=TRAIN_BUCKET,
                 Delete={
                     'Objects': [{'Key': s3_key} for s3_key in keys],
                 },
             )
+            stats.increment_s3_requests_count()
 
     return
 
