@@ -3,7 +3,7 @@
 # AWS resource names depend on 'organization' and 'project', generally 
 # following the pattern 'improveai-<organization>-<project>-<stage>-<resource>'
 #
-# 'organization' and 'project' may contain lowercase letters and numbers.
+# 'organization' and 'project' may only contain lowercase letters and numbers.
 # <organization>-<project> must be globally unique to create S3 buckets.
 #
 organization: acme # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
@@ -32,9 +32,11 @@ models:
 training:
   image: free # free version trains on up to 100,000 decision records per model. Use pro to uncap
   schedule: rate(4 hours) # recommended rate for initial model training is 1 training per variant per week
-  instance_type: ml.m5.2xlarge # each 2xlarge instance can train on up to ~XXX decision records
+  instance_type: ml.m5.2xlarge # each 2xlarge instance can train on up to ~1,500,000 decision records
   instance_count: 4
   max_runtime: 2 hours # AWS instances sometimes hang. This caps training runtime when that occurs.
   volume_size: 10 GB
   hyperparameters:
-#    max_decision_records: 20000000
+    max_decision_records: 6000000 # up to 750,000 records per xlarge is a reasonable starting point
+    trees: 150 # determines model size, which affects model distribution costs and decision speed
+    features: 300 # affects training and decision memory usage and decision speed
