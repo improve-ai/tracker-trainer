@@ -133,15 +133,28 @@ def get_train_job_name(model_name: str) -> str:
 
     # if full job name components form a job name which is longer than 63 characters
     # (max length allowed by SageMaker) then allow:
-    # max 20 chars for service name
-    # max 10 chars for stage
-    # max 20 chars for model name
+    # extract lengths
+    service_name_length = len(service_name)
+    # Ensure a minimum of 8 chars can fit in the model name.
+    # Ensure a minimum of 4 chars for the stage - truncate the end of service to accomplish that if necessary.
+    # Only truncate the stage as is required to fit into 63 characters and meeting the minimum character requirements in the description.
+    # check how many characters remain once service name and datetime is subtracted from
+    separators_count = len([val for val in train_job_name_elements if val]) - 1
+    # 63 is max for train job name, 4 is min for model name, 8 is
+    remaining_chars = \
+        tc.SAGEMAKER_MAX_TRAIN_JOB_NAME_LENGTH - separators_count - tc.MIN_STAGE_LENGTH - tc.MIN_MODEL_NAME_LENGTH - \
+        len(start_dt) - service_name_length
+    # if remaining_chars is negative it means that service_name should be trimmed
+    truncated_service_name = service_name[:remaining_chars] if remaining_chars < 0 else service_name
+    # length of model_name and stage should be determined
+    extra_chars_model_name = \
+        0 if remaining_chars < 0 else (
+            int(remaining_chars / 2) if remaining_chars % 2 == 0 else int(remaining_chars / 2) + 1)
+    extra_chars_stage = int(remaining_chars / 2) if remaining_chars > 0 else 0
+    truncated_model_name = model_name[:8 + extra_chars_model_name]
+    truncated_stage = stage[:4 + extra_chars_stage]
 
-    # this little syntactical nightmare is used in order to utilize list comprehension
-    truncated_train_job_name_components = \
-        [val[:max_chars] if val[-1:][0] != tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR else val[:max_chars - 1]
-         for val, max_chars in zip(train_job_name_elements, [20, 10, 20, 10])]
-
+    truncated_train_job_name_components = [truncated_service_name, truncated_stage, truncated_model_name, start_dt]
     initial_truncated_job_name = \
         tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR\
         .join([val for val in truncated_train_job_name_components if val])
