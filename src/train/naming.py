@@ -54,6 +54,11 @@ def get_s3_model_save_uri(model_name: str):
 
     return f's3://{train_bucket_name}/train_output/{model_name}'
 
+
+def get_checkpoints_s3_uri():
+    pass
+
+
 def is_valid_model_name(model_name: str) -> bool:
     """
     Helper - validates model name
@@ -144,13 +149,22 @@ def get_train_job_name(model_name: str) -> str:
     remaining_chars = \
         tc.SAGEMAKER_MAX_TRAIN_JOB_NAME_LENGTH - separators_count - tc.MIN_STAGE_LENGTH - tc.MIN_MODEL_NAME_LENGTH - \
         len(start_dt) - service_name_length
+
+    # if stage is empty add MIN_STAGE_LENGTH to remaining_chars
+    if len(stage) == 0:
+        remaining_chars += tc.MIN_STAGE_LENGTH
     # if remaining_chars is negative it means that service_name should be trimmed
     truncated_service_name = service_name[:remaining_chars] if remaining_chars < 0 else service_name
+
+    remaining_chars_denominator = 1 if len(stage) == 0 else 2
     # length of model_name and stage should be determined
     extra_chars_model_name = \
         0 if remaining_chars < 0 else (
-            int(remaining_chars / 2) if remaining_chars % 2 == 0 else int(remaining_chars / 2) + 1)
-    extra_chars_stage = int(remaining_chars / 2) if remaining_chars > 0 else 0
+            int(remaining_chars / remaining_chars_denominator) if remaining_chars % 2 == 0
+            else int(remaining_chars / remaining_chars_denominator) + 1)
+
+    extra_chars_stage = int(remaining_chars / remaining_chars_denominator) if remaining_chars > 0 else 0
+
     truncated_model_name = model_name[:8 + extra_chars_model_name]
     truncated_stage = stage[:4 + extra_chars_stage]
 
