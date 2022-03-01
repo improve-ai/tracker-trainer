@@ -107,9 +107,12 @@ def get_hyperparameters_for_model(model_name: str, event: dict):
     dict
         set of hyperparameters for training job of a <model name>
     """
-
-    hyperparams = event.get(tc.HYPERPARAMETERS_KEY, {})
+    hyperparams = {}
     hyperparams[tc.MODEL_NAME_HYPERPARAMS_KEY] = model_name
+
+    # convert all values to strings for SageMaker
+    for key, value in event.get(tc.HYPERPARAMETERS_KEY, {}).items():
+        hyperparams[key] = str(value)
 
     return hyperparams
 

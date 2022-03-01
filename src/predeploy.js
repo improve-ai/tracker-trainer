@@ -48,12 +48,6 @@ function configure() {
 
     assert(modelName.match(modelNameRegex), `invalid model name: ${modelName}`)
     
-    modelConfig = modelConfig || {}
-    assert(isDict(modelConfig), `config/config.yml:models.${modelName} is not a dictionary`)
-
-    // load the model config, fall back to defaults
-    const trainingConfig = Object.assign({}, trainingDefaults, modelConfig['training'])
-
     const event = {}
     const eventSchedule = {}
     event['schedule'] = eventSchedule
@@ -63,8 +57,23 @@ function configure() {
     
     eventSchedule['enabled'] = true
 
-    // set rule name. serverless interpolates the '${opt:stage... part
+    // set rule name. serverless interpolates the ${opt:stage...} part
     eventSchedule['name'] = `improveai-${config['organization']}-${config['project']}-` + '${opt:stage, self:provider.stage}' + `-${modelName}-schedule`
+
+    modelConfig = modelConfig || {}
+    assert(isDict(modelConfig), `config/config.yml:models.${modelName} is not a dictionary`)
+
+    const modelTrainingConfig = modelConfig['training'] || {}
+
+    // merge the model config, falling back to the defaults
+    const trainingConfig = Object.assign({}, trainingDefaults, modelTrainingConfig)
+
+    // merge hyperparameters
+    trainingConfig['hyperparameters'] =  Object.assign({}, trainingDefaults['hyperparameters'], modelTrainingConfig['hyperparameters'])
+
+    // assign hyperparameters
+    eventScheduleInput['hyperparameters'] = trainingConfig['hyperparameters']
+
     // pass scheduling info
     eventSchedule['rate'] = trainingConfig['schedule']
 
@@ -93,7 +102,6 @@ function configure() {
     eventScheduleInput['instance_count'] = trainingConfig['instance_count']
     eventScheduleInput['max_runtime'] = parseMaxRuntimeString(trainingConfig['max_runtime'])
     eventScheduleInput['volume_size'] = parseVolumeSize(trainingConfig['volume_size'])
-    eventScheduleInput['hyperparameters'] = trainingConfig['hyperparameters'] || {}
 
     events.push(event)
   }
