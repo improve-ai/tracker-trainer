@@ -56,7 +56,8 @@ def get_s3_model_save_uri(model_name: str):
 
 
 def get_checkpoints_s3_uri():
-    pass
+    train_bucket_name = os.environ[tc.TRAIN_BUCKET_ENVVAR]
+    return f's3://{train_bucket_name}/train_output/'
 
 
 def is_valid_model_name(model_name: str) -> bool:
@@ -134,7 +135,8 @@ def get_train_job_name(model_name: str) -> str:
             [val for val in train_job_name_elements if val])
 
     if len(initial_job_name) <= 63:
-        return initial_job_name
+        train_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-', initial_job_name)
+        return train_job_name
 
     # if full job name components form a job name which is longer than 63 characters
     # (max length allowed by SageMaker) then allow:
