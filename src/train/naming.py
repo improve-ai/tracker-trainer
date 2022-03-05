@@ -55,9 +55,9 @@ def get_s3_model_save_uri(model_name: str):
     return f's3://{train_bucket_name}/train_output/{model_name}'
 
 
-def get_checkpoints_s3_uri():
+def get_checkpoints_s3_uri(model_name):
     train_bucket_name = os.environ[tc.TRAIN_BUCKET_ENVVAR]
-    return f's3://{train_bucket_name}/train_output/'
+    return f's3://{train_bucket_name}/train_output/{model_name}'
 
 
 def is_valid_model_name(model_name: str) -> bool:

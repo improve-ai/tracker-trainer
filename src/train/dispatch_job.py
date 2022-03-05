@@ -7,7 +7,7 @@ import boto3
 # Local imports
 import src.train.constants as tc
 from src.train.naming import get_train_job_name, get_training_s3_uri_for_model, \
-    get_s3_model_save_uri, is_valid_model_name
+    get_s3_model_save_uri, get_checkpoints_s3_uri, is_valid_model_name
 
 
 def create_sagemaker_training_job(
@@ -86,7 +86,11 @@ def create_sagemaker_training_job(
         },
         OutputDataConfig={
             'S3OutputPath': model_save_s3_uri},
-        EnableInterContainerTrafficEncryption=False
+        EnableInterContainerTrafficEncryption=False,
+        CheckpointConfig={
+            'S3Uri': get_checkpoints_s3_uri(model_name),
+            'LocalPath': '/opt/ml/checkpoints'
+        }
     )
 
     return response
