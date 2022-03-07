@@ -22,19 +22,19 @@ def is_negative(x):
 
 class CasesS3Key:
     @parametrize(s3_key=[
-        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-10-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
     ])
     def case_positive(self, s3_key):
         return s3_key
 
     @parametrize(s3_key=[
-        "rewarded_decisions//parquet/2021/01/06/20210106T000000Z-20210101T000000Z-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
-        "/test-model-name/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
-        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000-20210101T000000Z-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
-        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
-        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-e3e70682-c209-4cac-a29f-.parquet",
-        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-e3e70682-c209-4cac-a29f-6fbed82c07cd",
-        "/rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet"
+        "rewarded_decisions//parquet/2021/01/06/20210106T000000Z-20210101T000000Z-10-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
+        "/test-model-name/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-10-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000-20210101T000000Z-10-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000-10-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-10-e3e70682-c209-4cac-a29f-.parquet",
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-10-e3e70682-c209-4cac-a29f-6fbed82c07cd",
+        "/rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-10-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet"
     ])
     def case_negative(self, s3_key):
         return s3_key

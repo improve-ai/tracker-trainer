@@ -10,7 +10,7 @@ import orjson as json
 import pandas as pd
 
 # Local imports
-from config import FIREHOSE_BUCKET, s3client, stats
+from config import FIREHOSE_BUCKET, s3client, stats, DEBUG
 from utils import utc, is_valid_model_name, is_valid_ksuid, get_valid_timestamp, \
     json_dumps_wrapping_primitive, json_dumps
 
@@ -257,11 +257,14 @@ class FirehoseRecordGroup:
         
         records_by_model = {}
         invalid_records = []
-
-        print(f'loading s3://{FIREHOSE_BUCKET}/{s3_key}')
-
+       
+        if DEBUG:
+            print(f"Loading FirehoseRecordGroups from '{s3_key}'")
+    
         # download and parse the firehose file
         s3obj = s3client.get_object(Bucket=FIREHOSE_BUCKET, Key=s3_key)['Body']
+        stats.increment_s3_requests_count('get')
+
         with gzip.GzipFile(fileobj=s3obj) as gzf:
             for line in gzf.readlines():
     
@@ -273,22 +276,36 @@ class FirehoseRecordGroup:
                         records_by_model[model] = []
                     
                     records_by_model[model].append(record)
+                    stats.increment_valid_records_count()
                     
                 except Exception as e:
                     stats.add_parse_exception(e)
                     invalid_records.append(line)
+                    stats.increment_invalid_records_count()
                     continue
     
         if len(invalid_records):
-            print(f'skipped {len(invalid_records)} invalid records')
-            # TODO write invalid records to /uncrecoverable
+            # TODO write invalid records to /unrecoverable
+            pass
     
-        print(f'loaded {sum(map(len, records_by_model.values()))} records from firehose')
+        total_records = stats.valid_records_count + stats.invalid_records_count
+        if DEBUG:
+            print("JSONL has {} record(s): {} valid record(s) and {} invalid record(s)".format(
+                total_records, 
+                stats.valid_records_count,
+                stats.invalid_records_count
+            ))
         
         results = []
         for model, records in records_by_model.items():
             results.append(FirehoseRecordGroup(model, records))
-            
+        
+        if DEBUG:
+            print(f"Created {len(results)} FirehoseRecordGroup(s)")
+            for except_str,count in stats.parse_exception_counts.items():
+                print(f"Found {count} of the following exceptions: {except_str}")
+            print("Finished loading FirehoseRecordGroup(s)")
+        
         return results
 
 

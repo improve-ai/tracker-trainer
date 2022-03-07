@@ -8,7 +8,7 @@ from ksuid import Ksuid
 import orjson
 
 # Local imports
-from config import s3client
+from config import s3client, stats
 from constants import MODEL_NAME_REGEXP, REWARDED_DECISIONS_S3_KEY_REGEXP
 
 ZERO = datetime.timedelta(0)
@@ -83,6 +83,7 @@ def list_s3_keys_after(bucket_name, key, prefix=''):
     keys = []
     while True:
         resp = s3client.list_objects_v2(**kwargs)
+        stats.increment_s3_requests_count('list')
 
         if 'Contents' not in resp:
             return []
