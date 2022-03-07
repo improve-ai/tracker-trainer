@@ -89,7 +89,7 @@ def create_sagemaker_training_job(
         EnableInterContainerTrafficEncryption=False,
         CheckpointConfig={
             'S3Uri': get_checkpoints_s3_uri(model_name),
-            'LocalPath': '/opt/ml/checkpoints'
+            'LocalPath': tc.LOCAL_CHECKPOINT_PATH
         }
     )
 
