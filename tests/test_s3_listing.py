@@ -348,8 +348,8 @@ def test_correctly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec):
     s3.create_bucket(Bucket=TRAIN_BUCKET)
 
     filenames = [
-        '20220129T185234Z-20220129T184832Z-6f678cec-74d0-4a87-be0d-00f811fcc391.parquet',
-        '20220129T185434Z-20220129T185237Z-94013f07-f824-45fc-b398-24b940991e71.parquet']
+        '20220129T185234Z-20220129T184832Z-152-6f678cec-74d0-4a87-be0d-00f811fcc391.parquet',
+        '20220129T185434Z-20220129T185237Z-78-94013f07-f824-45fc-b398-24b940991e71.parquet']
 
     for filename in filenames:
         # Create a dummy parquet file

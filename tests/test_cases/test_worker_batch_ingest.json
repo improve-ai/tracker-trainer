@@ -20,11 +20,11 @@
   },
   "test_output": {
     "expected_train_s3_keys": [
-      "rewarded_decisions/appconfig/parquet/2022/01/29/20220129T185234Z-20220129T184832Z-6f678cec-74d0-4a87-be0d-00f811fcc391.parquet",
-      "rewarded_decisions/appconfig/parquet/2022/01/29/20220129T185434Z-20220129T185237Z-94013f07-f824-45fc-b398-24b940991e71.parquet"],
+      "rewarded_decisions/appconfig/parquet/2022/01/29/20220129T185234Z-20220129T184832Z-152-6f678cec-74d0-4a87-be0d-00f811fcc391.parquet",
+      "rewarded_decisions/appconfig/parquet/2022/01/29/20220129T185434Z-20220129T185237Z-78-94013f07-f824-45fc-b398-24b940991e71.parquet"],
     "expected_parquet_files": [
-      "test_cases/data/ingest/expected_output/batch/20220129T185234Z-20220129T184832Z-6f678cec-74d0-4a87-be0d-00f811fcc391.parquet",
-      "test_cases/data/ingest/expected_output/batch/20220129T185434Z-20220129T185237Z-94013f07-f824-45fc-b398-24b940991e71.parquet"
+      "test_cases/data/ingest/expected_output/batch/20220129T185234Z-20220129T184832Z-152-6f678cec-74d0-4a87-be0d-00f811fcc391.parquet",
+      "test_cases/data/ingest/expected_output/batch/20220129T185434Z-20220129T185237Z-78-94013f07-f824-45fc-b398-24b940991e71.parquet"
     ]
   }
 }
