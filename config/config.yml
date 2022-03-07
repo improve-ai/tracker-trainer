@@ -40,3 +40,4 @@ training:
     max_decision_records: 8000000 # up to 1,000,000 records per xlarge is a reasonable starting point
     trees: 150 # determines model size
     features: 300 # affects training and decision memory usage and decision speed
+    max_checkpoint_age: 24 hours
