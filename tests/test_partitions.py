@@ -17,7 +17,7 @@ import rewarded_decisions
 import utils
 import firehose_record as firehose_record
 from firehose_record import DF_SCHEMA, FirehoseRecordGroup, DECISION_ID_KEY, MESSAGE_ID_KEY
-from rewarded_decisions import RewardedDecisionPartition, s3_key_prefix, repair_overlapping_keys, get_all_overlaps
+from rewarded_decisions import RewardedDecisionPartition, parquet_s3_key_prefix, repair_overlapping_keys, get_all_overlaps
 from tests_utils import dicts_to_df
 from tests_utils import upload_gzipped_jsonl_records_to_firehose_bucket
 
@@ -168,7 +168,7 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
         Bucket = config.TRAIN_BUCKET,
         Prefix = f'rewarded_decisions/{MODEL_NAME}' )
     keys_in_bucket = [s3file['Key'] for s3file in response['Contents']]
-    assert s3_key_prefix(MODEL_NAME, LAST_DECISION_ID_IN_TRAIN_BUCKET) in max(keys_in_bucket)
+    assert parquet_s3_key_prefix(MODEL_NAME, LAST_DECISION_ID_IN_TRAIN_BUCKET) in max(keys_in_bucket)
 
 
     ##########################################################################
@@ -285,7 +285,7 @@ def test_partitions_from_firehose_record_group(s3, mocker, get_decision_rec, get
     s3_keys_in_train_bucket_after_clean = [s3file['Key'] for s3file in response['Contents']]
 
     # Assert presence of a new Parquet file due to new Firehose records
-    expected_key_prefix = s3_key_prefix(MODEL_NAME, DECISION_ID_NOT_IN_TRAIN_BUCKET)
+    expected_key_prefix = parquet_s3_key_prefix(MODEL_NAME, DECISION_ID_NOT_IN_TRAIN_BUCKET)
     assert any(map(lambda x: expected_key_prefix in x, s3_keys_in_train_bucket_after_clean))
 
     # Number of final keys in bucket
@@ -395,6 +395,7 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
         RDP = RewardedDecisionPartition(model_name=MODEL_NAME, df=df)
         RDP.sort()
         RDP.save()
+        print(len(df))
         RDPs.append(RDP)
 
 
@@ -403,11 +404,11 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
     ##########################################################################
 
     original_keys = [
-        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
-        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/05/20210105T000000Z-20210103T000000Z-f728b4fa-4248-4e3a-8a5d-2f346baa9455.parquet",
-        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/07/20210107T000000Z-20210105T000000Z-eb1167b3-67a9-4378-bc65-c1e582e2e662.parquet",
-        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/10/20210110T000000Z-20210109T000000Z-f7c1bd87-4da5-4709-9471-3d60c8a70639.parquet",
-        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/21/20210121T000000Z-20210121T000000Z-e443df78-9558-467f-9ba9-1faf7a024204.parquet"
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/06/20210106T000000Z-20210101T000000Z-6-e3e70682-c209-4cac-a29f-6fbed82c07cd.parquet",
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/05/20210105T000000Z-20210103T000000Z-3-f728b4fa-4248-4e3a-8a5d-2f346baa9455.parquet",
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/07/20210107T000000Z-20210105T000000Z-3-eb1167b3-67a9-4378-bc65-c1e582e2e662.parquet",
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/10/20210110T000000Z-20210109T000000Z-2-f7c1bd87-4da5-4709-9471-3d60c8a70639.parquet",
+        "rewarded_decisions/test-model-name-1.0/parquet/2021/01/21/20210121T000000Z-20210121T000000Z-1-e443df78-9558-467f-9ba9-1faf7a024204.parquet"
     ]
 
     response = s3.list_objects_v2(
@@ -450,15 +451,15 @@ def test_repair_overlapping_keys(s3, mocker, get_rewarded_decision_rec):
 
     expected_keys = [
         {
-            "key" : "rewarded_decisions/test-model-name-1.0/parquet/2021/01/07/20210107T000000Z-20210101T000000Z-23a7711a-8133-4876-b7eb-dcd9e87a1613.parquet",
+            "key" : "rewarded_decisions/test-model-name-1.0/parquet/2021/01/07/20210107T000000Z-20210101T000000Z-7-23a7711a-8133-4876-b7eb-dcd9e87a1613.parquet",
             "n_records" : 7
         },
         {
-            "key" : "rewarded_decisions/test-model-name-1.0/parquet/2021/01/10/20210110T000000Z-20210109T000000Z-f7c1bd87-4da5-4709-9471-3d60c8a70639.parquet",
+            "key" : "rewarded_decisions/test-model-name-1.0/parquet/2021/01/10/20210110T000000Z-20210109T000000Z-2-f7c1bd87-4da5-4709-9471-3d60c8a70639.parquet",
             "n_records" : 2
         },
         {
-            "key" : "rewarded_decisions/test-model-name-1.0/parquet/2021/01/21/20210121T000000Z-20210121T000000Z-e443df78-9558-467f-9ba9-1faf7a024204.parquet",
+            "key" : "rewarded_decisions/test-model-name-1.0/parquet/2021/01/21/20210121T000000Z-20210121T000000Z-1-e443df78-9558-467f-9ba9-1faf7a024204.parquet",
             "n_records" : 1
         }
     ]
@@ -500,9 +501,9 @@ def test_get_all_overlaps_really_sorts_its_data():
     """
 
     keys = [
-        "rewarded_decisions/appconfig/parquet/2022/01/01/20220101T235310Z-20220101T235300Z-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.parquet", 
-        "rewarded_decisions/appconfig/parquet/2022/01/01/20220101T235314Z-20220101T235312Z-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab.parquet", 
-        "rewarded_decisions/appconfig/parquet/2022/01/01/20220101T235316Z-20220101T235305Z-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaac.parquet"
+        "rewarded_decisions/appconfig/parquet/2022/01/01/20220101T235310Z-20220101T235300Z-10-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.parquet",
+        "rewarded_decisions/appconfig/parquet/2022/01/01/20220101T235314Z-20220101T235312Z-10-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab.parquet",
+        "rewarded_decisions/appconfig/parquet/2022/01/01/20220101T235316Z-20220101T235305Z-10-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaac.parquet"
     ]
 
 
@@ -514,7 +515,7 @@ def test_get_all_overlaps_really_sorts_its_data():
     # (just like the S3 keys returned from aws)
     keys_copy = keys.copy()
     keys_copy.sort()
-    assert all(a == b for a,b in zip(keys, keys_copy))
+    assert all(a == b for a, b in zip(keys, keys_copy))
 
     for key in keys:
         assert utils.is_valid_rewarded_decisions_s3_key(key)
