@@ -32,7 +32,7 @@ models:
 training:
   image: free # free version trains on up to 100,000 decision records per model. Use pro to uncap
   schedule: rate(4 hours) # recommended rate for initial model training is 1 training per variant per week
-  instance_type: ml.m5.2xlarge # each 2xlarge instance can train on up to ~1,500,000 decision records
+  instance_type: ml.m5.2xlarge
   instance_count: 4
   max_runtime: 2 hours # AWS instances sometimes hang. This caps training runtime when that occurs.
   volume_size: 10 GB
