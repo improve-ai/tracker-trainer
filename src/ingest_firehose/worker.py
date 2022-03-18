@@ -5,7 +5,7 @@ import signal
 import sys
 import time
 
-from config import BATCH_JOB_ATTEMPT, INCOMING_FIREHOSE_S3_KEY, TRAIN_BUCKET, THREAD_WORKER_COUNT, stats, DEBUG
+from config import INCOMING_FIREHOSE_S3_KEY, TRAIN_BUCKET, THREAD_WORKER_COUNT, stats, DEBUG
 from firehose_record import FirehoseRecordGroup
 from rewarded_decisions import RewardedDecisionPartition, repair_overlapping_keys
 
@@ -13,10 +13,6 @@ SIGTERM = False
 
 
 def worker():
-    if BATCH_JOB_ATTEMPT > 1:
-        # the previous batch job failed. perform randomized exponential back off before retrying
-        backoff()
-        
     if DEBUG:
         print(f'Starting firehose ingest')
     
@@ -66,13 +62,6 @@ def process_decisions(decision_partition: RewardedDecisionPartition):
         sys.exit()  # raises SystemExit, so worker threads should have a chance to finish up
 
     decision_partition.process()
-    
-
-def backoff():
-    # the base backoff is beween 0 and 60 seconds, with the window doubling with each attempt
-    backoff_seconds = 60 * (2 ** (BATCH_JOB_ATTEMPT - 2)) * random.random()
-    print(f'job attempt {BATCH_JOB_ATTEMPT}, waiting {backoff_seconds} seconds before retrying')
-    time.sleep(backoff_seconds)
 
 
 def signal_handler(signalNumber, frame):
