@@ -4,6 +4,8 @@ import random
 import signal
 import sys
 import time
+import traceback
+import threading
 
 from config import INCOMING_FIREHOSE_S3_KEY, TRAIN_BUCKET, THREAD_WORKER_COUNT, stats, DEBUG
 from firehose_record import FirehoseRecordGroup
@@ -57,9 +59,8 @@ def worker():
 
 def process_decisions(decision_partition: RewardedDecisionPartition):
     if SIGTERM:
-        # this job is not automatically resumable, so hopefully the caller retries
-        print(f'Quitting due to SIGTERM signal')
-        sys.exit()  # raises SystemExit, so worker threads should have a chance to finish up
+        print(f"Due to a received SIGTERM, this thread won't start its work")
+        return
 
     decision_partition.process()
 
@@ -68,7 +69,16 @@ def signal_handler(signalNumber, frame):
     global SIGTERM
     SIGTERM = True
     print(f'SIGTERM received')
-    return
+
+    # From https://stackoverflow.com/a/24334576/1253729
+    for th in threading.enumerate():
+        print(th)
+        traceback.print_stack(sys._current_frames()[th.ident])
+        print()
+
+    # What sys.exit() does with multiple threads:
+    # https://stackoverflow.com/a/38805873/1253729
+    sys.exit()  # raises SystemExit, so worker threads should have a chance to finish up
 
 
 if __name__ == '__main__':
