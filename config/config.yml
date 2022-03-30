@@ -13,8 +13,8 @@ aws_region: us-east-1
 
 
 images:
-  free: # ⬅️ !!! Subscribe at https://xxx and paste image url
-  pro: # ⬅️ !!! Subscribe at https://xxx and paste image url
+  free: # ⬅️ !!! Subscribe at https://aws.amazon.com/marketplace/pp/prodview-pyqrpf5j6xv6g and paste image url
+  pro: # ⬅️ !!! Subscribe at https://aws.amazon.com/marketplace/pp/prodview-adchtrf2zyvow and paste image url
 
 
 #
