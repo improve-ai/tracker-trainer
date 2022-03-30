@@ -1,4 +1,4 @@
-# Improve AI Gym: Track Decisions & Rewards, Train Decision Models
+# Improve AI Gym: Track Decisions, Rewards & Train Decision Models
 
 The Improve AI Gym is a stack of services that run on AWS for tracking decisions and rewards from Improve AI SDKs and managing the training of decision models.
 
