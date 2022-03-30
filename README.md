@@ -1,14 +1,14 @@
 # Improve AI Gym: Track Decisions & Rewards, Train Decision Models
 
-The Improve AI Gym is a set of services that run on AWS for tracking decisions and rewards from Improve AI client SDKs and managing the training of decision models.
+The Improve AI Gym is a stack of services that run on AWS for tracking decisions and rewards from Improve AI SDKs and managing the training of decision models.
 
-These services are packaged into a Virtual Private Cloud that you deploy on AWS.  A such, all data remains private to you and there are no dependencies on third parties other than AWS.
+These services are packaged into a Virtual Private Cloud that you deploy on AWS.  A such, all data remains private to you and there are no operational dependencies on third parties other than AWS.
 
 # Deployment
 
 ## Fork this repo
 
-**For now, we suggest installing the Gym by forking this repo. We are also considering packaging the gym as an NPM package or a Serverless Framework Plugin. Please send suggestions for deployment packaging to support@improve.ai**
+**For now, we suggest installing the Gym by making a private fork of this repo. We are also considering packaging the gym as an NPM package or a Serverless Framework Plugin. Please send suggestions for deployment packaging to support@improve.ai**
 
 ## Install the Serverless Framework
 
@@ -16,7 +16,7 @@ These services are packaged into a Virtual Private Cloud that you deploy on AWS.
 $ npm install -g serverless
 ```
 
-## Install the dependencies
+## Install NPM Dependencies
  
 ```console
 $ npm install
@@ -38,7 +38,7 @@ $ nano config/config.yml
 
 ## Deploy the Stack
 
-to a new dev stage in us-east-1
+Deploy a new dev stage in us-east-1
 
 ```console
 $ serverless deploy --stage dev
@@ -50,13 +50,13 @@ Using the AWS API Gateway console, create a custom, stable DNS mapping to the tr
 
 Either configure a CDN in front of the S3 models bucket, or make the 'models' directory public to serve models directly from S3.
 
-# VPC Architecture
+# Architecture
 
 The Improve AI Gym stack consists of a number of components to track decisions and rewards, create training data, train decision models, and store the resulting models.
 
 ## Track Endpoint
 
-AWS API Gateway and AWS Lambda are used to provide the *track* HTTPS endpoint. The *track* endpoint URL is used by the client SDKs to track decisions and rewards. Events received by the track endpoint Lambda are sent to AWS Firehose for persistence and further processing.
+AWS API Gateway and AWS Lambda are used to provide the *track* HTTPS endpoint. The *track* endpoint URL is used by the client SDKs to track decisions and rewards. Events received by the track endpoint Lambda are sent to AWS Firehose for persistence and further processing. The maximum payload size for *track* is 1MB.
 
 ## AWS Kinesis Firehose
 
@@ -70,6 +70,6 @@ When a new firehose file is written to the firehose S3 bucket, an AWS Batch job 
 
 Using the training schedule specified in **config/config.yml** training jobs are created in AWS SageMaker.  SageMaker will run either the FREE or PRO version of the Improve AI Trainer in a network isolated cluster. The resulting model will be written to the *models* S3 bucket.
 
-## Model Serving
+## Decision Model Serving
 
 By default, the *models* S3 bucket is private. To enable public model serving, we recommend configuring a CDN, such as AWS CloudFront in front of the *models* S3 bucket.
