@@ -24,11 +24,11 @@ $ npm install
 
 ## Subscribe to a Decision Model Trainer
 
-To train models on up to 100,000 decisions, subscribe to the free trainer at XXX
+To train models on up to 100,000 decisions, subscribe to the [free trainer](https://aws.amazon.com/marketplace/pp/prodview-pyqrpf5j6xv6g)
 
-To train models on over 100,000 decisions, subscribe to the pro trainer at XXX
+To train models on over 100,000 decisions, subscribe to the [pro trainer](https://aws.amazon.com/marketplace/pp/prodview-adchtrf2zyvow)
 
-Copy your the Docker image URLs and add them to config/config.yml
+Once subscribed, copy your the trainer Docker image URLs and add them to config/config.yml
 
 ## Configure Models and Training Parameters
 
