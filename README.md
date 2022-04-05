@@ -28,7 +28,7 @@ To train models on up to 100,000 decisions, subscribe to the [free trainer](http
 
 To train models on over 100,000 decisions, subscribe to the [pro trainer](https://aws.amazon.com/marketplace/pp/prodview-adchtrf2zyvow)
 
-Once subscribed, copy your the trainer Docker image URLs and add them to config/config.yml
+Once subscribed, copy your the trainer Docker image URLs and add them to **config/config.yml**
 
 ## Configure Models and Training Parameters
 
@@ -46,7 +46,7 @@ $ serverless deploy --stage dev
 
 The output of the deployment will list the HTTPS URL for the *track* endpoint like https://xxxxxxxx.execute-api.us-east-1.amazonaws.com/track
 
-Using the AWS API Gateway console, create a custom, stable DNS mapping to the track endpoint. Do not use the *...execute-api.us-east-1...* URL directly in clients because if you delete then re-create the stack, AWS will not re-assign you that URL.
+Using the AWS API Gateway console, create a custom, stable DNS mapping to the track endpoint. In production, do not use the *...execute-api.us-east-1...* URL directly in clients because if you delete then re-create the stack, AWS will not re-assign you that URL.
 
 Either configure a CDN in front of the S3 models bucket, or make the 'models' directory public to serve models directly from S3.
 
@@ -72,4 +72,4 @@ Using the training schedule specified in **config/config.yml** training jobs are
 
 ## Decision Model Serving
 
-By default, the *models* S3 bucket is private. To enable public model serving, we recommend configuring a CDN, such as AWS CloudFront in front of the *models* S3 bucket.
+By default, the *models* S3 bucket is private. To enable public model serving, we recommend configuring a CDN, such as AWS CloudFront, in front of the *models* S3 bucket.
