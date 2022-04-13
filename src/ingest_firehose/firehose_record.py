@@ -244,7 +244,7 @@ class FirehoseRecordGroup:
 
     def to_pandas_df(self):
         df = pd.DataFrame(self.to_rewarded_decision_dicts(), columns=DF_SCHEMA.keys())
-        df[TIMESTAMP_KEY] = pd.to_datetime(df[TIMESTAMP_KEY], utc=True)
+        df[TIMESTAMP_KEY] = pd.to_datetime(df[TIMESTAMP_KEY], utc=True).dt.tz_localize(None)
         return df.astype(DF_SCHEMA)
 
 
