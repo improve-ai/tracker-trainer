@@ -15,6 +15,7 @@ SIGTERM = False
 
 
 def worker():
+
     if DEBUG:
         print(f'Starting firehose ingest')
     
@@ -61,7 +62,6 @@ def process_decisions(decision_partition: RewardedDecisionPartition):
     if SIGTERM:
         print(f"Due to a received SIGTERM, this thread won't start its work")
         return
-
     decision_partition.process()
 
 
@@ -72,7 +72,7 @@ def signal_handler(signalNumber, frame):
 
     # From https://stackoverflow.com/a/24334576/1253729
     for th in threading.enumerate():
-        print(th)
+        print(f'Thread name: {th.name} | Thread identifier {th.ident}')
         traceback.print_stack(sys._current_frames()[th.ident])
         print()
 
