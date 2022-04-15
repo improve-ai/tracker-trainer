@@ -14,8 +14,6 @@ provider:
     images:
       ingest-firehose:
         path: ./src/ingest_firehose/
-  httpApi: # have to specify cors globally for httpApi as of 20210303
-    cors: true
   iam:
     role:
       statements: 
@@ -58,10 +56,8 @@ functions:
     description: Decision & Reward Tracker HTTPS API
     handler: src/track/http_api.track
     runtime: nodejs14.x
-    events:
-      - httpApi:
-          method: POST
-          path: /track
+    url:
+      cors: true
     environment:
       FIREHOSE_DELIVERY_STREAM_NAME: !Ref Firehose
   ingestFirehose:
@@ -150,7 +146,7 @@ resources:
                   - 's3:PutObject'
                   Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
       FirehoseS3Bucket:
-        Type: 'AWS::S3::Bucket'
+        Type: AWS::S3::Bucket
         DeletionPolicy: Retain
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose
@@ -178,12 +174,12 @@ resources:
             CompressionFormat: "GZIP"
             RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
       TrainS3Bucket:
-        Type: 'AWS::S3::Bucket'
+        Type: AWS::S3::Bucket
         DeletionPolicy: Retain
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-train
       ModelsS3Bucket:
-        Type: 'AWS::S3::Bucket'
+        Type: AWS::S3::Bucket
         DeletionPolicy: Retain
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-models
