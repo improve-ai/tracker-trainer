@@ -74,9 +74,6 @@ functions:
           bucket: !Ref FirehoseS3Bucket
           existing: true # created in resources
           event: s3:ObjectCreated:*
-    environment:
-      JOB_QUEUE: !Ref JobQueue
-      JOB_DEFINITION: !Ref IngestFirehoseJobDefinition
   dispatchTrainingJob:
     description: Dispatch Decision Model Training Jobs
     handler: src/train/dispatch_job.lambda_handler
@@ -86,7 +83,6 @@ functions:
       TRAINING_SUBNET: !Ref Subnet
       TRAINING_SECURITY_GROUP: !Ref SecurityGroup
       SERVICE_NAME: ${self:service}
-      JOB_QUEUE: !Ref JobQueue
   unpackModels:
     handler: src/train/unpack_models.unpack
     timeout: 120
@@ -178,7 +174,7 @@ resources:
                 - Ref: FirehoseS3Bucket
             BufferingHints:
               IntervalInSeconds: 900 # max value is 900
-              SizeInMBs: 32 # max value is 128. IngestFirehose instance must have enough memory for all threads
+              SizeInMBs: 128 # max value is 128.
             CompressionFormat: "GZIP"
             RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
       TrainS3Bucket:
@@ -259,95 +255,3 @@ resources:
         Properties:
           RouteTableId: !Ref RouteTable
           SubnetId: !Ref Subnet
-      BatchInstanceProfile:
-        Type: AWS::IAM::InstanceProfile
-        Properties:
-          Roles:
-            - Ref: BatchInstanceRole
-      BatchInstanceRole:
-        Type: AWS::IAM::Role
-        Properties:
-          AssumeRolePolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-                Effect: Allow
-                Principal:
-                  Service: 
-                    - ec2.amazonaws.com
-                Action: sts:AssumeRole
-          ManagedPolicyArns:
-            - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
-          Policies:
-          - PolicyName: BatchInstancePolicy
-            PolicyDocument:
-              Statement:
-                - Effect: Allow
-                  Action:
-                  - 's3:*'
-                  Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
-      BatchServiceRole:
-        Type: AWS::IAM::Role
-        Properties:
-          AssumeRolePolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Principal:
-                  Service: 
-                  - batch.amazonaws.com
-                Action: sts:AssumeRole
-          ManagedPolicyArns:
-            - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
-      ComputeEnvironment:
-        Type: AWS::Batch::ComputeEnvironment
-        Properties:
-          ComputeEnvironmentName: ${self:service}-${opt:stage, self:provider.stage}-compute
-          Type: MANAGED
-          ServiceRole: 
-            Ref: BatchServiceRole
-          ComputeResources:
-            Type: EC2
-            InstanceTypes:
-              - optimal
-            MinvCpus: 0
-            MaxvCpus: 128
-            InstanceRole: !Ref BatchInstanceProfile
-            SecurityGroupIds:
-              - Ref: SecurityGroup
-            Subnets:
-              - Ref: Subnet
-          State: ENABLED
-      JobQueue:
-        Type: AWS::Batch::JobQueue
-        Properties:
-          JobQueueName: '${self:service}-${opt:stage, self:provider.stage}'
-          ComputeEnvironmentOrder:
-            - Order: 1
-              ComputeEnvironment: 
-                Ref: ComputeEnvironment
-          State: ENABLED
-          Priority: 2 # 2nd lowest priority
-      IngestFirehoseJobDefinition:
-        Type: "AWS::Batch::JobDefinition"
-        Properties:
-          Type: Container
-          JobDefinitionName: '${self:service}-${opt:stage, self:provider.stage}-IngestFirehose'
-          ContainerProperties: 
-            Memory: 2048 # enough memory to hold a .parquet file for each thread plus an incoming firehose file
-            Vcpus: 1
-            Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-${self:service}-${opt:stage, self:provider.stage}:ingest-firehose'
-          RetryStrategy: 
-            Attempts: 5
-      S3Endpoint:
-        Type: AWS::EC2::VPCEndpoint
-        Properties:
-          PolicyDocument:
-            Statement:
-              - Action: "*"
-                Effect: "Allow"
-                Resource: "*"
-                Principal: "*"
-          RouteTableIds:
-            - !Ref RouteTable
-          ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
-          VpcId: !Ref VPC
