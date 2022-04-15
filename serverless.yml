@@ -4,6 +4,9 @@ custom:
 
 service: improveai-${self:custom.config.organization}-${self:custom.config.project}
 
+plugins:
+  - serverless-step-functions
+
 provider:
   name: aws
   region: ${self:custom.config.aws_region}
@@ -14,6 +17,8 @@ provider:
     images:
       ingest-firehose:
         path: ./src/ingest_firehose/
+      groom:
+        path: ./src/groom/
   iam:
     role:
       statements: 
@@ -63,6 +68,7 @@ functions:
   ingestFirehose:
     description: Ingest New Firehose File to Train Bucket
     timeout: 900
+    memorySize: 512
     image:
       name: ingest-firehose
     events:
@@ -70,10 +76,19 @@ functions:
           bucket: !Ref FirehoseS3Bucket
           existing: true # created in resources
           event: s3:ObjectCreated:*
+  groomPartitions:
+    description: Ingest New Firehose File to Train Bucket
+    timeout: 900
+    image:
+      name: groom
+  filterPartitions:
+    description: Ingest New Firehose File to Train Bucket
+    timeout: 900
+    image:
+      name: groom
   dispatchTrainingJob:
     description: Dispatch Decision Model Training Jobs
     handler: src/train/dispatch_job.lambda_handler
-    events: ${file(src/predeploy.js):trainingScheduleEvents}
     environment:
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
       TRAINING_SUBNET: !Ref Subnet
@@ -91,6 +106,39 @@ functions:
             - prefix: train_output/
             - suffix: model.tar.gz
 
+
+stepFunctions:
+  stateMachines:
+    GroomThenTrain:
+      events: ${file(src/predeploy.js):trainingScheduleEvents}
+      definition:
+        Comment: "A Map example of the Amazon States Language using an AWS Lambda Function"
+        StartAt: FilterPartitions
+        States:
+          FilterPartitions:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [filterPartitions, Arn]
+            Next: GroomMap
+          GroomMap:
+            Type: Map
+            Iterator:
+              StartAt: GroomTask
+              States:
+                GroomTask:
+                  Type: Task
+                  Resource:
+                    Fn::GetAtt: [groomPartitions, Arn]
+                  End: true
+            Next: Train
+          Train:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [dispatchTrainingJob, Arn]
+            End: true
+#      dependsOn: CustomIamRole
+  validate: true # enable pre-deployment definition validation (disabled by default)
+ 
 
 resources:
   Resources:
