@@ -5,7 +5,6 @@ custom:
 service: improveai-${self:custom.config.organization}-${self:custom.config.project}
 
 provider:
-  lambdaHashingVersion: 20201221 # can be removed in serverless v3
   name: aws
   region: ${self:custom.config.aws_region}
   runtime: python3.8
@@ -65,13 +64,15 @@ functions:
           path: /track
     environment:
       FIREHOSE_DELIVERY_STREAM_NAME: !Ref Firehose
-  dispatchIngestFirehoseJob:
-    description: Dispatch Ingest Firehose Batch Job
-    handler: src/ingest_firehose/dispatch_job.lambda_handler
+  ingestFirehose:
+    description: Ingest New Firehose File to Train Bucket
+    timeout: 900
+    image:
+      name: ingest-firehose
     events:
       - s3:
           bucket: !Ref FirehoseS3Bucket
-          existing: true # retained resource
+          existing: true # created in resources
           event: s3:ObjectCreated:*
     environment:
       JOB_QUEUE: !Ref JobQueue
@@ -97,13 +98,7 @@ functions:
           rules:
             - prefix: train_output/
             - suffix: model.tar.gz
-    environment:
-      JOB_QUEUE: !Ref JobQueue
 
-  forceDockerPushIngestFirehose: # Serverless wants the image to be used to deploy it
-    description: Force Serverless to Push Docker Image to ECR
-    image:
-      name: ingest-firehose
 
 resources:
   Resources:

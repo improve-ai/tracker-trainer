@@ -246,7 +246,7 @@ class FirehoseRecordGroup:
         df = pd.DataFrame(self.to_rewarded_decision_dicts(), columns=DF_SCHEMA.keys())
         df[TIMESTAMP_KEY] = pd.to_datetime(df[TIMESTAMP_KEY], utc=True).dt.tz_localize(None)
         return df.astype(DF_SCHEMA)
-
+        
 
     @staticmethod
     def load_groups(s3_key) -> List[FirehoseRecordGroup]:
@@ -258,8 +258,7 @@ class FirehoseRecordGroup:
         records_by_model = {}
         invalid_records = []
        
-        if DEBUG:
-            print(f"Loading FirehoseRecordGroups from '{s3_key}'")
+        print(f'loading s3://{FIREHOSE_BUCKET}/{s3_key}')
     
         # download and parse the firehose file
         s3obj = s3client.get_object(Bucket=FIREHOSE_BUCKET, Key=s3_key)['Body']
@@ -289,22 +288,21 @@ class FirehoseRecordGroup:
             pass
     
         total_records = stats.valid_records_count + stats.invalid_records_count
-        if DEBUG:
-            print("JSONL has {} record(s): {} valid record(s) and {} invalid record(s)".format(
-                total_records, 
-                stats.valid_records_count,
-                stats.invalid_records_count
-            ))
+
+        print("JSONL has {} record(s): {} valid record(s) and {} invalid record(s)".format(
+            total_records,
+            stats.valid_records_count,
+            stats.invalid_records_count
+        ))
         
         results = []
         for model, records in records_by_model.items():
             results.append(FirehoseRecordGroup(model, records))
         
-        if DEBUG:
-            print(f"Created {len(results)} FirehoseRecordGroup(s)")
-            for except_str,count in stats.parse_exception_counts.items():
-                print(f"Found {count} of the following exceptions: {except_str}")
-            print("Finished loading FirehoseRecordGroup(s)")
+        print(f"Created {len(results)} FirehoseRecordGroup(s)")
+        for except_str,count in stats.parse_exception_counts.items():
+            print(f"Found {count} of the following exceptions: {except_str}")
+        print("Finished loading FirehoseRecordGroup(s)")
         
         return results
 

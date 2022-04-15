@@ -19,6 +19,3 @@ s3client = boto3.client("s3", config=botocore.config.Config(max_pool_connections
 TRAIN_BUCKET = os.environ['TRAIN_BUCKET']
 
 FIREHOSE_BUCKET = os.environ['FIREHOSE_BUCKET']
-
-# the incoming firehose file to ingest
-INCOMING_FIREHOSE_S3_KEY = os.environ['S3_KEY']
