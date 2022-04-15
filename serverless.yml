@@ -12,13 +12,11 @@ provider:
   region: ${self:custom.config.aws_region}
   runtime: python3.8
   memorySize: 192
-  timeout: 6
+  timeout: 900
   ecr:
     images:
-      ingest-firehose:
-        path: ./src/ingest_firehose/
-      groom:
-        path: ./src/groom/
+      ingest:
+        path: ./src/ingest/
   iam:
     role:
       statements: 
@@ -59,6 +57,7 @@ package:
 functions:
   track:
     description: Decision & Reward Tracker HTTPS API
+    timeout: 6
     handler: src/track/http_api.track
     runtime: nodejs14.x
     url:
@@ -67,27 +66,30 @@ functions:
       FIREHOSE_DELIVERY_STREAM_NAME: !Ref Firehose
   ingestFirehose:
     description: Ingest New Firehose File to Train Bucket
-    timeout: 900
     memorySize: 512
     image:
-      name: ingest-firehose
+      name: ingest
     events:
       - s3:
           bucket: !Ref FirehoseS3Bucket
           existing: true # created in resources
           event: s3:ObjectCreated:*
-  groomPartitions:
-    description: Ingest New Firehose File to Train Bucket
-    timeout: 900
-    image:
-      name: groom
   filterPartitions:
     description: Ingest New Firehose File to Train Bucket
-    timeout: 900
     image:
-      name: groom
+      name: ingest
+      command:
+        - filter_partitions.lambda_handler
+  groomPartitions:
+    description: Ingest New Firehose File to Train Bucket
+    memorySize: 1024
+    image:
+      name: ingest
+      command:
+        - groom_partitions.lambda_handler
   dispatchTrainingJob:
     description: Dispatch Decision Model Training Jobs
+    timeout: 30
     handler: src/train/dispatch_job.lambda_handler
     environment:
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
@@ -96,7 +98,6 @@ functions:
       SERVICE_NAME: ${self:service}
   unpackModels:
     handler: src/train/unpack_models.unpack
-    timeout: 120
     events:
       - s3:
           bucket: !Ref TrainS3Bucket
@@ -110,7 +111,14 @@ functions:
 stepFunctions:
   stateMachines:
     GroomThenTrain:
-      events: ${file(src/predeploy.js):trainingScheduleEvents}
+      events:
+        - schedule:
+            rate: rate(2 minutes)
+            enabled: true
+            input:
+              key1: value1
+              key2: value2
+#      events: ${file(src/predeploy.js):trainingScheduleEvents}
       definition:
         Comment: "A Map example of the Amazon States Language using an AWS Lambda Function"
         StartAt: FilterPartitions
@@ -119,9 +127,11 @@ stepFunctions:
             Type: Task
             Resource:
               Fn::GetAtt: [filterPartitions, Arn]
+            ResultPath: $.partition_groups
             Next: GroomMap
           GroomMap:
             Type: Map
+            ItemsPath: $.partition_groups
             Iterator:
               StartAt: GroomTask
               States:
@@ -130,6 +140,7 @@ stepFunctions:
                   Resource:
                     Fn::GetAtt: [groomPartitions, Arn]
                   End: true
+            ResultPath: null # ignore results, pass through input
             Next: Train
           Train:
             Type: Task

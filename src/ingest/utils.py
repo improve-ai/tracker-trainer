@@ -24,7 +24,7 @@ class UTC(datetime.tzinfo):
 utc = UTC()
 
 
-def list_s3_keys_after(bucket_name, key, prefix=''):
+def list_s3_keys(bucket_name, prefix='', after_key=''):
     """
     Return a lexicographically sorted list of keys after the given `key`.
     
@@ -70,13 +70,13 @@ def list_s3_keys_after(bucket_name, key, prefix=''):
     """  
 
     if not isinstance(bucket_name, str) or \
-       not isinstance(key, str) or \
+       not isinstance(after_key, str) or \
        not isinstance(prefix, str):
         raise TypeError
 
     kwargs = {
         'Bucket': bucket_name,
-        'StartAfter': key,
+        'StartAfter': after_key,
         'Prefix': prefix
     }
 
