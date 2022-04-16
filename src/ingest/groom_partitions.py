@@ -15,7 +15,7 @@ def filter_handler(event, context):
 
     results = []
     for s3_key in partition_s3_keys:
-        group = []
+        merge_group = []
         group_row_count = 0
         min_timestamp, max_timestamp, decision_record_count = min_max_timestamp_decision_record_count(s3_key)
     

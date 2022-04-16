@@ -75,7 +75,7 @@ class RewardedDecisionPartition:
         assert self.sorted
 
         # split the dataframe into multiple chunks if necessary
-        for chunk in split(self.df):
+        for chunk in maybe_split_on_timestamp_boundaries(self.df):
             # generate a unique s3 key for this chunk
             chunk_s3_key = parquet_s3_key(self.model_name, min_decision_id=chunk[DECISION_ID_KEY].iat[0], 
                 max_decision_id=chunk[DECISION_ID_KEY].iat[-1], count=chunk.shape[0])
@@ -237,25 +237,34 @@ def read_parquet(s3_key):
     return s3_df
     
     
-def split(df, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS):
+def maybe_split_on_timestamp_boundaries(df, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS):
     
-    chunk_count = math.ceil(df.shape[0] / max_row_count)
+    dfs = [df]
     
-    # adapted from https://stackoverflow.com/a/2135920/2590111 to split into roughly equal size chunks
-    def split_roughly_equal(df, n):
-        k, m = divmod(df.shape[0], n)
-        return (df.iloc[i*k+min(i, m):(i+1)*k+min(i+1, m)] for i in range(n))
-
-    return split_roughly_equal(df, chunk_count)
+    # iterate through different timestamp prefix lengths
+    # does not split below 1 second resolution
+    for i in range(len('YYYYmm'),len('YYYYmmddTHHMMSS')+1):
+        # are all of the dataframes small enough?
+        if all(map(lambda x: x.shape[0] <= max_row_count, dfs)):
+            break
+        
+        # group by timestamp prefix
+        dfs = [x.reset_index() for _, x in df.set_index(DECISION_ID_KEY).groupby(lambda x: decision_id_to_timestamp(x)[:i])]
+    
+    return dfs
     
 
 def min_max_timestamp_count(s3_key):
     maxts, mints, count = s3_key.split('/')[-1].split('-')[:3]
     return mints, maxts, count
     
+    
+def decision_id_to_timestamp(decision_id):
+    return Ksuid.from_base62(decision_id).datetime.strftime(ISO_8601_BASIC_FORMAT)
+    
 
 def parquet_s3_key_prefix(model_name, max_decision_id):
-    max_timestamp = Ksuid.from_base62(max_decision_id).datetime.strftime(ISO_8601_BASIC_FORMAT)
+    max_timestamp = decision_id_to_timestamp(max_decision_id)
     
     yyyy = max_timestamp[0:4]
     mm = max_timestamp[4:6]
@@ -268,7 +277,7 @@ def parquet_s3_key_prefix(model_name, max_decision_id):
     
     
 def parquet_s3_key(model_name, min_decision_id, max_decision_id, count):
-    min_timestamp = Ksuid.from_base62(min_decision_id).datetime.strftime(ISO_8601_BASIC_FORMAT)
+    min_timestamp = decision_id_to_timestamp(min_decision_id)
     
     #
     # The min timestamp is encoded into the file name so that a lexicographically ordered listing
