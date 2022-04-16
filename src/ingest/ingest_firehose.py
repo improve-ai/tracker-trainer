@@ -2,7 +2,7 @@ import json
 import os 
 import boto3
 
-import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 import signal
 import sys
 import traceback
@@ -51,7 +51,7 @@ def lambda_handler(event, context):
     decision_partitions = map(lambda x: RewardedDecisionPartition(x.model_name, x.to_pandas_df()), firehose_record_groups)
     
     # process each group. consolidate records, upload rewarded decisions to s3
-    with concurrent.futures.ThreadPoolExecutor(max_workers=S3_CONNECTION_COUNT) as executor:
+    with ThreadPoolExecutor(max_workers=S3_CONNECTION_COUNT) as executor:
         list(executor.map(lambda x: x.process(), decision_partitions))  # list() forces evaluation of generator
     
     total_from_partitions, total_from_s3 = stats.store.summarize_all()
