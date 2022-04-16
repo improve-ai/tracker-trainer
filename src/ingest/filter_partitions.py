@@ -1,47 +1,15 @@
 import json
-import os 
 
-import boto3
+from partition import list_partition_s3_keys
+from utils import is_valid_model_name
 
-TRAIN_BUCKET = os.getenv('TRAIN_BUCKET')
-
-# Launch a reward assignment AWS Batch Job
 def lambda_handler(event, context):
     
     print(f'processing event {json.dumps(event)}')
 
-    if not RECORDS_KEY in event or len(event[RECORDS_KEY]) != 1:
-        raise Exception('Unexpected s3 event format')
-        
-    record = event[RECORDS_KEY][0]
-    
-    if not S3_KEY in record or not BUCKET_KEY in record[S3_KEY] or not OBJECT_KEY in record[S3_KEY]:
-        raise Exception('Unexpected s3 event format')
+    model_name = event['model_name']
+    assert is_valid_model_name(model_name)
 
-    bucket = record[S3_KEY][BUCKET_KEY]
-    object_ = record[S3_KEY][OBJECT_KEY]
+    partition_s3_keys = list_partition_s3_keys(model_name)
 
-    if not NAME_KEY in bucket or not KEY_KEY in object_:
-        raise Exception('Unexpected s3 event format')
-
-    s3_bucket = bucket[NAME_KEY]
-    s3_key = object_[KEY_KEY]
-    
-    assert(s3_bucket == FIREHOSE_BUCKET)
-        
-    batch = boto3.client('batch')
-
-    r = batch.submit_job(
-        jobName=f"{os.environ['SERVICE']}-{os.environ['STAGE']}-IngestFirehose", 
-        jobQueue=os.environ['JOB_QUEUE'], 
-        jobDefinition=os.environ['JOB_DEFINITION'],
-        containerOverrides={
-            'environment':[
-                {'name': 'TRAIN_BUCKET', 'value': TRAIN_BUCKET},
-                {'name': 'FIREHOSE_BUCKET', 'value': FIREHOSE_BUCKET},
-                {'name': 'S3_KEY', 'value': s3_key}
-            ],
-        }
-    )
-
-    print(f"submitted batch job {r['jobArn']} to ingest s3://{s3_bucket}/{s3_key}")
+    return partition_s3_keys

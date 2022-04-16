@@ -8,12 +8,11 @@ import math
 from ksuid import Ksuid
 import orjson
 import pandas as pd
-import portion as P
 from uuid import uuid4
 
 
 # Local imports
-from config import s3client, TRAIN_BUCKET, PARQUET_FILE_MAX_DECISION_RECORDS, stats, DEBUG
+from config import s3client, TRAIN_BUCKET, PARQUET_FILE_MAX_DECISION_RECORDS, stats
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA
 from firehose_record import is_valid_message_id
 from utils import is_valid_model_name, json_dumps, list_partitions_after
@@ -551,3 +550,8 @@ def parquet_s3_key(model_name, min_decision_id, max_decision_id, count):
     # the last dash should be considered an opaque string of random characters
     #
     return f'{parquet_s3_key_prefix(model_name, max_decision_id)}-{min_timestamp}-{count}-{uuid4()}.parquet'
+
+
+def list_partition_s3_keys(model_name):
+    keys = list_s3_keys(bucket_name=bucket_name, prefix=prefix)
+    return keys if not valid_keys_only else [k for k in keys if is_valid_rewarded_decisions_s3_key(k)]

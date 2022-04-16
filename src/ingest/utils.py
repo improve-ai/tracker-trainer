@@ -99,10 +99,6 @@ def list_s3_keys(bucket_name, prefix='', after_key=''):
     return keys
 
 
-def list_partitions_after(bucket_name, key, prefix='', valid_keys_only=True):
-    keys = list_s3_keys_after(bucket_name=bucket_name, key=key, prefix=prefix)
-    return keys if not valid_keys_only else [k for k in keys if is_valid_rewarded_decisions_s3_key(k)]
-
 
 def is_valid_rewarded_decisions_s3_key(s3_key):
     """ Validate if an s3 key complies with the expected format """

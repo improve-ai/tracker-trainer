@@ -8,9 +8,9 @@ import sys
 import traceback
 import threading
 
-from config import TRAIN_BUCKET, FIREHOSE_BUCKET, THREAD_WORKER_COUNT, stats
+from config import TRAIN_BUCKET, FIREHOSE_BUCKET, S3_CONNECTION_COUNT, stats
 from firehose_record import FirehoseRecordGroup
-from rewarded_decisions import RewardedDecisionPartition
+from partition import RewardedDecisionPartition
 
 
 RECORDS_KEY = 'Records'
@@ -51,7 +51,7 @@ def lambda_handler(event, context):
     decision_partitions = map(lambda x: RewardedDecisionPartition(x.model_name, x.to_pandas_df()), firehose_record_groups)
     
     # process each group. consolidate records, upload rewarded decisions to s3
-    with concurrent.futures.ThreadPoolExecutor(max_workers=THREAD_WORKER_COUNT) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=S3_CONNECTION_COUNT) as executor:
         list(executor.map(lambda x: x.process(), decision_partitions))  # list() forces evaluation of generator
     
     total_from_partitions, total_from_s3 = stats.store.summarize_all()
