@@ -3,7 +3,7 @@ import json
 from partition import list_partition_s3_keys
 from utils import is_valid_model_name
 
-def lambda_handler(event, context):
+def filter_handler(event, context):
     
     print(f'processing event {json.dumps(event)}')
 
@@ -13,3 +13,7 @@ def lambda_handler(event, context):
     partition_s3_keys = list_partition_s3_keys(model_name)
 
     return partition_s3_keys
+    
+def groom_handler(event, context):
+    
+    print(f'processing event {json.dumps(event)}')

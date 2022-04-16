@@ -79,14 +79,14 @@ functions:
     image:
       name: ingest
       command:
-        - filter_partitions.lambda_handler
+        - groom_partitions.filter_handler
   groomPartitions:
     description: Ingest New Firehose File to Train Bucket
     memorySize: 1024
     image:
       name: ingest
       command:
-        - groom_partitions.lambda_handler
+        - groom_partitions.groom_handler
   dispatchTrainingJob:
     description: Dispatch Decision Model Training Jobs
     timeout: 30
