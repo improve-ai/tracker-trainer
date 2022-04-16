@@ -66,6 +66,7 @@ class RewardedDecisionPartition:
                     dfs.append(self.df)
                     
                 self.df = pd.concat(dfs, ignore_index=True)
+                self.sorted = False
 
 #        stats.increment_rewarded_decision_count(self.model_name, self.df.shape[0], s3_df.shape[0])
 
@@ -91,24 +92,19 @@ class RewardedDecisionPartition:
     def sort(self):
         self.df.sort_values(DECISION_ID_KEY, inplace=True, ignore_index=True)
         
-        self._min_decision_id = self.df[DECISION_ID_KEY].iat[0]
-        self._max_decision_id = self.df[DECISION_ID_KEY].iat[-1]
-
         self.sorted = True
         
     
     @property    
     def min_decision_id(self):
         assert self.sorted
-        # use instance variable because it will be accessed after dataframe cleanup
-        return self._min_decision_id
+        return self.df[DECISION_ID_KEY].iat[0]
         
     
     @property
     def max_decision_id(self):
         assert self.sorted
-        # use instance variable because it will be accessed after dataframe cleanup
-        return self._max_decision_id
+        return self.df[DECISION_ID_KEY].iat[-1]
 
 
     def merge(self):
