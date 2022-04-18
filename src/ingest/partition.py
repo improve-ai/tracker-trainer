@@ -81,7 +81,7 @@ class RewardedDecisionPartition:
                 max_decision_id=chunk[DECISION_ID_KEY].iat[-1], count=chunk.shape[0])
                 
             stats.increment_s3_requests_count('put')
-            chunk.to_parquet(f's3://{TRAIN_BUCKET}/{chunk_s3_key}', compression='ZSTD')
+            chunk.to_parquet(f's3://{TRAIN_BUCKET}/{chunk_s3_key}', compression='ZSTD', index=False)
 
     
     def filter_valid(self):
@@ -244,19 +244,24 @@ def maybe_split_on_timestamp_boundaries(df, max_row_count=PARQUET_FILE_MAX_DECIS
     # iterate through different timestamp prefix lengths
     # does not split below 1 second resolution
     for i in range(len('YYYYmm'),len('YYYYmmddTHHMMSS')+1):
-        # are all of the dataframes small enough?
+        # if all the dataframes are small enough don't split further
         if all(map(lambda x: x.shape[0] <= max_row_count, dfs)):
             break
         
-        # group by timestamp prefix
+        # group by timestamp prefixes of length i
         dfs = [x.reset_index() for _, x in df.set_index(DECISION_ID_KEY).groupby(lambda x: decision_id_to_timestamp(x)[:i])]
     
     return dfs
     
 
-def min_max_timestamp_count(s3_key):
+def min_max_timestamp_row_count(s3_key):
     maxts, mints, count = s3_key.split('/')[-1].split('-')[:3]
     return mints, maxts, count
+    
+    
+def row_count(s3_key):
+    _, _, row_count = min_max_timestamp_row_count(s3_key)
+    return row_count
     
     
 def decision_id_to_timestamp(decision_id):
@@ -287,7 +292,7 @@ def parquet_s3_key(model_name, min_decision_id, max_decision_id, count):
     # eventually consistency.
     #
     # The final UUID4 is simply to give the file a random name. For now, the characters following
-    # the last dash should be considered an opaque string of random characters
+    # the third dash should be considered an opaque string of random characters
     #
     return f'{parquet_s3_key_prefix(model_name, max_decision_id)}-{min_timestamp}-{count}-{uuid4()}.parquet'
 
