@@ -74,8 +74,8 @@ functions:
           bucket: !Ref FirehoseS3Bucket
           existing: true # created in resources
           event: s3:ObjectCreated:*
-  filterPartitions:
-    description: Ingest New Firehose File to Train Bucket
+  filterPartitionsToGroom:
+    description: Filter Groups of .parquet S3 Keys to Groom
     image:
       name: ingest
       command:
@@ -126,12 +126,12 @@ stepFunctions:
           FilterPartitions:
             Type: Task
             Resource:
-              Fn::GetAtt: [filterPartitions, Arn]
-            ResultPath: $.partition_groups
+              Fn::GetAtt: [filterPartitionsToGroom, Arn]
+            ResultPath: $.groom_groups
             Next: GroomMap
           GroomMap:
             Type: Map
-            ItemsPath: $.partition_groups
+            ItemsPath: $.groom_groups
             Iterator:
               StartAt: GroomTask
               States:

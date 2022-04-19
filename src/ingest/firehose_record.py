@@ -10,7 +10,7 @@ import orjson as json
 import pandas as pd
 
 # Local imports
-from config import FIREHOSE_BUCKET, s3client, stats, DEBUG
+from config import FIREHOSE_BUCKET, s3client, stats
 from utils import utc, is_valid_model_name, is_valid_ksuid, get_valid_timestamp, \
     json_dumps_wrapping_primitive, json_dumps
 
