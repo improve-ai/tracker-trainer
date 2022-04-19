@@ -68,13 +68,19 @@ class RewardedDecisionPartition:
                 self.df = pd.concat(dfs, ignore_index=True)
                 self.sorted = False
 
-
+            print(f'loaded {self.df.shape[0]} rewarded decisions for {self.model_name} across {len(self.s3_keys)} partitions')
+                
 
     def save(self):
         assert self.sorted
+        
+        # disperse overlaps throughout the index
+        chunks = maybe_split_on_timestamp_boundaries(self.df)
 
+        print(f'writing {sum(map(lambda x: x.shape[0], chunks))} rewarded decisions for {self.model_name} across {len(chunks)} partitions')
+        
         # split the dataframe into multiple chunks if necessary
-        for chunk in maybe_split_on_timestamp_boundaries(self.df):
+        for chunk in chunks:
             # generate a unique s3 key for this chunk
             chunk_s3_key = parquet_s3_key(self.model_name, min_decision_id=chunk[DECISION_ID_KEY].iat[0], 
                 max_decision_id=chunk[DECISION_ID_KEY].iat[-1], count=chunk.shape[0])
@@ -230,7 +236,16 @@ def read_parquet(s3_key):
     
     
 def maybe_split_on_timestamp_boundaries(df, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS):
+    ''' The purposes of this is to disperse overlaps throughout the timeline. The only case where
+    there should be a row_count > max is when merging an overlap or in the exceptional case where
+    > max decisions occur on the same second. 
     
+    Splitting on timestamp boundaries serves two purposes. First, by having hard boundaries it reduces
+    chains of overlaps propegating back through the timeline. Note that each more finegrained timestamp
+    prefix includes its parents, so the boundaries are enforced at all resolutions. Second, the
+    timestamp boundaries quickly disperse rewards for old decisions further back in the timeline so that
+    they may be merged in just a few grooming passes.
+    '''
     dfs = [df]
     
     # iterate through different timestamp prefix lengths

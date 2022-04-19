@@ -282,10 +282,10 @@ class FirehoseRecordGroup:
                     invalid_records.append(line)
                     continue
     
-        print(f'valid records: {sum(map(len, records_by_model.values()))}')
-        print(f'invalid records: {len(invalid_records)}')
-        print(f'parse exceptions: {json_dumps(exception_counts)}')
-        print(f'models: {json_dumps(list(records_by_model.keys()))}')
+        print(f'valid records: {json_dumps({k: len(v) for k, v in records_by_model.items()})}')
+        if len(invalid_records):
+            print(f'invalid records: {len(invalid_records)}')
+            print(f'parse exceptions: {json_dumps(exception_counts)}')
 
         results = []
         for model, records in records_by_model.items():

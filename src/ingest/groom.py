@@ -78,8 +78,6 @@ def groom_handler(event, context):
 
     s3_keys = event['s3_keys']
 
-    print(f'grooming {len(s3_keys)} rewarded decision partitions containing {sum(map(row_count, s3_keys))} records')
-    
     # load all s3_keys, merge records, and optionally split into multiple partitions
     RewardedDecisionPartition(model_name=event['model_name'], s3_keys=s3_keys).process()
     
