@@ -10,10 +10,10 @@ from pytest_cases import parametrize
 
 # Local imports
 import config
-import rewarded_decisions
+import partition
 import firehose_record
 import utils
-from utils import list_s3_keys_after, list_partitions_after
+from utils import list_s3_keys, list_partitions
 from config import TRAIN_BUCKET
 from firehose_record import DF_SCHEMA
 from tests_utils import dicts_to_df
@@ -175,14 +175,14 @@ def test_list_s3_keys_after(s3, current_cases, mocker, keys):
     expected = params.get("expected")
     # Patch the s3 client used in list_delimited_s3_keys
     config.s3client = utils.s3client = \
-        rewarded_decisions.s3client = firehose_record.s3client = s3
+        partition.s3client = firehose_record.s3client = s3
     # Create a temporal bucket
     s3.create_bucket(Bucket=TRAIN_BUCKET)
 
     # Test for known exceptions to be raised
     if case_id == "wrong_types":
         with pytest.raises(TypeError):
-            list_s3_keys_after(TRAIN_BUCKET, p_start)
+            list_s3_keys(TRAIN_BUCKET, after_key=p_start)
 
     else:
         # TODO this can be simplified by moving with statement here
@@ -191,7 +191,7 @@ def test_list_s3_keys_after(s3, current_cases, mocker, keys):
         for s3_key in keys:
             s3.put_object(Bucket=TRAIN_BUCKET, Body=io.BytesIO(), Key=s3_key)
 
-        selected_keys = list_s3_keys_after(TRAIN_BUCKET, p_start)
+        selected_keys = list_s3_keys(TRAIN_BUCKET, after_key=p_start)
 
         assert isinstance(selected_keys, list)
         assert len(selected_keys) == len(expected)
@@ -209,7 +209,7 @@ def test_list_partitions_after(s3, current_cases, mocker, keys):
     expected = params.get("expected")
     # Patch the s3 client used in list_delimited_s3_keys
     config.s3client = utils.s3client = \
-        rewarded_decisions.s3client = firehose_record.s3client = s3
+        partition.s3client = firehose_record.s3client = s3
     # Create a temporal bucket
     s3.create_bucket(Bucket=TRAIN_BUCKET)
 

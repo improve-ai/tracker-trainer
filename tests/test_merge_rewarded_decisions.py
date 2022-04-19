@@ -4,10 +4,10 @@ import pandas as pd
 from pandas._testing import assert_frame_equal
 
 # Local imports
-from src.ingest_firehose.rewarded_decisions import RewardedDecisionPartition
-from src.ingest_firehose.firehose_record import DF_SCHEMA, REWARD_KEY, REWARDS_KEY,\
+from src.ingest.partition import RewardedDecisionPartition
+from src.ingest.firehose_record import DF_SCHEMA, REWARD_KEY, REWARDS_KEY,\
     TYPE_KEY, FirehoseRecordGroup, FirehoseRecord, assert_valid_rewarded_decision_record
-from src.ingest_firehose.utils import json_dumps
+from src.ingest.utils import json_dumps
 
 from tests_utils import dicts_to_df
 

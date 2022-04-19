@@ -18,13 +18,12 @@ import pytest
 # Local imports
 import config
 import firehose_record
-import rewarded_decisions
-from rewarded_decisions import repair_overlapping_keys, get_all_overlaps, get_unique_overlapping_keys, \
-    DECISION_ID_KEY, DF_SCHEMA
+import partition
+from partition import DECISION_ID_KEY, DF_SCHEMA
 import utils
 import worker
 
-parquet_s3_key = rewarded_decisions.parquet_s3_key
+parquet_s3_key = partition.parquet_s3_key
 
 from tests_utils import dicts_to_df, upload_gzipped_jsonl_records_to_firehose_bucket
 
@@ -48,7 +47,7 @@ def test_worker_ingestion_fail_due_to_bad_records(s3, get_decision_rec, get_rewa
     """
 
     # Replace the s3client with a mocked one
-    config.s3client = firehose_record.s3client = utils.s3client = rewarded_decisions.s3client = s3
+    config.s3client = firehose_record.s3client = utils.s3client = partition.s3client = s3
 
     # Create mocked buckets
     s3.create_bucket(Bucket=config.FIREHOSE_BUCKET)
