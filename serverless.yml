@@ -79,14 +79,14 @@ functions:
     image:
       name: ingest
       command:
-        - groom_partitions.filter_handler
+        - groom.filter_handler
   groomPartitions:
     description: Ingest New Firehose File to Train Bucket
     memorySize: 1024
     image:
       name: ingest
       command:
-        - groom_partitions.groom_handler
+        - groom.groom_handler
   dispatchTrainingJob:
     description: Dispatch Decision Model Training Jobs
     timeout: 30
@@ -111,16 +111,16 @@ functions:
 stepFunctions:
   stateMachines:
     GroomThenTrain:
+      name: ${self:service}-${opt:stage, self:provider.stage}-GroomThenTrainStateMachine
       events:
         - schedule:
             rate: rate(2 minutes)
             enabled: true
             input:
-              key1: value1
+              model_name: messages-2.0
               key2: value2
 #      events: ${file(src/predeploy.js):trainingScheduleEvents}
       definition:
-        Comment: "A Map example of the Amazon States Language using an AWS Lambda Function"
         StartAt: FilterPartitions
         States:
           FilterPartitions:

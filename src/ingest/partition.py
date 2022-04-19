@@ -254,8 +254,8 @@ def maybe_split_on_timestamp_boundaries(df, max_row_count=PARQUET_FILE_MAX_DECIS
     
 
 def min_max_timestamp_row_count(s3_key):
-    maxts, mints, count = s3_key.split('/')[-1].split('-')[:3]
-    return mints, maxts, count
+    maxts, mints, count_str = s3_key.split('/')[-1].split('-')[:3]
+    return mints, maxts, int(count_str)
     
     
 def row_count(s3_key):
