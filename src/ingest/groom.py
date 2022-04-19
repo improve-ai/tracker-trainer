@@ -1,6 +1,6 @@
 import json
 
-from config import stats, PARQUET_FILE_MAX_DECISION_RECORDS
+from config import PARQUET_FILE_MAX_DECISION_RECORDS
 from partition import RewardedDecisionPartition, list_partition_s3_keys, min_timestamp, max_timestamp, row_count
 from utils import is_valid_model_name
 
@@ -84,6 +84,4 @@ def groom_handler(event, context):
     # load all s3_keys, merge records, and optionally split into multiple partitions
     RewardedDecisionPartition(model_name=event['model_name'], s3_keys=s3_keys).process()
     
-    print(stats)
-
     return None

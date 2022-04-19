@@ -114,9 +114,9 @@ stepFunctions:
       name: ${self:service}-${opt:stage, self:provider.stage}-GroomThenTrainStateMachine
       events: ${file(src/predeploy.js):trainingScheduleEvents}
       definition:
-        StartAt: FilterPartitions
+        StartAt: FilterPartitionsToGroom
         States:
-          FilterPartitions:
+          FilterPartitionsToGroom:
             Type: Task
             Resource:
               Fn::GetAtt: [filterPartitionsToGroom, Arn]
@@ -153,7 +153,7 @@ stepFunctions:
                   Type: Pass
                   End: true
             ResultPath: $.filter.groom_groups # clear filter.groom_groups with null result
-            Next: FilterPartitions # loop back to FilterPartitions
+            Next: FilterPartitionsToGroom # loop back to FilterPartitions
           Train:
             Type: Task
             Resource:

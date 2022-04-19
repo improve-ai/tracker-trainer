@@ -14,7 +14,7 @@ from uuid import uuid4
 
 
 # Local imports
-from config import s3client, TRAIN_BUCKET, PARQUET_FILE_MAX_DECISION_RECORDS, S3_CONNECTION_COUNT, stats
+from config import s3client, TRAIN_BUCKET, PARQUET_FILE_MAX_DECISION_RECORDS, S3_CONNECTION_COUNT
 from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA
 from firehose_record import is_valid_message_id
 from utils import is_valid_model_name, is_valid_rewarded_decisions_s3_key, json_dumps, list_s3_keys
@@ -44,26 +44,21 @@ class RewardedDecisionPartition:
         self.filter_valid()
 
         # sort the combined dataframe and update min/max decision_ids
-        print(f'sorting rewarded decision records')
         self.sort()
 
         # merge the rewarded decisions together to accumulate the rewards
-        print(f'merging rewarded decision records')
         self.merge()
         
         # save the consolidated partition to s3 as one or more .parquet files
-        print(f'saving rewarded decision partitions')
         self.save()
 
         # delete the old .parquet files (if any) and clean up dataframe RAM
-        print(f'cleaning up')
         self.cleanup()
 
 
     def load(self):
         if self.s3_keys:
-            print(f'loading {len(self.s3_keys)} rewarded decision partitions')
-            
+
             with ThreadPoolExecutor(max_workers=S3_CONNECTION_COUNT) as executor:
                 dfs = list(executor.map(read_parquet, self.s3_keys))
                 
@@ -73,7 +68,6 @@ class RewardedDecisionPartition:
                 self.df = pd.concat(dfs, ignore_index=True)
                 self.sorted = False
 
-#        stats.increment_rewarded_decision_count(self.model_name, self.df.shape[0], s3_df.shape[0])
 
 
     def save(self):
@@ -85,7 +79,6 @@ class RewardedDecisionPartition:
             chunk_s3_key = parquet_s3_key(self.model_name, min_decision_id=chunk[DECISION_ID_KEY].iat[0], 
                 max_decision_id=chunk[DECISION_ID_KEY].iat[-1], count=chunk.shape[0])
                 
-            stats.increment_s3_requests_count('put')
             chunk.to_parquet(f's3://{TRAIN_BUCKET}/{chunk_s3_key}', compression='ZSTD', index=False)
 
     
@@ -199,7 +192,6 @@ class RewardedDecisionPartition:
         """
 
         self.df = self.df.groupby("decision_id").agg(**aggregations).reset_index(drop=True).astype(DF_SCHEMA)
-        stats.increment_records_after_merge_count(self.df.shape[0])
 
 
     def cleanup(self):
@@ -207,7 +199,6 @@ class RewardedDecisionPartition:
             # delete the previous .parquet files from s3
             # do this last in case there is a problem during processing that needs to be retried
         
-            stats.increment_s3_requests_count('delete')
             response = s3client.delete_objects(
                 Bucket=TRAIN_BUCKET,
                 Delete={
@@ -222,19 +213,15 @@ class RewardedDecisionPartition:
 
 def read_parquet(s3_key):
 
-    stats.increment_s3_requests_count('get')
     s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}')
 
     # TODO: add more validations
     valid_idxs = s3_df.decision_id.apply(is_valid_message_id)
     if not valid_idxs.all():
         unrecoverable_key = f'unrecoverable/{s3_key}'
-        stats.remember_bad_s3_parquet_file(unrecoverable_key)
 
-        stats.increment_s3_requests_count('put')
         s3_df.to_parquet(f's3://{TRAIN_BUCKET}/{unrecoverable_key}', compression='ZSTD')
         
-        stats.increment_s3_requests_count('delete')
         s3client.delete_object(Bucket=TRAIN_BUCKET, Key=s3_key)
 
         raise IOError(f"Invalid records found in '{s3_key}'. Moved to s3://{TRAIN_BUCKET}/{unrecoverable_key}'")

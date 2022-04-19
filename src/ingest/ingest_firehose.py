@@ -8,7 +8,7 @@ import sys
 import traceback
 import threading
 
-from config import TRAIN_BUCKET, FIREHOSE_BUCKET, S3_CONNECTION_COUNT, stats
+from config import TRAIN_BUCKET, FIREHOSE_BUCKET, S3_CONNECTION_COUNT
 from firehose_record import FirehoseRecordGroup
 from partition import RewardedDecisionPartition
 
@@ -48,19 +48,11 @@ def lambda_handler(event, context):
     # load the incoming firehose file and group records by model name
     firehose_record_groups = FirehoseRecordGroup.load_groups(s3_key)
 
-    decision_partitions = map(lambda x: RewardedDecisionPartition(x.model_name, x.to_pandas_df()), firehose_record_groups)
+    decision_partitions = list(map(lambda x: RewardedDecisionPartition(x.model_name, x.to_pandas_df()), firehose_record_groups))
     
     # process each group. consolidate records, upload rewarded decisions to s3
     with ThreadPoolExecutor(max_workers=S3_CONNECTION_COUNT) as executor:
         list(executor.map(lambda x: x.process(), decision_partitions))  # list() forces evaluation of generator
     
-    total_from_partitions, total_from_s3 = stats.store.summarize_all()
-
-    print("Total (P)RDRs from JSONL: {}; Total (P)RDRs from Parquet files in S3: {}".format(
-        total_from_partitions, total_from_s3))
-    print(f"Total (P)RDRs after merge: {stats.records_after_merge_count}")
-    
-    print(stats)
-
-    print(f'finished firehose ingest')
+    return None
 
