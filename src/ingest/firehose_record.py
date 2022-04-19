@@ -277,7 +277,8 @@ class FirehoseRecordGroup:
                     records_by_model[model].append(record)
 
                 except Exception as e:
-                    exception_counts[str(e)] = exception_counts.get(str(e), 0) + 1
+                    e_str = repr(e)
+                    exception_counts[e_str] = exception_counts.get(e_str, 0) + 1
                     invalid_records.append(line)
                     continue
     
@@ -287,8 +288,8 @@ class FirehoseRecordGroup:
     
         print(f'valid records: {sum(map(len, records_by_model.values()))}')
         print(f'invalid records: {len(invalid_records)}')
-        print(f'parse exceptions: {json.dumps(exception_counts)}')
-        print(f'models: {json.dumps(records_by_model.keys())}')
+        print(f'parse exceptions: {json_dumps(exception_counts)}')
+        print(f'models: {json_dumps(list(records_by_model.keys()))}')
 
         results = []
         for model, records in records_by_model.items():
