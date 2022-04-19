@@ -4,13 +4,23 @@ from config import stats, PARQUET_FILE_MAX_DECISION_RECORDS
 from partition import RewardedDecisionPartition, list_partition_s3_keys, min_timestamp, max_timestamp, row_count
 from utils import is_valid_model_name
 
+MAX_GROOM_ITERATIONS = 10
+
 def filter_handler(event, context):
     
     print(f'processing event {json.dumps(event)}')
 
     model_name = event['model_name']
     assert is_valid_model_name(model_name)
-
+    
+    try:
+        iteration = int(event['filter']['iteration'])+1
+    except (KeyError, ValueError):
+        iteration = 1
+        
+    if iteration > MAX_GROOM_ITERATIONS:
+        return None
+    
     # list every partition for this model_name
     s3_keys = list_partition_s3_keys(model_name)
 
@@ -18,7 +28,7 @@ def filter_handler(event, context):
 
     groups = group_partitions_to_groom(s3_keys)
     
-    return list(groups) # wrap in list for JSON serializiation
+    return {'iteration': iteration, 'groom_groups': list(groups)} # wrap in list for JSON serializiation
     
     
 def group_partitions_to_groom(s3_keys):

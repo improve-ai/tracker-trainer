@@ -120,12 +120,19 @@ stepFunctions:
             Type: Task
             Resource:
               Fn::GetAtt: [filterPartitionsToGroom, Arn]
-            ResultPath: $.groom_groups
-            Next: GroomMap
+            ResultPath: $.filter
+            Next: HasGroups
+          HasGroups:
+            Type: Choice
+            Choices:
+              - Variable: $.filter.groom_groups[0]
+                IsPresent: true
+                Next: GroomMap
+            Default: Train
           GroomMap:
             Type: Map
             MaxConcurrency: 64
-            ItemsPath: $.groom_groups
+            ItemsPath: $.filter.groom_groups
             Parameters:
               model_name.$: $.model_name
               s3_keys.$: $$.Map.Item.Value
@@ -136,9 +143,17 @@ stepFunctions:
                   Type: Task
                   Resource:
                     Fn::GetAtt: [groomPartitions, Arn]
+                  Catch:
+                    - ErrorEquals:
+                      - States.TaskFailed
+                      Next: ErrorHandler
+                      ResultPath: $.error
                   End: true
-            ResultPath: $.groom_groups # clear groom_groups with null result
-            Next: Train
+                ErrorHandler:
+                  Type: Pass
+                  End: true
+            ResultPath: $.filter.groom_groups # clear filter.groom_groups with null result
+            Next: FilterPartitions # loop back to FilterPartitions
           Train:
             Type: Task
             Resource:
