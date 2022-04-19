@@ -112,14 +112,7 @@ stepFunctions:
   stateMachines:
     GroomThenTrain:
       name: ${self:service}-${opt:stage, self:provider.stage}-GroomThenTrainStateMachine
-      events:
-        - schedule:
-            rate: rate(2 minutes)
-            enabled: true
-            input:
-              model_name: messages-2.0
-              key2: value2
-#      events: ${file(src/predeploy.js):trainingScheduleEvents}
+      events: ${file(src/predeploy.js):trainingScheduleEvents}
       definition:
         StartAt: FilterPartitions
         States:
@@ -132,6 +125,9 @@ stepFunctions:
           GroomMap:
             Type: Map
             ItemsPath: $.groom_groups
+            Parameters:
+              model_name.$: $.model_name
+              s3_keys.$: $$.Map.Item.Value
             Iterator:
               StartAt: GroomTask
               States:
@@ -140,7 +136,7 @@ stepFunctions:
                   Resource:
                     Fn::GetAtt: [groomPartitions, Arn]
                   End: true
-            ResultPath: null # ignore results, pass through input
+            ResultPath: $.groom_groups # clear groom_groups with null result
             Next: Train
           Train:
             Type: Task

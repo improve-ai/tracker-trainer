@@ -289,20 +289,11 @@ class FirehoseRecordGroup:
     
         total_records = stats.valid_records_count + stats.invalid_records_count
 
-        print("JSONL has {} record(s): {} valid record(s) and {} invalid record(s)".format(
-            total_records,
-            stats.valid_records_count,
-            stats.invalid_records_count
-        ))
-        
+        print(f'loaded {total_records} records ({stats.valid_records_count} valid, {stats.invalid_records_count} invalid)')
+
         results = []
         for model, records in records_by_model.items():
             results.append(FirehoseRecordGroup(model, records))
-        
-        print(f"Created {len(results)} FirehoseRecordGroup(s)")
-        for except_str,count in stats.parse_exception_counts.items():
-            print(f"Found {count} of the following exceptions: {except_str}")
-        print("Finished loading FirehoseRecordGroup(s)")
         
         return results
 

@@ -1,7 +1,7 @@
 import json
 
-from config import PARQUET_FILE_MAX_DECISION_RECORDS
-from partition import list_partition_s3_keys, min_timestamp, max_timestamp, row_count
+from config import stats, PARQUET_FILE_MAX_DECISION_RECORDS
+from partition import RewardedDecisionPartition, list_partition_s3_keys, min_timestamp, max_timestamp, row_count
 from utils import is_valid_model_name
 
 def filter_handler(event, context):
@@ -14,13 +14,14 @@ def filter_handler(event, context):
     # list every partition for this model_name
     s3_keys = list_partition_s3_keys(model_name)
 
+    print(f'filtering {len(s3_keys)} partitions')
+
     groups = group_partitions_to_groom(s3_keys)
     
-    return map(lambda x: {'groom_group': x}, groups)
+    return list(groups) # wrap in list for JSON serializiation
     
     
 def group_partitions_to_groom(s3_keys):
-    print(f'filtering {len(s3_keys)} partitions')
     
     groups = group_small_adjacent_partitions(s3_keys)
 
@@ -66,4 +67,13 @@ def groom_handler(event, context):
     
     print(f'processing event {json.dumps(event)}')
 
+    s3_keys = event['s3_keys']
+
+    print(f'grooming {len(s3_keys)} rewarded decision partitions containing {sum(map(row_count, s3_keys))} records')
     
+    # load all s3_keys, merge records, and optionally split into multiple partitions
+    RewardedDecisionPartition(model_name=event['model_name'], s3_keys=s3_keys).process()
+    
+    print(stats)
+
+    return None

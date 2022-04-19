@@ -124,8 +124,9 @@ class Stats:
 
     def add_parse_exception(self, e):
         """Exceptions found when loading records from a JSONL file."""
+        e_str = str(e)
         with self._lock:
-            self.parse_exception_counts[e] = self.parse_exception_counts.get(e, 0) + 1
+            self.parse_exception_counts[e_str] = self.parse_exception_counts.get(e_str, 0) + 1
 
 
     def increment_valid_records_count(self, increment=1):
@@ -172,7 +173,7 @@ class Stats:
             Quantity to increment
         """
         with self._lock:
-            assert req_type in ['list', 'put-post', 'get', 'delete']
+            assert req_type in ['list', 'put', 'get', 'delete']
             self.s3_requests_count[req_type] += increment
 
 
