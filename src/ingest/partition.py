@@ -44,20 +44,26 @@ class RewardedDecisionPartition:
         self.filter_valid()
 
         # sort the combined dataframe and update min/max decision_ids
+        print(f'sorting rewarded decision records')
         self.sort()
 
         # merge the rewarded decisions together to accumulate the rewards
+        print(f'merging rewarded decision records')
         self.merge()
         
         # save the consolidated partition to s3 as one or more .parquet files
+        print(f'saving rewarded decision partitions')
         self.save()
 
         # delete the old .parquet files (if any) and clean up dataframe RAM
+        print(f'cleaning up')
         self.cleanup()
 
 
     def load(self):
         if self.s3_keys:
+            print(f'loading {len(self.s3_keys)} rewarded decision partitions')
+            
             with ThreadPoolExecutor(max_workers=S3_CONNECTION_COUNT) as executor:
                 dfs = list(executor.map(read_parquet, self.s3_keys))
                 
@@ -198,7 +204,7 @@ class RewardedDecisionPartition:
 
     def cleanup(self):
         if self.s3_keys:
-            # delete the previous .parqet files from s3
+            # delete the previous .parquet files from s3
             # do this last in case there is a problem during processing that needs to be retried
         
             stats.increment_s3_requests_count('delete')

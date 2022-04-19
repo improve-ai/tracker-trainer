@@ -75,7 +75,7 @@ functions:
           existing: true # created in resources
           event: s3:ObjectCreated:*
   filterPartitionsToGroom:
-    description: Filter Groups of .parquet S3 Keys to Groom
+    description: Filter Groups of Rewarded Decision .parquet S3 Keys to Groom
     image:
       name: ingest
       command:
@@ -124,6 +124,7 @@ stepFunctions:
             Next: GroomMap
           GroomMap:
             Type: Map
+            MaxConcurrency: 64
             ItemsPath: $.groom_groups
             Parameters:
               model_name.$: $.model_name
