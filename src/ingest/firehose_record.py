@@ -282,10 +282,6 @@ class FirehoseRecordGroup:
                     invalid_records.append(line)
                     continue
     
-        if len(invalid_records):
-            # TODO write invalid records to /unrecoverable
-            pass
-    
         print(f'valid records: {sum(map(len, records_by_model.values()))}')
         print(f'invalid records: {len(invalid_records)}')
         print(f'parse exceptions: {json_dumps(exception_counts)}')
