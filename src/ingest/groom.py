@@ -1,10 +1,9 @@
 import json
 
-from config import PARQUET_FILE_MAX_DECISION_RECORDS
+from config import PARQUET_FILE_MAX_DECISION_RECORDS, MAX_GROOM_ITERATIONS
 from partition import RewardedDecisionPartition, list_partition_s3_keys, min_timestamp, max_timestamp, row_count
 from utils import is_valid_model_name
 
-MAX_GROOM_ITERATIONS = 10
 
 def filter_handler(event, context):
     
