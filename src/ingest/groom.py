@@ -28,7 +28,7 @@ def filter_handler(event, context):
     return {'iteration': iteration, 'groom_groups': list(groups)} # wrap in list for JSON serializiation
     
     
-def group_partitions_to_groom(s3_keys, max_s3_key_bytes=204800):
+def group_partitions_to_groom(s3_keys):
     
     groups = group_small_adjacent_partitions(s3_keys)
 
@@ -38,12 +38,23 @@ def group_partitions_to_groom(s3_keys, max_s3_key_bytes=204800):
     groups = filter(lambda x: len(x) > 1, groups)
     
     # the maximum step function payload is 256KB so cap the yielded key bytes
+    return cap_groups(groups)
+    
+
+def cap_groups(groups, max_s3_key_bytes=204800):
     s3_key_bytes = 0
     for group in groups:
-        s3_key_bytes += sum(map(lambda x: len(x.encode('utf-8')), group))
-        if s3_key_bytes > max_s3_key_bytes:
-            break
-        yield group
+        
+        capped_group = []
+        for s3_key in group:
+            s3_key_bytes += len(s3_key.encode('utf-8'))
+            if s3_key_bytes > max_s3_key_bytes:
+                if len(capped_group) > 1:
+                    yield capped_group
+                return
+            capped_group.append(s3_key)
+
+        yield capped_group
         
     
 def group_small_adjacent_partitions(s3_keys, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS):
