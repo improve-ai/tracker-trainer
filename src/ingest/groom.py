@@ -20,30 +20,15 @@ def filter_handler(event, context):
     if iteration > MAX_GROOM_ITERATIONS:
         return None
     
-    # list every partition for this model_name
+    # list up to all partitions for this model_name
     s3_keys = list_partition_s3_keys(model_name)
-
-    print(f'filtering {len(s3_keys)} partitions')
 
     groups = group_partitions_to_groom(s3_keys)
     
-    # the maximum step function payload is 256KB
-    while True:
-        result = {'iteration': iteration, 'groom_groups': groups} # wrap in list for JSON serializiation
-        
-        # leave 56KB of payload for other data
-        if len(orjson.dumps(result)) < (200 * 1024):
-            return result
-        elif len(groups) == 1:
-            # split last group in half if too big
-            groups[0] = groups[0][:len(groups[0])//2]
-        else:
-            # split groups in half if too big
-            groups = groups[:len(groups)//2]
-            
+    return {'iteration': iteration, 'groom_groups': list(groups)} # wrap in list for JSON serializiation
     
     
-def group_partitions_to_groom(s3_keys):
+def group_partitions_to_groom(s3_keys, max_s3_key_bytes=204800):
     
     groups = group_small_adjacent_partitions(s3_keys)
 
@@ -52,38 +37,49 @@ def group_partitions_to_groom(s3_keys):
     # filter out single s3_keys that don't need to be merged
     groups = filter(lambda x: len(x) > 1, groups)
     
-    return list(groups)
-    
+    # the maximum step function payload is 256KB so cap the yielded key bytes
+    s3_key_bytes = 0
+    for group in groups:
+        s3_key_bytes += sum(map(lambda x: len(x.encode('utf-8')), group))
+        if s3_key_bytes > max_s3_key_bytes:
+            break
+        yield group
+        
     
 def group_small_adjacent_partitions(s3_keys, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS):
 
-    groups = []
-
+    group = []
     for s3_key in s3_keys:
-        if len(groups) >= 1 and sum(map(row_count, groups[-1])) + row_count(s3_key) <= max_row_count:
-            groups[-1].append(s3_key) # append to the previous group
+        if sum(map(row_count, group)) + row_count(s3_key) <= max_row_count:
+            group.append(s3_key) # append to the previous group
         else:
-            groups.append([s3_key]) # create a new group
+            if len(group) >= 1: # in case row_count(s3_key) > max_row_count
+                yield group
+            group = [s3_key] # create a new group
 
-    return groups
-    
+    if len(group) >= 1:
+        yield group
+        
     
 def merge_overlapping_adjacent_group_pairs(groups):
     
-    result = []
+    # only merge single pairs of groups to keep row_count < max_row_count * 2
     candidate_group = None
 
     for group in groups:
         assert len(group) >= 1
         
-        if candidate_group and max(map(max_timestamp, candidate_group)) >= min(map(min_timestamp, group)):
-            candidate_group.extend(group)
-            candidate_group = None # only merge pairs, not unbounded continuous runs of groups
+        if candidate_group:
+            if max(map(max_timestamp, candidate_group)) >= min(map(min_timestamp, group)):
+                candidate_group.extend(group)
+                yield candidate_group    
+                candidate_group = None # only merge pairs, not unbounded continuous runs of groups
+            else:
+                yield candidate_group
+                candidate_group = group
         else:
-            result.append(group)
             candidate_group = group
 
-    return result
 
 def groom_handler(event, context):
     

@@ -315,5 +315,5 @@ def parquet_s3_key(model_name, min_decision_id, max_decision_id, count):
 
 
 def list_partition_s3_keys(model_name):
-    keys = list_s3_keys(bucket_name=TRAIN_BUCKET, prefix=f'rewarded_decisions/{model_name}/parquet/')
-    return [k for k in keys if is_valid_rewarded_decisions_s3_key(k)]
+    return filter(is_valid_rewarded_decisions_s3_key, \
+        list_s3_keys(bucket_name=TRAIN_BUCKET, prefix=f'rewarded_decisions/{model_name}/parquet/'))
