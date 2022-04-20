@@ -38,7 +38,8 @@ def group_partitions_to_groom(s3_keys):
     groups = filter(lambda x: len(x) > 1, groups)
     
     # the maximum step function payload is 256KB so cap the yielded key bytes
-    return cap_groups(groups)
+    # the maximum groom group size is 1000 keys so cap group sizes
+    return cap_s3_key_groups(groups)
     
 
 def group_small_adjacent_partitions(s3_keys, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS):
@@ -76,7 +77,7 @@ def merge_overlapping_adjacent_group_pairs(groups):
             candidate_group = group
 
 
-def cap_groups(groups, max_s3_key_bytes=204800):
+def cap_s3_key_groups(groups, max_s3_keys_per_group=1000, max_s3_key_bytes=204800):
     s3_key_bytes = 0
     for group in groups:
         
@@ -87,7 +88,11 @@ def cap_groups(groups, max_s3_key_bytes=204800):
                 if len(capped_group) > 1:
                     yield capped_group
                 return
+            
             capped_group.append(s3_key)
+            
+            if len(capped_group) == max_s3_keys_per_group:
+                break
 
         yield capped_group
     
@@ -97,6 +102,8 @@ def groom_handler(event, context):
     print(f'processing event {json_dumps(event)}')
 
     s3_keys = event['s3_keys']
+    
+    assert len(s3_keys) <= 1000
 
     # load all s3_keys, merge records, and optionally split into multiple partitions
     RewardedDecisionPartition(model_name=event['model_name'], s3_keys=s3_keys).process()

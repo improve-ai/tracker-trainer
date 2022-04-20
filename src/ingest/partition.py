@@ -30,7 +30,12 @@ class RewardedDecisionPartition:
 
         self.model_name = model_name
         self.df = df
+        
+        if s3_keys:
+            assert len(s3_keys) <= 1000 # DeleteObjects takes a maximum of 1000 keys
+            
         self.s3_keys = s3_keys
+        
 
         self.sorted = False
 
