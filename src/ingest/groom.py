@@ -30,23 +30,26 @@ def filter_handler(event, context):
     
 def group_partitions_to_groom(s3_keys):
     
-    groups = group_small_adjacent_partitions(s3_keys)
+    # group into no more than 500 items as merge overlapping may double the size
+    # the maximum group size for groom is 1000
+    groups = group_small_adjacent_partitions(s3_keys, max_group_size=500)
 
+    # may double the group size up to 1000 partitions with up to 2 * PARQUET_FILE_MAX_DECISION_RECORDS rows
     groups = merge_overlapping_adjacent_group_pairs(groups)
     
     # filter out single s3_keys that don't need to be merged
     groups = filter(lambda x: len(x) > 1, groups)
     
     # the maximum step function payload is 256KB so cap the yielded key bytes
-    # the maximum groom group size is 1000 keys so cap group sizes
-    return cap_s3_key_groups(groups)
+    return cap_s3_key_bytes(groups)
     
 
-def group_small_adjacent_partitions(s3_keys, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS):
+def group_small_adjacent_partitions(s3_keys, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS, max_group_size=500):
 
     group = []
     for s3_key in s3_keys:
-        if sum(map(row_count, group)) + row_count(s3_key) <= max_row_count:
+        if sum(map(row_count, group)) + row_count(s3_key) <= max_row_count \
+        and len(group) <= max_group_size:
             group.append(s3_key) # append to the previous group
         else:
             if len(group) >= 1: # in case row_count(s3_key) > max_row_count
@@ -77,10 +80,9 @@ def merge_overlapping_adjacent_group_pairs(groups):
             candidate_group = group
 
 
-def cap_s3_key_groups(groups, max_s3_keys_per_group=1000, max_s3_key_bytes=204800):
+def cap_s3_key_bytes(groups, max_s3_key_bytes=204800):
     s3_key_bytes = 0
     for group in groups:
-        
         capped_group = []
         for s3_key in group:
             s3_key_bytes += len(s3_key.encode('utf-8'))
@@ -91,9 +93,6 @@ def cap_s3_key_groups(groups, max_s3_keys_per_group=1000, max_s3_key_bytes=20480
             
             capped_group.append(s3_key)
             
-            if len(capped_group) == max_s3_keys_per_group:
-                break
-
         yield capped_group
     
 
