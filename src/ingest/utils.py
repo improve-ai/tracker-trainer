@@ -31,7 +31,7 @@ def list_s3_keys(bucket_name, prefix='', after_key=''):
        not isinstance(prefix, str):
         raise TypeError
 
-    return get_all_s3_objects(s3client, Bucket=bucket_name, Prefix=prefix, StartAfter=after_key)
+    return map(lambda x: x['Key'], get_all_s3_objects(s3client, Bucket=bucket_name, Prefix=prefix, StartAfter=after_key))
 
 
 # from https://stackoverflow.com/a/54314628/2590111
@@ -50,9 +50,7 @@ def get_all_s3_objects(s3, **base_kwargs):
 
 def is_valid_rewarded_decisions_s3_key(s3_key):
     """ Validate if an s3 key complies with the expected format """
-    if re.match(REWARDED_DECISIONS_S3_KEY_REGEXP, s3_key):
-        return True
-    return False
+    return bool(re.match(REWARDED_DECISIONS_S3_KEY_REGEXP, s3_key))
 
 
 def is_valid_model_name(model_name):   
