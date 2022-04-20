@@ -76,7 +76,7 @@ def merge_overlapping_adjacent_group_pairs(groups):
     for group in groups:
         assert len(group) >= 1
         
-        if candidate_group and max(map(max_timestamp, candidate_group)) > min(map(min_timestamp, group)):
+        if candidate_group and max(map(max_timestamp, candidate_group)) >= min(map(min_timestamp, group)):
             candidate_group.extend(group)
             candidate_group = None # only merge pairs, not unbounded continuous runs of groups
         else:
