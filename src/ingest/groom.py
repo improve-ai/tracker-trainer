@@ -1,13 +1,13 @@
-import json
+import orjson
 
 from config import PARQUET_FILE_MAX_DECISION_RECORDS, MAX_GROOM_ITERATIONS
 from partition import RewardedDecisionPartition, list_partition_s3_keys, min_timestamp, max_timestamp, row_count
-from utils import is_valid_model_name
+from utils import is_valid_model_name, json_dumps
 
 
 def filter_handler(event, context):
     
-    print(f'processing event {json.dumps(event)}')
+    print(f'processing event {json_dumps(event)}')
 
     model_name = event['model_name']
     assert is_valid_model_name(model_name)
@@ -27,7 +27,20 @@ def filter_handler(event, context):
 
     groups = group_partitions_to_groom(s3_keys)
     
-    return {'iteration': iteration, 'groom_groups': list(groups)} # wrap in list for JSON serializiation
+    # the maximum step function payload is 256KB
+    while True:
+        result = {'iteration': iteration, 'groom_groups': groups} # wrap in list for JSON serializiation
+        
+        # leave 56KB of payload for other data
+        if len(orjson.dumps(result)) < (200 * 1024):
+            return result
+        elif len(groups) == 1:
+            # split last group in half if too big
+            groups[0] = groups[0][:len(groups[0])//2]
+        else:
+            # split groups in half if too big
+            groups = groups[:len(groups)//2]
+            
     
     
 def group_partitions_to_groom(s3_keys):
@@ -39,7 +52,7 @@ def group_partitions_to_groom(s3_keys):
     # filter out single s3_keys that don't need to be merged
     groups = filter(lambda x: len(x) > 1, groups)
     
-    return groups
+    return list(groups)
     
     
 def group_small_adjacent_partitions(s3_keys, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS):
@@ -74,7 +87,7 @@ def merge_overlapping_adjacent_group_pairs(groups):
 
 def groom_handler(event, context):
     
-    print(f'processing event {json.dumps(event)}')
+    print(f'processing event {json_dumps(event)}')
 
     s3_keys = event['s3_keys']
 
