@@ -31,7 +31,7 @@ def filter_handler(event, context):
 def group_partitions_to_groom(s3_keys):
     
     # group into no more than 500 items as merge overlapping may double the size
-    # the maximum group size for groom is 1000
+    # and the maximum group size for groom is 1000
     groups = group_small_adjacent_partitions(s3_keys, max_group_size=500)
 
     # may double the group size up to 1000 partitions with up to 2 * PARQUET_FILE_MAX_DECISION_RECORDS rows
@@ -49,7 +49,7 @@ def group_small_adjacent_partitions(s3_keys, max_row_count=PARQUET_FILE_MAX_DECI
     group = []
     for s3_key in s3_keys:
         if sum(map(row_count, group)) + row_count(s3_key) <= max_row_count \
-        and len(group) <= max_group_size:
+        and len(group) < max_group_size:
             group.append(s3_key) # append to the previous group
         else:
             if len(group) >= 1: # in case row_count(s3_key) > max_row_count
