@@ -58,7 +58,8 @@ function configure() {
     eventSchedule['enabled'] = true
 
     // set rule name. serverless interpolates the ${opt:stage...} part
-    eventSchedule['name'] = `improveai-${config['organization']}-${config['project']}-` + '${opt:stage, self:provider.stage}' + `-${modelName}-schedule`
+    // TODO can't be more than 64 characters
+    eventSchedule['name'] = `improveai-${config['organization']}-${config['project']}-` + '${opt:stage, self:provider.stage}' + `-${modelName}`
 
     modelConfig = modelConfig || {}
     assert(isDict(modelConfig), `config/config.yml:models.${modelName} is not a dictionary`)
@@ -78,7 +79,7 @@ function configure() {
     eventSchedule['rate'] = trainingConfig['schedule']
 
     // pass description
-    eventSchedule['description'] = `training schedule and hyperparameters for ${modelName} model`
+    eventSchedule['description'] = `invoke GroomThenTrain step function for ${modelName} model`
 
     // pass env vars as parameters
     eventScheduleInput['model_name'] = modelName

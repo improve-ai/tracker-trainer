@@ -60,7 +60,7 @@ functions:
       cors: true
     environment:
       FIREHOSE_DELIVERY_STREAM_NAME: !Ref Firehose
-  ingestFirehose:
+  ingestFirehose: # if renamed, FirehoseBucket event notifications must be manually deleted 
     description: Ingest New Firehose File to Train Bucket
     memorySize: 512
     image:
@@ -77,7 +77,7 @@ functions:
       command:
         - groom.filter_handler
   groomPartitions:
-    description: Ingest New Firehose File to Train Bucket
+    description: Merge Rewarded Decision Partitions
     memorySize: 1024
     image:
       name: ingest
@@ -100,7 +100,6 @@ functions:
           rules:
             - prefix: train_output/
             - suffix: model.tar.gz
-
 
 stepFunctions:
   stateMachines:
@@ -153,10 +152,8 @@ stepFunctions:
             Resource:
               Fn::GetAtt: [dispatchTrainingJob, Arn]
             End: true
-#      dependsOn: CustomIamRole
-  validate: true # enable pre-deployment definition validation (disabled by default)
+#  validate: true
  
-
 resources:
   Resources:
       FirehoseToS3Role:
