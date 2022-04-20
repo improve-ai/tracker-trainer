@@ -34,10 +34,6 @@ provider:
           Resource: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
         - Effect: Allow
           Action:
-            - batch:SubmitJob
-          Resource: "arn:aws:batch:*:*:*"
-        - Effect: Allow
-          Action:
             - 's3:*'
           Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
   environment:
@@ -93,8 +89,6 @@ functions:
     handler: src/train/dispatch_job.lambda_handler
     environment:
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
-      TRAINING_SUBNET: !Ref Subnet
-      TRAINING_SECURITY_GROUP: !Ref SecurityGroup
       SERVICE_NAME: ${self:service}
   unpackModels:
     handler: src/train/unpack_models.unpack
@@ -254,71 +248,3 @@ resources:
         DeletionPolicy: Retain
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-models
-      VPC:
-        Type: AWS::EC2::VPC
-        Properties:
-          CidrBlock: 10.0.0.0/16
-          EnableDnsHostnames: true
-          Tags:
-            - Key: Name
-              Value: ${self:service}-${opt:stage, self:provider.stage}-VPC
-      InternetGateway:
-        Type: AWS::EC2::InternetGateway
-      RouteTable:
-        Type: AWS::EC2::RouteTable
-        Properties:
-          VpcId: !Ref VPC
-      VPCGatewayAttachment:
-        Type: AWS::EC2::VPCGatewayAttachment
-        Properties:
-          VpcId: !Ref VPC
-          InternetGatewayId: !Ref InternetGateway
-      SecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-          GroupName: ${self:service}-${opt:stage, self:provider.stage}-SecurityGroup
-          GroupDescription: Improve AI Gym SecurityGroup
-          VpcId: !Ref VPC
-          SecurityGroupIngress:
-            - IpProtocol: tcp
-              FromPort: 2049 # Allows Batch to connect to EFS
-              ToPort: 2049  
-              CidrIp: 0.0.0.0/0
-            - IpProtocol: udp
-              FromPort: 500 # Allows for encrypted inter-container traffic
-              ToPort: 500
-              CidrIp: 0.0.0.0/0
-            - IpProtocol: -1
-              FromPort: -1 # Allows for inter-instance comm
-              ToPort: -1
-              CidrIp: 0.0.0.0/0
-          SecurityGroupEgress:
-            - IpProtocol: udp
-              FromPort: 500 # Allows Batch to connect to EFS
-              ToPort: 500
-              CidrIp: 0.0.0.0/0
-            - IpProtocol: -1
-              FromPort: -1 # Allows for inter-instance comm
-              ToPort: -1
-              CidrIp: 0.0.0.0/0
-      Subnet:
-        Type: AWS::EC2::Subnet
-        Properties:
-          CidrBlock: 10.0.0.0/24
-          VpcId: !Ref VPC
-          MapPublicIpOnLaunch: 'True'
-          AvailabilityZone: ${self:provider.region}a # match availability zone for EFS One Zone
-          Tags:
-            - Key: Name
-              Value: ${self:service}-${opt:stage, self:provider.stage}-Subnet
-      Route:
-        Type: AWS::EC2::Route
-        Properties:
-          RouteTableId: !Ref RouteTable
-          DestinationCidrBlock: 0.0.0.0/0
-          GatewayId: !Ref InternetGateway
-      SubnetRouteTableAssociation:
-        Type: AWS::EC2::SubnetRouteTableAssociation
-        Properties:
-          RouteTableId: !Ref RouteTable
-          SubnetId: !Ref Subnet
