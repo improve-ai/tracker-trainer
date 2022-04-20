@@ -41,22 +41,6 @@ def group_partitions_to_groom(s3_keys):
     return cap_groups(groups)
     
 
-def cap_groups(groups, max_s3_key_bytes=204800):
-    s3_key_bytes = 0
-    for group in groups:
-        
-        capped_group = []
-        for s3_key in group:
-            s3_key_bytes += len(s3_key.encode('utf-8'))
-            if s3_key_bytes > max_s3_key_bytes:
-                if len(capped_group) > 1:
-                    yield capped_group
-                return
-            capped_group.append(s3_key)
-
-        yield capped_group
-        
-    
 def group_small_adjacent_partitions(s3_keys, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS):
 
     group = []
@@ -91,6 +75,22 @@ def merge_overlapping_adjacent_group_pairs(groups):
         else:
             candidate_group = group
 
+
+def cap_groups(groups, max_s3_key_bytes=204800):
+    s3_key_bytes = 0
+    for group in groups:
+        
+        capped_group = []
+        for s3_key in group:
+            s3_key_bytes += len(s3_key.encode('utf-8'))
+            if s3_key_bytes > max_s3_key_bytes:
+                if len(capped_group) > 1:
+                    yield capped_group
+                return
+            capped_group.append(s3_key)
+
+        yield capped_group
+    
 
 def groom_handler(event, context):
     
