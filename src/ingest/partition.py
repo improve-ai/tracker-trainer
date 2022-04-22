@@ -260,7 +260,6 @@ def maybe_split_on_timestamp_boundaries(df, max_row_count=PARQUET_FILE_MAX_DECIS
     '''
     dfs = [df]
     
-    # start at one month resolution to allow easy cleanup of old partitions
     # iterate through different timestamp prefix lengths
     # does not split below 1 second resolution
     for i in range(len('YYYYmm'),len('YYYYmmddTHHMMSS')+1):
