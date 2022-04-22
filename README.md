@@ -44,11 +44,14 @@ Deploy a new dev stage in us-east-1
 $ serverless deploy --stage dev
 ```
 
-The output of the deployment will list the HTTPS URL for the *track* endpoint like https://xxxxxxxx.execute-api.us-east-1.amazonaws.com/track
+The output of the deployment will list the HTTPS URL for the *track* endpoint like https://xxxx.lambda-url.us-east-1.on.aws
 
-Using the AWS API Gateway console, create a custom, stable DNS mapping to the track endpoint. In production, do not use the *...execute-api.us-east-1...* URL directly in clients because if you delete then re-create the stack, AWS will not re-assign you that URL.
+Either configure a CDN in front of this URL, or use it directly in the client SDKs to track decisions and rewards.
 
-Either configure a CDN in front of the S3 models bucket, or make the 'models' directory public to serve models directly from S3.
+The deployment will also create a *models* S3 bucket in the form of *improveai-acme-demo-prod-models* where the continuously trained 
+models will automatically be uploaded.
+
+Either configure a CDN in front of the models S3 bucket, or make the 'models' directory public to serve models directly from S3.
 
 # Architecture
 
@@ -56,19 +59,30 @@ The Improve AI Gym stack consists of a number of components to track decisions a
 
 ## Track Endpoint
 
-AWS API Gateway and AWS Lambda are used to provide the *track* HTTPS endpoint. The *track* endpoint URL is used by the client SDKs to track decisions and rewards. Events received by the track endpoint Lambda are sent to AWS Firehose for persistence and further processing. The maximum payload size for *track* is 1MB.
+The *track* HTTPS endpoint is an AWS Lambda service that scalably tracks decisions and rewards. The *track* endpoint URL is used by the client SDKs to track 
+decisions and rewards.  Events received by the track endpoint Lambda are sent to AWS Firehose for persistence and further processing. 
+The maximum payload size for *track* is 1MB.
 
 ## AWS Kinesis Firehose
 
-Decision and reward data is sent from the track endpoint to AWS Kinesis Firehose. After 15 minutes or 32MB of data, the firehose data is flushed and written to the *firehose* S3 bucket.
+Decision and reward data is sent from the track endpoint to AWS Kinesis Firehose. After 15 minutes or 32MB of data, the firehose data is flushed 
+and written to the *firehose* S3 bucket.
 
-## Reward Assignment
+## Firehose Ingest
 
-When a new firehose file is written to the firehose S3 bucket, an AWS Batch job is created to ingest the new data from firehose and update the training data in the *train* S3 bucket.
+When a new firehose file is written to the firehose S3 bucket, an AWS Lambda job ingests the new data from firehose and adds it to the training data 
+for each model in the *train* S3 bucket.
+
+## Grooming Training Data
+
+Prior to each training, the .parquet files containing the training data are optimized and all available rewards are joined with their decisions, ensuring
+the most up-to-date data is used for each training cycle.
 
 ## Decision Model Training
 
-Using the training schedule specified in **config/config.yml** training jobs are created in AWS SageMaker.  SageMaker will run either the FREE or PRO version of the Improve AI Trainer in a network isolated cluster. The resulting model will be written to the *models* S3 bucket.
+Using the training schedule specified in **config/config.yml** training jobs are created in AWS SageMaker.  
+SageMaker will run either the FREE or PRO version of the Improve AI Trainer in a network isolated cluster. 
+The resulting model will be written to the *models* S3 bucket.
 
 ## Decision Model Serving
 
