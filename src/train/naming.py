@@ -5,7 +5,7 @@ import re
 import string
 
 import src.train.constants as tc
-from src.ingest_firehose.constants import MODEL_NAME_REGEXP
+from src.ingest.constants import MODEL_NAME_REGEXP
 
 
 def get_training_s3_uri_for_model(model_name: str):

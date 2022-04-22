@@ -77,10 +77,7 @@ def create_sagemaker_training_job(
             'InstanceCount': instance_count,
             'VolumeSizeInGB': volume_size
         },
-        VpcConfig={
-            'SecurityGroupIds': security_groups_ids,
-            'Subnets': subnets
-        },
+        EnableNetworkIsolation=True,
         StoppingCondition={
             'MaxRuntimeInSeconds': training_max_runtime,
         },

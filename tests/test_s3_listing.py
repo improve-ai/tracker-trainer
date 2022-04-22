@@ -10,10 +10,11 @@ from pytest_cases import parametrize
 
 # Local imports
 import config
-import rewarded_decisions
+import partition
 import firehose_record
 import utils
-from utils import list_s3_keys_after, list_partitions_after
+from utils import list_s3_keys
+from partition import list_partition_s3_keys as list_partitions
 from config import TRAIN_BUCKET
 from firehose_record import DF_SCHEMA
 from tests_utils import dicts_to_df
@@ -175,14 +176,14 @@ def test_list_s3_keys_after(s3, current_cases, mocker, keys):
     expected = params.get("expected")
     # Patch the s3 client used in list_delimited_s3_keys
     config.s3client = utils.s3client = \
-        rewarded_decisions.s3client = firehose_record.s3client = s3
+        partition.s3client = firehose_record.s3client = s3
     # Create a temporal bucket
     s3.create_bucket(Bucket=TRAIN_BUCKET)
 
     # Test for known exceptions to be raised
     if case_id == "wrong_types":
         with pytest.raises(TypeError):
-            list_s3_keys_after(TRAIN_BUCKET, p_start)
+            list_s3_keys(TRAIN_BUCKET, after_key=p_start)
 
     else:
         # TODO this can be simplified by moving with statement here
@@ -191,7 +192,7 @@ def test_list_s3_keys_after(s3, current_cases, mocker, keys):
         for s3_key in keys:
             s3.put_object(Bucket=TRAIN_BUCKET, Body=io.BytesIO(), Key=s3_key)
 
-        selected_keys = list_s3_keys_after(TRAIN_BUCKET, p_start)
+        selected_keys = list_s3_keys(TRAIN_BUCKET, after_key=p_start)
 
         assert isinstance(selected_keys, list)
         assert len(selected_keys) == len(expected)
@@ -209,14 +210,14 @@ def test_list_partitions_after(s3, current_cases, mocker, keys):
     expected = params.get("expected")
     # Patch the s3 client used in list_delimited_s3_keys
     config.s3client = utils.s3client = \
-        rewarded_decisions.s3client = firehose_record.s3client = s3
+        partition.s3client = firehose_record.s3client = s3
     # Create a temporal bucket
     s3.create_bucket(Bucket=TRAIN_BUCKET)
 
     # Test for known exceptions to be raised
     if case_id == "wrong_types":
         with pytest.raises(TypeError):
-            list_partitions_after(TRAIN_BUCKET, p_start)
+            list_partitions(TRAIN_BUCKET, after_key=p_start)
 
     else:
         # TODO this can be simplified by moving with statement here
@@ -225,7 +226,7 @@ def test_list_partitions_after(s3, current_cases, mocker, keys):
         for s3_key in keys:
             s3.put_object(Bucket=TRAIN_BUCKET, Body=io.BytesIO(), Key=s3_key)
 
-        selected_keys = list_partitions_after(TRAIN_BUCKET, p_start, valid_keys_only=False)
+        selected_keys = list_s3_keys(TRAIN_BUCKET, after_key=p_start)
 
         assert isinstance(selected_keys, list)
         assert len(selected_keys) == len(expected)
@@ -275,9 +276,9 @@ def test_incorrectly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec)
 
 
     # Ensure the key is not listed by the function of interest
-    s3_keys = list_partitions_after(
+    s3_keys = list_partitions(
         bucket_name= TRAIN_BUCKET,
-        key=f'rewarded_decisions/{model_name}/parquet/',
+        after_key=f'rewarded_decisions/{model_name}/parquet/',
         prefix=f'rewarded_decisions/{model_name}/')
 
     assert s3_key not in s3_keys
@@ -324,9 +325,9 @@ def test_incorrectly_named_s3_partition_in_correct_folder(s3, tmp_path, get_rewa
     assert s3_key in all_keys
 
     # Ensure the key is not listed by the function of interest
-    s3_keys = list_partitions_after(
+    s3_keys = list_partitions(
         bucket_name=TRAIN_BUCKET,
-        key=f'rewarded_decisions/{model_name}/parquet/',
+        after_key=f'rewarded_decisions/{model_name}/parquet/',
         prefix=f'rewarded_decisions/{model_name}/')
 
     assert s3_key not in s3_keys
@@ -376,9 +377,9 @@ def test_correctly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec):
     all_keys = [x['Key'] for x in response['Contents']]
 
     # Ensure the key is not listed by the function of interest
-    s3_keys = list_partitions_after(
+    s3_keys = list_partitions(
         bucket_name=TRAIN_BUCKET,
-        key=f'rewarded_decisions/{model_name}/parquet/',
+        after_key=f'rewarded_decisions/{model_name}/parquet/',
         prefix=f'rewarded_decisions/{model_name}/')
 
     np.testing.assert_array_equal(sorted(all_keys), s3_keys)

@@ -18,13 +18,12 @@ import pytest
 # Local imports
 import config
 import firehose_record
-import rewarded_decisions
-from rewarded_decisions import repair_overlapping_keys, get_all_overlaps, get_unique_overlapping_keys, \
-    DECISION_ID_KEY, DF_SCHEMA
+import partition
+from partition import DECISION_ID_KEY, DF_SCHEMA
 import utils
 import worker
 
-parquet_s3_key = rewarded_decisions.parquet_s3_key
+parquet_s3_key = partition.parquet_s3_key
 
 from tests_utils import dicts_to_df, upload_gzipped_jsonl_records_to_firehose_bucket
 
@@ -48,7 +47,7 @@ def test_worker_ingestion_fail_due_to_bad_records(s3, get_decision_rec, get_rewa
     """
 
     # Replace the s3client with a mocked one
-    config.s3client = firehose_record.s3client = utils.s3client = rewarded_decisions.s3client = s3
+    config.s3client = firehose_record.s3client = utils.s3client = partition.s3client = s3
 
     # Create mocked buckets
     s3.create_bucket(Bucket=config.FIREHOSE_BUCKET)
@@ -240,7 +239,7 @@ def ensure_results_are_correct(s3, test_case_json: dict):
 
 def test_single_successful_ingest(s3, **kwargs):
     # Replace the s3client with a mocked one
-    config.s3client = firehose_record.s3client = utils.s3client = rewarded_decisions.s3client = s3
+    config.s3client = firehose_record.s3client = utils.s3client = partition.s3client = s3
 
     test_case_json = get_test_case_json(os.getenv('TEST_CASE_SINGLE_FILE_INGEST_JSON'))
     # Create and populated mocked buckets
@@ -278,18 +277,11 @@ def run_worker_with_s3_key(s3_key, attempt, s3):
     config.ATTEMPT = attempt
     config.s3client = s3
 
-    spec_worker = importlib.util.find_spec('worker')
-    worker = importlib.util.module_from_spec(spec_worker)
-    spec_worker.loader.exec_module(worker)
-    sys.modules['worker'] = worker
-    worker.INCOMING_FIREHOSE_S3_KEY = s3_key
-    worker.s3client = s3
-
-    spec_rewarded_decisions = importlib.util.find_spec('rewarded_decisions')
-    rewarded_decisions = importlib.util.module_from_spec(spec_rewarded_decisions)
-    spec_rewarded_decisions.loader.exec_module(rewarded_decisions)
-    sys.modules['rewarded_decisions'] = rewarded_decisions
-    rewarded_decisions.s3client = s3
+    spec_partition = importlib.util.find_spec('partition')
+    partition = importlib.util.module_from_spec(spec_partition)
+    spec_partition.loader.exec_module(partition)
+    sys.modules['partition'] = partition
+    partition.s3client = s3
 
     spec_firehose_record = importlib.util.find_spec('firehose_record')
     firehose_record = importlib.util.module_from_spec(spec_firehose_record)
@@ -378,7 +370,7 @@ def run_batch_ingest_with_threads(s3_keys, s3, ingest_interval: int = None):
 
 def test_successful_every_n_seconds_ingest(s3, **kwargs):
     # Replace the s3client with a mocked one
-    config.s3client = firehose_record.s3client = utils.s3client = rewarded_decisions.s3client = s3
+    config.s3client = firehose_record.s3client = utils.s3client = partition.s3client = s3
 
     ingest_interval = int(os.getenv('TEST_INGEST_EVERY_N_SECONDS'))
 
@@ -399,7 +391,7 @@ def test_successful_every_n_seconds_ingest(s3, **kwargs):
 
 
 def test_successful_batch_after_batch_ingest(s3, **kwargs):
-    config.s3client = firehose_record.s3client = utils.s3client = rewarded_decisions.s3client = s3
+    config.s3client = firehose_record.s3client = utils.s3client = partition.s3client = s3
 
     test_case_json = get_test_case_json(os.getenv('TEST_CASE_BATCH_INGEST_JSON'))
 

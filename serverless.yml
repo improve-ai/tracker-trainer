@@ -4,19 +4,19 @@ custom:
 
 service: improveai-${self:custom.config.organization}-${self:custom.config.project}
 
+plugins:
+  - serverless-step-functions
+
 provider:
-  lambdaHashingVersion: 20201221 # can be removed in serverless v3
   name: aws
   region: ${self:custom.config.aws_region}
   runtime: python3.8
   memorySize: 192
-  timeout: 6
+  timeout: 900
   ecr:
     images:
-      ingest-firehose:
-        path: ./src/ingest_firehose/
-  httpApi: # have to specify cors globally for httpApi as of 20210303
-    cors: true
+      ingest:
+        path: ./src/ingest/
   iam:
     role:
       statements: 
@@ -32,10 +32,6 @@ provider:
           Action:
             - "iam:PassRole"
           Resource: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
-        - Effect: Allow
-          Action:
-            - batch:SubmitJob
-          Resource: "arn:aws:batch:*:*:*"
         - Effect: Allow
           Action:
             - 's3:*'
@@ -57,38 +53,45 @@ package:
 functions:
   track:
     description: Decision & Reward Tracker HTTPS API
+    timeout: 6
     handler: src/track/http_api.track
     runtime: nodejs14.x
-    events:
-      - httpApi:
-          method: POST
-          path: /track
+    url:
+      cors: true
     environment:
       FIREHOSE_DELIVERY_STREAM_NAME: !Ref Firehose
-  dispatchIngestFirehoseJob:
-    description: Dispatch Ingest Firehose Batch Job
-    handler: src/ingest_firehose/dispatch_job.lambda_handler
+  ingestFirehose: # if renamed, FirehoseBucket event notifications must be manually deleted 
+    description: Ingest New Firehose File to Train Bucket
+    memorySize: 512
+    image:
+      name: ingest
     events:
       - s3:
           bucket: !Ref FirehoseS3Bucket
-          existing: true # retained resource
+          existing: true # created in resources
           event: s3:ObjectCreated:*
-    environment:
-      JOB_QUEUE: !Ref JobQueue
-      JOB_DEFINITION: !Ref IngestFirehoseJobDefinition
+  filterPartitionsToGroom:
+    description: Filter Groups of Rewarded Decision .parquet S3 Keys to Groom
+    image:
+      name: ingest
+      command:
+        - groom.filter_handler
+  groomPartitions:
+    description: Merge Rewarded Decision Partitions
+    memorySize: 1024
+    image:
+      name: ingest
+      command:
+        - groom.groom_handler
   dispatchTrainingJob:
     description: Dispatch Decision Model Training Jobs
+    timeout: 30
     handler: src/train/dispatch_job.lambda_handler
-    events: ${file(src/predeploy.js):trainingScheduleEvents}
     environment:
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
-      TRAINING_SUBNET: !Ref Subnet
-      TRAINING_SECURITY_GROUP: !Ref SecurityGroup
       SERVICE_NAME: ${self:service}
-      JOB_QUEUE: !Ref JobQueue
   unpackModels:
     handler: src/train/unpack_models.unpack
-    timeout: 120
     events:
       - s3:
           bucket: !Ref TrainS3Bucket
@@ -97,14 +100,60 @@ functions:
           rules:
             - prefix: train_output/
             - suffix: model.tar.gz
-    environment:
-      JOB_QUEUE: !Ref JobQueue
 
-  forceDockerPushIngestFirehose: # Serverless wants the image to be used to deploy it
-    description: Force Serverless to Push Docker Image to ECR
-    image:
-      name: ingest-firehose
-
+stepFunctions:
+  stateMachines:
+    GroomThenTrain:
+      name: ${self:service}-${opt:stage, self:provider.stage}-GroomThenTrainStateMachine
+      events: ${file(src/predeploy.js):trainingScheduleEvents}
+      definition:
+        StartAt: FilterPartitionsToGroom
+        States:
+          FilterPartitionsToGroom:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [filterPartitionsToGroom, Arn]
+            ResultPath: $.filter
+            Next: HasGroups
+          HasGroups:
+            Type: Choice
+            Choices:
+              - Variable: $.filter.groom_groups[0]
+                IsPresent: true
+                Next: GroomMap
+            Default: Train
+          GroomMap:
+            Type: Map
+            MaxConcurrency: 64
+            ItemsPath: $.filter.groom_groups
+            Parameters:
+              model_name.$: $.model_name
+              s3_keys.$: $$.Map.Item.Value
+            Iterator:
+              StartAt: GroomTask
+              States:
+                GroomTask:
+                  Type: Task
+                  Resource:
+                    Fn::GetAtt: [groomPartitions, Arn]
+                  Catch:
+                    - ErrorEquals:
+                      - States.TaskFailed
+                      Next: ErrorHandler
+                      ResultPath: $.error
+                  End: true
+                ErrorHandler:
+                  Type: Pass
+                  End: true
+            ResultPath: $.filter.groom_groups # clear filter.groom_groups with null result
+            Next: FilterPartitionsToGroom # loop back to FilterPartitions
+          Train:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [dispatchTrainingJob, Arn]
+            End: true
+#  validate: true
+ 
 resources:
   Resources:
       FirehoseToS3Role:
@@ -159,7 +208,7 @@ resources:
                   - 's3:PutObject'
                   Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
       FirehoseS3Bucket:
-        Type: 'AWS::S3::Bucket'
+        Type: AWS::S3::Bucket
         DeletionPolicy: Retain
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-firehose
@@ -183,176 +232,16 @@ resources:
                 - Ref: FirehoseS3Bucket
             BufferingHints:
               IntervalInSeconds: 900 # max value is 900
-              SizeInMBs: 32 # max value is 128. IngestFirehose instance must have enough memory for all threads
+              SizeInMBs: 128 # max value is 128.
             CompressionFormat: "GZIP"
             RoleARN: { Fn::GetAtt: [ FirehoseToS3Role, Arn ] }
       TrainS3Bucket:
-        Type: 'AWS::S3::Bucket'
+        Type: AWS::S3::Bucket
         DeletionPolicy: Retain
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-train
       ModelsS3Bucket:
-        Type: 'AWS::S3::Bucket'
+        Type: AWS::S3::Bucket
         DeletionPolicy: Retain
         Properties:
           BucketName: ${self:service}-${opt:stage, self:provider.stage}-models
-      VPC:
-        Type: AWS::EC2::VPC
-        Properties:
-          CidrBlock: 10.0.0.0/16
-          EnableDnsHostnames: true
-          Tags:
-            - Key: Name
-              Value: ${self:service}-${opt:stage, self:provider.stage}-VPC
-      InternetGateway:
-        Type: AWS::EC2::InternetGateway
-      RouteTable:
-        Type: AWS::EC2::RouteTable
-        Properties:
-          VpcId: !Ref VPC
-      VPCGatewayAttachment:
-        Type: AWS::EC2::VPCGatewayAttachment
-        Properties:
-          VpcId: !Ref VPC
-          InternetGatewayId: !Ref InternetGateway
-      SecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-          GroupName: ${self:service}-${opt:stage, self:provider.stage}-SecurityGroup
-          GroupDescription: Improve AI Gym SecurityGroup
-          VpcId: !Ref VPC
-          SecurityGroupIngress:
-            - IpProtocol: tcp
-              FromPort: 2049 # Allows Batch to connect to EFS
-              ToPort: 2049  
-              CidrIp: 0.0.0.0/0
-            - IpProtocol: udp
-              FromPort: 500 # Allows for encrypted inter-container traffic
-              ToPort: 500
-              CidrIp: 0.0.0.0/0
-            - IpProtocol: -1
-              FromPort: -1 # Allows for inter-instance comm
-              ToPort: -1
-              CidrIp: 0.0.0.0/0
-          SecurityGroupEgress:
-            - IpProtocol: udp
-              FromPort: 500 # Allows Batch to connect to EFS
-              ToPort: 500
-              CidrIp: 0.0.0.0/0
-            - IpProtocol: -1
-              FromPort: -1 # Allows for inter-instance comm
-              ToPort: -1
-              CidrIp: 0.0.0.0/0
-      Subnet:
-        Type: AWS::EC2::Subnet
-        Properties:
-          CidrBlock: 10.0.0.0/24
-          VpcId: !Ref VPC
-          MapPublicIpOnLaunch: 'True'
-          AvailabilityZone: ${self:provider.region}a # match availability zone for EFS One Zone
-          Tags:
-            - Key: Name
-              Value: ${self:service}-${opt:stage, self:provider.stage}-Subnet
-      Route:
-        Type: AWS::EC2::Route
-        Properties:
-          RouteTableId: !Ref RouteTable
-          DestinationCidrBlock: 0.0.0.0/0
-          GatewayId: !Ref InternetGateway
-      SubnetRouteTableAssociation:
-        Type: AWS::EC2::SubnetRouteTableAssociation
-        Properties:
-          RouteTableId: !Ref RouteTable
-          SubnetId: !Ref Subnet
-      BatchInstanceProfile:
-        Type: AWS::IAM::InstanceProfile
-        Properties:
-          Roles:
-            - Ref: BatchInstanceRole
-      BatchInstanceRole:
-        Type: AWS::IAM::Role
-        Properties:
-          AssumeRolePolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-                Effect: Allow
-                Principal:
-                  Service: 
-                    - ec2.amazonaws.com
-                Action: sts:AssumeRole
-          ManagedPolicyArns:
-            - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
-          Policies:
-          - PolicyName: BatchInstancePolicy
-            PolicyDocument:
-              Statement:
-                - Effect: Allow
-                  Action:
-                  - 's3:*'
-                  Resource: "arn:aws:s3:::${self:service}-${opt:stage, self:provider.stage}-**"
-      BatchServiceRole:
-        Type: AWS::IAM::Role
-        Properties:
-          AssumeRolePolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Principal:
-                  Service: 
-                  - batch.amazonaws.com
-                Action: sts:AssumeRole
-          ManagedPolicyArns:
-            - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
-      ComputeEnvironment:
-        Type: AWS::Batch::ComputeEnvironment
-        Properties:
-          ComputeEnvironmentName: ${self:service}-${opt:stage, self:provider.stage}-compute
-          Type: MANAGED
-          ServiceRole: 
-            Ref: BatchServiceRole
-          ComputeResources:
-            Type: EC2
-            InstanceTypes:
-              - optimal
-            MinvCpus: 0
-            MaxvCpus: 128
-            InstanceRole: !Ref BatchInstanceProfile
-            SecurityGroupIds:
-              - Ref: SecurityGroup
-            Subnets:
-              - Ref: Subnet
-          State: ENABLED
-      JobQueue:
-        Type: AWS::Batch::JobQueue
-        Properties:
-          JobQueueName: '${self:service}-${opt:stage, self:provider.stage}'
-          ComputeEnvironmentOrder:
-            - Order: 1
-              ComputeEnvironment: 
-                Ref: ComputeEnvironment
-          State: ENABLED
-          Priority: 2 # 2nd lowest priority
-      IngestFirehoseJobDefinition:
-        Type: "AWS::Batch::JobDefinition"
-        Properties:
-          Type: Container
-          JobDefinitionName: '${self:service}-${opt:stage, self:provider.stage}-IngestFirehose'
-          ContainerProperties: 
-            Memory: 2048 # enough memory to hold a .parquet file for each thread plus an incoming firehose file
-            Vcpus: 1
-            Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-${self:service}-${opt:stage, self:provider.stage}:ingest-firehose'
-          RetryStrategy: 
-            Attempts: 5
-      S3Endpoint:
-        Type: AWS::EC2::VPCEndpoint
-        Properties:
-          PolicyDocument:
-            Statement:
-              - Action: "*"
-                Effect: "Allow"
-                Resource: "*"
-                Principal: "*"
-          RouteTableIds:
-            - !Ref RouteTable
-          ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
-          VpcId: !Ref VPC

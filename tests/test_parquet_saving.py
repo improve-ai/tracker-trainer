@@ -7,7 +7,7 @@ import pandas as pd
 from pandas._testing import assert_frame_equal
 
 # Local imports
-from rewarded_decisions import RewardedDecisionPartition
+from partition import RewardedDecisionPartition
 from firehose_record import assert_valid_rewarded_decision_record
 from firehose_record import TIMESTAMP_KEY
 from firehose_record import VARIANT_KEY

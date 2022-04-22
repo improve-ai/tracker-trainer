@@ -8,7 +8,7 @@ from ksuid import Ksuid
 import orjson
 
 # Local imports
-from config import s3client, stats
+from config import s3client
 from constants import MODEL_NAME_REGEXP, REWARDED_DECISIONS_S3_KEY_REGEXP
 
 ZERO = datetime.timedelta(0)
@@ -24,91 +24,33 @@ class UTC(datetime.tzinfo):
 utc = UTC()
 
 
-def list_s3_keys_after(bucket_name, key, prefix=''):
-    """
-    Return a lexicographically sorted list of keys after the given `key`.
-    
-    Listing S3's keys returns them in UTF8-binary order:
-        "List results are always returned in UTF-8 binary order". [3]
-    The same occurs with Python:
-        "The comparison uses lexicographical ordering. (...) 
-        Lexicographical ordering for strings uses the Unicode code point 
-        number to order individual characters". [4]
-
-    References:
-    [1] https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html
-    [2] https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.list_objects_v2
-    [3] https://docs.aws.amazon.com/AmazonS3/latest/userguide/ListingKeysUsingAPIs.html
-    [4] https://docs.python.org/3/tutorial/datastructures.html#comparing-sequences-and-other-types
-
-
-    Parameters
-    ----------
-    bucket_name : str
-        AWS S3 bucket name
-    key : str
-        Key after which to start the subset selection
-    prefix : str
-        Passed directly to the S3 call. Limits the response to keys 
-        that begin with the specified prefix.
-
-    Returns
-    -------
-    list
-        A list of strings in the given S3 bucket found in the 
-        given subset limits.
-
-    Raises
-    ------
-
-    TypeError
-        If something different than a str is passed to the start_after_key, 
-        end_key or bucket_name
-    ValueError
-        If `start_after_key` > `end_key`
-    
-    """  
+def list_s3_keys(bucket_name, prefix='', after_key=''):
 
     if not isinstance(bucket_name, str) or \
-       not isinstance(key, str) or \
+       not isinstance(after_key, str) or \
        not isinstance(prefix, str):
         raise TypeError
 
-    kwargs = {
-        'Bucket': bucket_name,
-        'StartAfter': key,
-        'Prefix': prefix
-    }
+    return map(lambda x: x['Key'], get_all_s3_objects(s3client, Bucket=bucket_name, Prefix=prefix, StartAfter=after_key))
 
-    keys = []
+
+# from https://stackoverflow.com/a/54314628/2590111
+def get_all_s3_objects(s3, **base_kwargs):
+    continuation_token = None
     while True:
-        resp = s3client.list_objects_v2(**kwargs)
-        stats.increment_s3_requests_count('list')
-
-        if 'Contents' not in resp:
-            return []
-
-        for obj in resp['Contents']:
-            keys.append(obj['Key'])
-
-        try:
-            kwargs['ContinuationToken'] = resp['NextContinuationToken']
-        except KeyError:
+        list_kwargs = dict(MaxKeys=1000, **base_kwargs)
+        if continuation_token:
+            list_kwargs['ContinuationToken'] = continuation_token
+        response = s3.list_objects_v2(**list_kwargs)
+        yield from response.get('Contents', [])
+        if not response.get('IsTruncated'):  # At the end of the list?
             break
-
-    return keys
-
-
-def list_partitions_after(bucket_name, key, prefix='', valid_keys_only=True):
-    keys = list_s3_keys_after(bucket_name=bucket_name, key=key, prefix=prefix)
-    return keys if not valid_keys_only else [k for k in keys if is_valid_rewarded_decisions_s3_key(k)]
+        continuation_token = response.get('NextContinuationToken')
 
 
 def is_valid_rewarded_decisions_s3_key(s3_key):
     """ Validate if an s3 key complies with the expected format """
-    if re.match(REWARDED_DECISIONS_S3_KEY_REGEXP, s3_key):
-        return True
-    return False
+    return bool(re.match(REWARDED_DECISIONS_S3_KEY_REGEXP, s3_key))
 
 
 def is_valid_model_name(model_name):   
