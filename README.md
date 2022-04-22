@@ -74,7 +74,7 @@ The maximum payload size for *track* is 1MB.
 
 ## AWS Kinesis Firehose
 
-Decision and reward data is sent from the track endpoint to AWS Kinesis Firehose. After 15 minutes or 32MB of data, the firehose data is flushed 
+Decision and reward data is sent from the track endpoint to AWS Kinesis Firehose. After 15 minutes or 128MB of data, the firehose data is flushed 
 and written to the *firehose* S3 bucket.
 
 ## Firehose Ingest
