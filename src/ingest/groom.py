@@ -6,7 +6,36 @@ from utils import is_valid_model_name, json_dumps
 
 
 def filter_handler(event, context):
+    """
+    The filter process determines which rewarded decision record partitions should be merged prior to training.
     
+    The grouping process relies on S3's behavior of listing keys in lexicographical order. Since partitions begin
+    with a timestamp of the max decision id, the S3 keys are sorted ascending by maximum decision id.
+    
+    The first level of grouping is to group adjacent S3 keys in groups of up to 10,000 cumulative records and up to 500
+    keys.
+    
+    The second level of grouping is to group together single pairs of adjacent groups that contain overlapping minimum and
+    maximum timestamp values. Only single pairs are merged together to ensure the total record count of the group does not
+    exceed 20,000 cumulative records or 1000 keys.  We do not combine groups of more than 1000 keys due to S3 being unable to
+    delete more than 1000 keys in a single DeleteObjects operation. Any group containing more than 10000 keys is due to
+    overlapping keys and will trigger dispersion of multiple partitions throughout the timeline index using the logic defined
+    in partition.maybe_split_on_timestamp_boundaries
+    
+    At this point, any groups containing only a single key are filtered out, nothing needs to be done with them.
+    
+    Finally, the total bytes of the key strings are capped to stay under the Step Function payload limit of 256KB.
+    
+    By default, the filter process will stop returning groups after 10 iterations.
+    
+    Args:
+        model_name: determines the S3 prefix to process within the train bucket
+        iteration: the current iteration count of the groom process
+        
+    Return:
+        iteration: the incremented iteration count
+        groom_groups: an array of arrays of S3 keys to merge together
+    """
     print(f'processing event {json_dumps(event)}')
 
     model_name = event['model_name']
@@ -97,6 +126,17 @@ def cap_s3_key_bytes(groups, max_s3_key_bytes=204800):
     
 
 def groom_handler(event, context):
+    """
+    The groom task takes a single group of keys, loads them, merges them together, and if they are larger than 10,000 records, disperses
+    multiple partitions throughout the timeline index using the logic defined in partition.maybe_split_on_timestamp_boundaries(). Upon
+    successful completion of this process all input s3_keys are deleted.
+    
+    Args:
+        model_name: the name of the model to determine the S3 key prefix
+        s3_keys: the s3_keys to load, merge, save, delete
+        
+    Return: None
+    """
     
     print(f'processing event {json_dumps(event)}')
 

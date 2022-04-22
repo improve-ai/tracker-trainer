@@ -23,7 +23,19 @@ KEY_KEY = 'key'
 
 # Launch a reward assignment AWS Batch Job
 def lambda_handler(event, context):
+    """
+    Ingests a gzipped JSONlines file from the firehose S3 bucket and ouputs one merged rewarded decision partition file per model to the train bucket.
     
+    In order to keep the ingest process fast, simple, and performing as few S3 operations as possible, only a single partition is written
+    per model unless the partition contains over 10,000 records. By default, the firehose process creates a new file every 15 minutes, 
+    so groups of decisions and their rewards that occur during that window will be merged together in the resulting partition. 
+    For decisions occuring outside of that 15 minute window or late arriving records, the groom process, which is triggered before training, 
+    will check to see if this partition overlaps with other partitions and will merge the partitions  together ensuring that any partial rewarded 
+    decision records (records that just contain rewards) are merged with their decisions.
+    
+    Merged partitions containing over 10,000 records will be split into multiple partitions using the logic defined in 
+    partition.maybe_split_on_timestamp_boundaries(). 
+    """
     print(f'processing s3 event {json.dumps(event)}')
 
     if not RECORDS_KEY in event or len(event[RECORDS_KEY]) != 1:

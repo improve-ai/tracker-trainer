@@ -241,18 +241,26 @@ def read_parquet(s3_key):
     
     
 def maybe_split_on_timestamp_boundaries(df, max_row_count=PARQUET_FILE_MAX_DECISION_RECORDS):
-    ''' The purposes of this is to disperse overlaps throughout the timeline. The only case where
-    there should be a row_count > max is when merging an overlap or in the exceptional case where
-    > max decisions occur on the same second. 
+    ''' The purposes of this is to disperse overlaps throughout the timeline. The common case for
+    row_count > max is when merging an overlap.  It is also possible for the split to be triggered
+    if ingesting a very large firehose file or in the exceptional case where > max decisions occur on 
+    the same second. 
     
     Splitting on timestamp boundaries serves two purposes. First, by having hard boundaries it reduces
     chains of overlaps propegating back through the timeline. Note that each more finegrained timestamp
     prefix includes its parents, so the boundaries are enforced at all resolutions. Second, the
     timestamp boundaries quickly disperse rewards for old decisions further back in the timeline so that
     they may be merged in just a few grooming passes.
+    
+    Rather than fixing the timestamp boundaries via a configuration, this allows the timestamp boundaries
+    to dynamically scale with the rate of decision tracking.
+    
+    I haven't proved this rigorously but in practice it seems like this resolves overlaps in something 
+    like O(log(N)) iterations of the grooming process.
     '''
     dfs = [df]
     
+    # start at one month resolution to allow easy cleanup of old partitions
     # iterate through different timestamp prefix lengths
     # does not split below 1 second resolution
     for i in range(len('YYYYmm'),len('YYYYmmddTHHMMSS')+1):
