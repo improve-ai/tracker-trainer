@@ -46,7 +46,6 @@ provider:
 package:
   patterns:
     - '!./**'
-    - node_modules/**
     - src/**
     - config/**
 

@@ -4,7 +4,9 @@
   "license": "SEE LICENSE IN LICENSE.md",
   "repository": "github:improve-ai/gym",
   "dependencies": {
-    "serverless-step-functions": "^3.5.1",
     "yaml": "^1.10.2"
+  },
+  "devDependencies": {
+    "serverless-step-functions": "^3.7.0"
   }
 }
