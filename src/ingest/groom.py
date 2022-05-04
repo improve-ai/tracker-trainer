@@ -108,6 +108,10 @@ def merge_overlapping_adjacent_group_pairs(groups):
         else:
             candidate_group = group
 
+    # TODO unit test all cases for last candidate groups
+    if candidate_group:
+        yield candidate_group
+        
 
 def cap_s3_key_bytes(groups, max_s3_key_bytes=204800):
     s3_key_bytes = 0
