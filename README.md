@@ -62,6 +62,44 @@ models will automatically be uploaded.
 
 Either configure a CDN in front of the models S3 bucket, or make the 'models' directory public to serve models directly from S3.
 
+## Integrate a Client SDK
+
+Improve AI SDKs are currently available for [Swift/Objective-C](https://github.com/improve-ai/ios-sdk), [Java/Kotlin](https://github.com/improve-ai/android-sdk), and [Python](https://github.com/improve-ai/python-sdk).
+
+For example, in Swift, we would use the *trackURL* and *modelURL* that we configured in the Improve AI Gym.
+
+```swift
+import ImproveAI
+```
+
+```swift
+func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+
+    DecisionModel.defaultTrackURL = trackURL // trackUrl is obtained from your Improve AI Gym configuration
+
+    DecisionModel.instances["greetings"].loadAsync(greetingsModelUrl) // greetingsModelUrl is a trained model output by the Improve AI Gym
+
+    return true
+}
+```
+
+To make a decision, use the *which* statement. *which* is like an AI if/then statement.
+```swift
+greeting = DecisionModel.instances["greetings"].which("Hello", "Howdy", "Hola")
+```
+
+*which* makes decisions on-device using a *decision model*. Decision models are easily trained by assigning rewards for positive outcomes.
+
+```swift
+if (success) {
+    DecisionModel.instances["greetings"].addReward(1.0)
+}
+```
+
+Rewards are credited to the most recent decision made by the model. *which* will make the decision that provides the highest expected reward.  When the rewards are business metrics, such as revenue or user retention, the decisions will optimize to automatically improve those metrics over time.
+
+*That's like A/B testing on steroids.*
+
 # Algorithm
 
 The reinforcement learning algorithm is a [contextual multi-armed bandit](https://en.wikipedia.org/wiki/Multi-armed_bandit#Contextual_bandit) with [XGBoost](https://github.com/dmlc/xgboost) acting as the core regression algorithm. As such, it is ideal for making decisions on structured data, such as JSON or native objects in [Swift/Objective-C](https://github.com/improve-ai/ios-sdk), [Java/Kotlin](https://github.com/improve-ai/android-sdk), and [Python](https://github.com/improve-ai/python-sdk). Unlike *deep reinforcement learning* algorithms, which often requires simulator environments and hundreds of millions of decisions, this algorithm performs well with relatively modest amounts of data. Compared to A/B testing it requires exponentially less data for good results.
