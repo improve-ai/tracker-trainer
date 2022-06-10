@@ -62,6 +62,10 @@ models will automatically be uploaded.
 
 Either configure a CDN in front of the models S3 bucket, or make the 'models' directory public to serve models directly from S3.
 
+# Algorithm
+
+The reinforcement learning algorithm is a [contextual multi-armed bandit](https://en.wikipedia.org/wiki/Multi-armed_bandit#Contextual_bandit) with [XGBoost](https://github.com/dmlc/xgboost) acting as the core regression algorithm. As such, it is ideal for making decisions on structured data, such as native objects in [Swift/Objective-C](https://github.com/improve-ai/ios-sdk), [Java/Kotlin](https://github.com/improve-ai/android-sdk), and [Python](https://github.com/improve-ai/python-sdk). Unlike *deep reinforcement learning* algorithms, which often requires simulator environments and hundreds of millions of decisions, this algorithm performs well with relatively modest amounts of data. Compared to A/B testing it requires exponentially less data for good results.
+
 # Architecture
 
 The Improve AI Gym stack consists of a number of components to track decisions and rewards, create training data, train decision models, and store the resulting models.
