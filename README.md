@@ -66,7 +66,7 @@ Either configure a CDN in front of the models S3 bucket, or make the 'models' di
 
 Improve AI SDKs are currently available for [Swift/Objective-C](https://github.com/improve-ai/ios-sdk), [Java/Kotlin](https://github.com/improve-ai/android-sdk), and [Python](https://github.com/improve-ai/python-sdk).
 
-For example, in Swift, we would use the *trackURL* and *modelURL* that we configured in the Improve AI Gym.
+For example if we're using Improve AI for In App Personalization in Swift, we would use the *trackURL* and *modelURL* that we configured in the Improve AI Gym.
 
 ```swift
 import ImproveAI
