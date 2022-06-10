@@ -28,7 +28,7 @@ To train models on up to 100,000 decisions, subscribe to the [free trainer](http
 
 To train models on over 100,000 decisions, subscribe to the [pro trainer](https://aws.amazon.com/marketplace/pp/prodview-adchtrf2zyvow)
 
-Once subscribed, copy your the trainer Docker image URLs and add them to **config/config.yml**
+Once subscribed, copy your the trainer Docker image URLs and paste them in **config/config.yml**
 
 ## Configure Models and Training Parameters
 
