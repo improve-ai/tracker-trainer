@@ -82,7 +82,7 @@ and written to the *firehose* S3 bucket.
 When a new firehose file is written to the firehose S3 bucket, an AWS Lambda job ingests the new data from firehose and adds it to the training data 
 for each model in the *train* S3 bucket.
 
-## Grooming Training Data
+## Joining Rewards with Decisions
 
 Prior to each training, the .parquet files containing the training data are optimized and all available rewards are joined with their decisions, ensuring
 the most up-to-date data is used for each training cycle.
