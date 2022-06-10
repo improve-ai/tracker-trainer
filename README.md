@@ -1,10 +1,10 @@
 # Improve AI Gym: Simple Scalable Reinforcement Learning
 
-The Improve AI Gym is a scalable stack of serverless services that make it easy to deploy *reinforcement learning* systems in production. *Reinforcement learning* is a type of machine learning where models are trained simply by assigning rewards for positive outcomes. By aligning rewards with business metrics, such as revenue, conversions, or user retention, reinforcement learning automatically optimizes your app to improve those metrics.
+The Improve AI Gym makes it easy to deploy *reinforcement learning* systems in production. *Reinforcement learning* is a type of machine learning where models are trained simply by assigning rewards for positive outcomes. By aligning rewards with business metrics, such as revenue, conversions, or user retention, reinforcement learning automatically optimizes your app to improve those metrics.
 
 With *reinforcement learning* you can easily optimize any variable, content, and configuration and quickly implement personalization and recommendation systems. **It's like A/B testing on steroids.**
 
-The stack is packaged as a virtual private cloud that you deploy on AWS. A such, all data remains private to you and there are no operational dependencies on third parties other than AWS.
+The Gym is a scalable stack of serverless services that you deploy on AWS. A such, all data remains private to you and there are no operational dependencies on third parties other than AWS.
 
 # Deployment
 
