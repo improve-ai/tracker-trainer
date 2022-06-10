@@ -88,7 +88,7 @@ To make a decision, use the *which* statement. *which* is like an AI if/then sta
 greeting = DecisionModel.instances["greetings"].which("Hello", "Howdy", "Hola")
 ```
 
-*which* makes decisions on-device using a *decision model*. Decision models are easily trained by assigning rewards for positive outcomes.
+*which* makes decisions on-device using a *decision model*. Decisions are automatically tracked with the Improve AI Gym via the *trackURL*.
 
 ```swift
 if (success) {
@@ -96,9 +96,7 @@ if (success) {
 }
 ```
 
-Rewards are credited to the most recent decision made by the model. *which* will make the decision that provides the highest expected reward.  When the rewards are business metrics, such as revenue or user retention, the decisions will optimize to automatically improve those metrics over time.
-
-*That's like A/B testing on steroids.*
+Rewards are credited to the most recent decision made by the model and are also tracked with the Improve AI Gym via the *trackURL*. During the next model training, the rewards will be joined with their associated decisions and the model will be trained to make decisions that provide the highest expected rewards.
 
 # Algorithm
 
