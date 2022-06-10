@@ -77,7 +77,7 @@ func application(_ application: UIApplication, didFinishLaunchingWithOptions lau
 
     DecisionModel.defaultTrackURL = trackURL // trackUrl is obtained from your Improve AI Gym configuration
 
-    DecisionModel.instances["greetings"].loadAsync(greetingsModelUrl) // greetingsModelUrl is a trained model output by the Improve AI Gym
+    DecisionModel["greetings"].loadAsync(greetingsModelUrl) // greetingsModelUrl is a trained model output by the Improve AI Gym
 
     return true
 }
@@ -85,14 +85,14 @@ func application(_ application: UIApplication, didFinishLaunchingWithOptions lau
 
 To make a decision, use the *which* statement. *which* is like an AI if/then statement.
 ```swift
-greeting = DecisionModel.instances["greetings"].which("Hello", "Howdy", "Hola")
+greeting = DecisionModel["greetings"].which("Hello", "Howdy", "Hola")
 ```
 
 *which* makes decisions on-device using a *decision model*. Decisions are automatically tracked with the Improve AI Gym via the *trackURL*.
 
 ```swift
 if (success) {
-    DecisionModel.instances["greetings"].addReward(1.0)
+    DecisionModel["greetings"].addReward(1.0)
 }
 ```
 
