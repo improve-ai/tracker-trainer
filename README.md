@@ -57,12 +57,11 @@ endpoint: https://xxx.lambda-url.us-east-1.on.aws/
 
 ```
 
-Either configure a CDN in front of this *track endpoint* URL, or use it directly in the client SDKs to track decisions and rewards.
+The *track endpoint* URL may be used directly by the client SDKs to track decisions and rewards.  Alternately, a CDN may be configured in front of the *track endpoint* URL for greater administrative control.
 
-The deployment will also create a *models* S3 bucket in the form of *improveai-acme-demo-prod-models* where the continuously trained 
-models will automatically be uploaded.
+The deployment will also create a *models* S3 bucket in the form of *improveai-acme-demo-prod-models*. After each round of training, updated models are automatically uploaded to the *models* bucket.
 
-Either configure a CDN in front of the models S3 bucket, or make the 'models' directory public to serve models directly from S3.
+The *models* bucket is private by default. Either configure a CDN in front of the models S3 bucket, or make the '/models' directory public to serve models directly from S3.
 
 ## Integrate a Client SDK
 
