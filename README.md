@@ -49,11 +49,11 @@ $ serverless deploy --stage dev
 The output of the deployment will list the *track endpoint* URL like https://xxxx.lambda-url.us-east-1.on.aws
 
 ```console
-Deploying improveai-acme-demo to stage prod (us-east-1)
+Deploying improveai-acme-demo to stage dev (us-east-1)
 
-✔ Service deployed to stack improveai-acme-demo-prod (111s)
+✔ Service deployed to stack improveai-acme-demo-dev (111s)
 
-endpoint: https://xxx.lambda-url.us-east-1.on.aws/
+endpoint: https://xxxx.lambda-url.us-east-1.on.aws/
 
 ```
 
