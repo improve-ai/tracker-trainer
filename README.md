@@ -61,7 +61,7 @@ The deployment will also create a *models* S3 bucket in the form of *improveai-{
 
 The *models* bucket is private by default. Either configure a CDN in front of the models S3 bucket, or make the '/models/latest/' directory public to serve models directly from S3.
 
-Model URLs follow the form of https://{modelsBucket}.s3.amazonaws.com/models/latest/{modelName}.{mlmodel|xgb}.gz. The Android and Python SDKs use .xgb.gz models and the iOS SDK uses .mlmodel.gz models.
+Model URLs follow the template of https://{modelsBucket}.s3.amazonaws.com/models/latest/{modelName}.{mlmodel|xgb}.gz. The Android and Python SDKs use .xgb.gz models and the iOS SDK uses .mlmodel.gz models.
 
 ## Integrate a Client SDK
 
