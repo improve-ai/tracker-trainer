@@ -55,13 +55,13 @@ endpoint: https://xxxx.lambda-url.us-east-1.on.aws/
 
 ```
 
-The output of the deployment will list the *track endpoint* URL like https://xxxx.lambda-url.us-east-1.on.aws.  The *track endpoint* URL may be used directly by the client SDKs to track decisions and rewards.  Alternately, a CDN may be configured in front of the *track endpoint* URL for greater administrative control.
+The output of the deployment will list the *track endpoint* URL like **https://xxxx.lambda-url.us-east-1.on.aws**.  The *track endpoint* URL may be used directly by the client SDKs to track decisions and rewards.  Alternately, a CDN may be configured in front of the *track endpoint* URL for greater administrative control.
 
 The deployment will also create a *models* S3 bucket in the form of *improveai-{organization}-{project}-{stage}-models*. After each round of training, updated models are automatically uploaded to the *models* bucket.
 
 The *models* bucket is private by default. Either configure a CDN in front of the models S3 bucket, or make the '/models/latest/' directory public to serve models directly from S3.
 
-Model URLs follow the template of https://{modelsBucket}.s3.amazonaws.com/models/latest/{modelName}.{mlmodel|xgb}.gz. The Android and Python SDKs use .xgb.gz models and the iOS SDK uses .mlmodel.gz models.
+Model URLs follow the template of **https://{modelsBucket}.s3.amazonaws.com/models/latest/{modelName}.{mlmodel|xgb}.gz**. The Android and Python SDKs use .xgb.gz models and the iOS SDK uses .mlmodel.gz models.
 
 ## Integrate a Client SDK
 
