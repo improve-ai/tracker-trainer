@@ -23,11 +23,7 @@ module.exports.track = async function(event, context) {
   if (!isValidKsuid(record.message_id)) {
     return errorResponse('invalid message_id field')
   }
-  
-  if (!isValidDate(record.timestamp)) {
-    return errorResponse('invalid timestamp field')
-  }
-  
+
   if (!isValidType(record.type)) {
     return errorResponse('invalid type field')
   }
@@ -75,20 +71,4 @@ function isValidType(type) {
 
 function isValidKsuid(id) {
   return id && typeof id === 'string' && KSUID_REGEX.test(id)
-}
-
-
-// from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
-function isValidDate(date) {
-  return date && typeof date == 'string' && !!parseDate(date)
-}
-
-
-function parseDate(dateString) {
-  const date = new Date(dateString)
-  if ((date !== 'Invalid Date') && !isNaN(date)) {
-    return date
-  } else {
-    return null
-  }
 }
