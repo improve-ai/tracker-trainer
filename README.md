@@ -46,7 +46,7 @@ Deploy a new dev stage in us-east-1
 $ serverless deploy --stage dev
 ```
 
-The output of the deployment will list the HTTPS URL for the *track endpoint* like https://xxxx.lambda-url.us-east-1.on.aws
+The output of the deployment will list the *track endpoint* URL like https://xxxx.lambda-url.us-east-1.on.aws
 
 ```console
 Deploying improveai-acme-demo to stage prod (us-east-1)
