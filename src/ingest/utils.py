@@ -1,6 +1,5 @@
 # Built-in imports
 import datetime
-from dateutil import parser
 import re
 
 # External imports
@@ -10,18 +9,6 @@ import orjson
 # Local imports
 from config import s3client
 from constants import MODEL_NAME_REGEXP, REWARDED_DECISIONS_S3_KEY_REGEXP
-
-ZERO = datetime.timedelta(0)
-
-class UTC(datetime.tzinfo):
-    def utcoffset(self, dt):
-        return ZERO
-    def tzname(self, dt):
-        return "UTC"
-    def dst(self, dt):
-        return ZERO
-
-utc = UTC()
 
 
 def list_s3_keys(bucket_name, prefix='', after_key=''):
@@ -84,26 +71,6 @@ def is_valid_ksuid(id_):
         
     return True
 
-
-def get_valid_timestamp(timestamp):
-    """ Return a parsed and validated timestamp"""
-    
-    # if missing / None raise
-    assert timestamp is not None
-    
-    # if not string raise
-    assert isinstance(timestamp, str)
-    
-    # check string format
-    try:
-        parsed_timestamp = parser.isoparse(timestamp)
-    except ValueError:
-        parsed_timestamp = None
-    
-    assert parsed_timestamp is not None
-
-    return parsed_timestamp
-    
 
 def json_dumps(val):
     # sorting the json keys may improve compression
