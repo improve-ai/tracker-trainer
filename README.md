@@ -46,7 +46,7 @@ Deploy a new dev stage in us-east-1
 $ serverless deploy --stage dev
 ```
 
-The output of the deployment will list the HTTPS URL for the *track* endpoint like https://xxxx.lambda-url.us-east-1.on.aws
+The output of the deployment will list the HTTPS URL for the *track endpoint* like https://xxxx.lambda-url.us-east-1.on.aws
 
 ```console
 Deploying improveai-acme-demo to stage prod (us-east-1)
@@ -57,7 +57,7 @@ endpoint: https://xxx.lambda-url.us-east-1.on.aws/
 
 ```
 
-Either configure a CDN in front of this track endpoint URL, or use it directly in the client SDKs to track decisions and rewards.
+Either configure a CDN in front of this *track endpoint* URL, or use it directly in the client SDKs to track decisions and rewards.
 
 The deployment will also create a *models* S3 bucket in the form of *improveai-acme-demo-prod-models* where the continuously trained 
 models will automatically be uploaded.
