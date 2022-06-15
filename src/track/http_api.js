@@ -31,6 +31,7 @@ module.exports.track = async function(event, context) {
   const firehoseRecord = {
     DeliveryStreamName: FIREHOSE_DELIVERY_STREAM_NAME,
     Record: { 
+        // the max firehose buffer size is 1000 KiB and we need 2 bytes for newline
         Data: Buffer.from(JSON.stringify(record)+'\n')
     }
   }
