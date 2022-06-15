@@ -10,7 +10,8 @@ const KSUID_REGEX = /^[a-zA-Z0-9]{27}$/
 
 /**
  * Summary. Receives a JSON encoded track protocol record and writes it to the
- * AWS Kinesis Firehose delivery stream.
+ * AWS Kinesis Firehose delivery stream. The max record size is 1000 KiB 
+ * (max firehose record size) - 1 byte for the newline.
  */
 module.exports.track = async function(event, context) {
   
@@ -31,7 +32,6 @@ module.exports.track = async function(event, context) {
   const firehoseRecord = {
     DeliveryStreamName: FIREHOSE_DELIVERY_STREAM_NAME,
     Record: { 
-        // the max firehose buffer size is 1000 KiB and we need 2 bytes for newline
         Data: Buffer.from(JSON.stringify(record)+'\n')
     }
   }
