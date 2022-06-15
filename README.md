@@ -111,7 +111,7 @@ The Improve AI Gym stack consists of a number of components to track decisions a
 
 The *track* HTTPS endpoint is an AWS Lambda service that scalably tracks decisions and rewards. The *track* endpoint URL is used by the client SDKs to track 
 decisions and rewards.  Events received by the track endpoint Lambda are sent to AWS Firehose for persistence and further processing. 
-The maximum payload size for *track* is 1MB.
+The maximum payload size for *track* is 999 KiB.
 
 ## AWS Kinesis Firehose
 
