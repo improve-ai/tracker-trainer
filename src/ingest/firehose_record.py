@@ -11,13 +11,11 @@ import pandas as pd
 
 # Local imports
 from config import FIREHOSE_BUCKET, s3client
-from utils import utc, is_valid_model_name, is_valid_ksuid, get_valid_timestamp, \
-    json_dumps_wrapping_primitive, json_dumps
+from utils import is_valid_model_name, is_valid_ksuid, json_dumps_wrapping_primitive, json_dumps
 
 
 MESSAGE_ID_KEY = 'message_id'
 DECISION_ID_KEY = 'decision_id'
-TIMESTAMP_KEY = 'timestamp'
 TYPE_KEY = 'type'
 DECISION_TYPE = 'decision'
 REWARD_TYPE = 'reward'
@@ -32,7 +30,6 @@ RUNNERS_UP_KEY = 'runners_up'
 
 DF_SCHEMA = {
     DECISION_ID_KEY : 'object',
-    TIMESTAMP_KEY   : 'datetime64[ns]',
     VARIANT_KEY     : 'object',
     GIVENS_KEY      : 'object',
     COUNT_KEY       : 'Int64',
@@ -44,7 +41,7 @@ DF_SCHEMA = {
 
 class FirehoseRecord:
     # slots are faster and use much less memory than dicts
-    __slots__ = [MESSAGE_ID_KEY, TIMESTAMP_KEY, TYPE_KEY, MODEL_KEY, DECISION_ID_KEY, REWARD_KEY, VARIANT_KEY, GIVENS_KEY, COUNT_KEY, RUNNERS_UP_KEY, SAMPLE_KEY]
+    __slots__ = [MESSAGE_ID_KEY, TYPE_KEY, MODEL_KEY, DECISION_ID_KEY, REWARD_KEY, VARIANT_KEY, GIVENS_KEY, COUNT_KEY, RUNNERS_UP_KEY, SAMPLE_KEY]
    
     # throws TypeError if json_record is wrong type
     # throws ValueError if record is invalid
@@ -61,13 +58,6 @@ class FirehoseRecord:
             raise ValueError('invalid message_id')
 
         self.message_id = message_id
-        
-        # parse and validate timestamp
-        timestamp = get_valid_timestamp(json_record[TIMESTAMP_KEY])
-        if timestamp.tzinfo is None:
-            timestamp = timestamp.replace(tzinfo=utc)
-        
-        self.timestamp = timestamp
         
         type_ = json_record[TYPE_KEY]
         if not isinstance(type_, str):
@@ -170,13 +160,12 @@ class FirehoseRecord:
         result = {}
         
         if self.is_decision_record():
-            # 'decision_id', 'timestamp', 'variant', 'givens', and 'count' must all be set
+            # 'decision_id',  'variant', 'givens', and 'count' must all be set
             # when converting from 'type' == 'decision' firehose records
             #
             # primitive values (including null values) are wrapped to ensure that all encoded JSON strings 
             # are either a JSON encoded dictionary or a JSON encoded list
             result[DECISION_ID_KEY] = self.message_id
-            result[TIMESTAMP_KEY] = self.timestamp
             result[VARIANT_KEY] = json_dumps_wrapping_primitive(self.variant)
             result[GIVENS_KEY] = json_dumps_wrapping_primitive(self.givens)
             result[COUNT_KEY] = self.count
@@ -194,7 +183,6 @@ class FirehoseRecord:
                 
         elif self.is_reward_record():
             # Only 'decision_id' and 'rewards' may be set when converting from 'type' == 'reward' firehose records
-            # Do NOT copy the 'timestamp' field!
             result[DECISION_ID_KEY] = self.decision_id
             result[REWARDS_KEY] = json_dumps({ self.message_id: self.reward })
 
@@ -210,17 +198,15 @@ class FirehoseRecord:
                    f'givens {self.givens} '\
                    f'variant {self.variant} ' \
                    f'runners_up {self.runners_up} '\
-                   f'sample {self.sample} '\
-                   f'timestamp {self.timestamp}' 
+                   f'sample {self.sample} '
 
         elif self.is_reward_record():
             return f'message_id {self.message_id} '\
                 f'type {self.type} '\
                 f'model {self.model} '\
                 f'decision_id {self.decision_id} '\
-                f'reward {self.reward}' \
-                f'timestamp {self.timestamp}'
-    
+                f'reward {self.reward}' 
+
 
 def _get_sample_pool_size(count, runners_up):
     sample_pool_size = count - 1 - (len(runners_up) if runners_up else 0)  # subtract chosen variant and runners up from count
@@ -244,7 +230,6 @@ class FirehoseRecordGroup:
 
     def to_pandas_df(self):
         df = pd.DataFrame(self.to_rewarded_decision_dicts(), columns=DF_SCHEMA.keys())
-        df[TIMESTAMP_KEY] = pd.to_datetime(df[TIMESTAMP_KEY], utc=True).dt.tz_localize(None)
         return df.astype(DF_SCHEMA)
         
 
@@ -345,9 +330,6 @@ def assert_valid_record(json_dict):
     ##########################################################################
     message_id = json_dict[MESSAGE_ID_KEY]
     assert is_valid_message_id(message_id), f"invalid message_id: {message_id}"
-    
-    timestamp = json_dict[TIMESTAMP_KEY]
-    assert get_valid_timestamp(timestamp), f"invalid timestamp: {timestamp}"
     
     rec_type = json_dict[TYPE_KEY]
     assert is_valid_type(rec_type), f"invalid type: {rec_type}"
@@ -454,15 +436,6 @@ def assert_valid_rewarded_decision_record(rdr_dict, record_type):
     if record_type == "decision":
 
         ######################################################################
-        # timestamp validation
-        ######################################################################
-        # Can't do the following because the rewarded decision record returned
-        # by to_rewarded_decision_dict is a datetime object
-        # assert get_valid_timestamp(rdr_dict[TIMESTAMP_KEY]), "invalid timestamp"
-        assert isinstance(rdr_dict[TIMESTAMP_KEY], datetime.datetime)
-
-
-        ######################################################################
         # variant validation
         ######################################################################
         variant = rdr_dict[VARIANT_KEY]
@@ -528,13 +501,6 @@ def assert_valid_rewarded_decision_record(rdr_dict, record_type):
 
 
     elif record_type == "reward":
-
-        ######################################################################
-        # timestamp validation: Timestamp must not be there
-        ######################################################################
-        assert rdr_dict.get(TIMESTAMP_KEY) is None, \
-            "a partial rewarded decision record shouldn't have a timestamp"
-        
 
         ######################################################################
         # variant validation

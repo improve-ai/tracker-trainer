@@ -10,7 +10,8 @@ const KSUID_REGEX = /^[a-zA-Z0-9]{27}$/
 
 /**
  * Summary. Receives a JSON encoded track protocol record and writes it to the
- * AWS Kinesis Firehose delivery stream.
+ * AWS Kinesis Firehose delivery stream. The max record size is 1000 KiB 
+ * (max firehose record size) - 1 byte for the newline.
  */
 module.exports.track = async function(event, context) {
   
@@ -23,11 +24,7 @@ module.exports.track = async function(event, context) {
   if (!isValidKsuid(record.message_id)) {
     return errorResponse('invalid message_id field')
   }
-  
-  if (!isValidDate(record.timestamp)) {
-    return errorResponse('invalid timestamp field')
-  }
-  
+
   if (!isValidType(record.type)) {
     return errorResponse('invalid type field')
   }
@@ -75,20 +72,4 @@ function isValidType(type) {
 
 function isValidKsuid(id) {
   return id && typeof id === 'string' && KSUID_REGEX.test(id)
-}
-
-
-// from https://stackoverflow.com/questions/7445328/check-if-a-string-is-a-date-value
-function isValidDate(date) {
-  return date && typeof date == 'string' && !!parseDate(date)
-}
-
-
-function parseDate(dateString) {
-  const date = new Date(dateString)
-  if ((date !== 'Invalid Date') && !isNaN(date)) {
-    return date
-  } else {
-    return null
-  }
 }
