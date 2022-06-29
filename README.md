@@ -1,6 +1,6 @@
 # Improve AI Gym: Simple Scalable Reinforcement Learning
 
-The Improve AI Gym makes it easy to deploy *reinforcement learning* systems in production. *Reinforcement learning* is a type of machine learning where models are trained to make good decisions simply by assigning numeric rewards for positive outcomes. By aligning rewards with business metrics, such as revenue, conversions, or user retention, reinforcement learning automatically optimizes your app to improve those metrics.
+The Improve AI Gym makes it easy to deploy *reinforcement learning* systems in production. *Reinforcement learning* is a type of machine learning where desirable behaviors are rewarded and undesirable behaviors are punished. A numeric reward is assigned for each decision. By aligning rewards with business metrics, such as revenue, conversions, or user retention, reinforcement learning automatically optimizes your app to improve those metrics.
 
 With reinforcement learning you can easily optimize any variable, content, and configuration in your app and quickly implement personalization and recommendation systems. **It's like A/B testing on steroids.**
 
