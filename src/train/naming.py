@@ -178,3 +178,13 @@ def get_train_job_name(model_name: str) -> str:
     training_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-', initial_truncated_job_name)
     assert len(training_job_name) <= 63
     return training_job_name
+
+
+def is_algorithm_arn(trainer_source: str):
+    # e.g. image URI
+    # 278455137857.dkr.ecr.us-east-2.amazonaws.com/improve.ai:hp-evvars-check
+    # e.g. algo ARN
+    # "arn:aws:sagemaker:us-east-2:057799348421:algorithm/improveai-trainer-free-prod-ma-e649b42949fc346095464c000d5cce87"
+    if trainer_source.startswith('arn:aws:sagemaker'):
+        return True
+    return False
