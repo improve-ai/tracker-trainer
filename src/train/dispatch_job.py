@@ -7,7 +7,7 @@ import boto3
 # Local imports
 import src.train.constants as tc
 from src.train.naming import get_train_job_name, get_training_s3_uri_for_model, \
-    get_s3_model_save_uri, get_checkpoints_s3_uri, is_valid_model_name
+    get_s3_model_save_uri, get_checkpoints_s3_uri, is_valid_model_name, is_algorithm_arn
 
 
 def create_sagemaker_training_job(
@@ -51,13 +51,15 @@ def create_sagemaker_training_job(
     training_s3_uri = get_training_s3_uri_for_model(model_name=model_name)
     model_save_s3_uri = get_s3_model_save_uri(model_name=model_name)
 
+    algorithm_specification = {'TrainingInputMode': 'File'}
+    algorithm_specification_image_uri_key = \
+        'AlgorithmName' if is_algorithm_arn(trainer_source=image_uri) else 'TrainingImage'
+    algorithm_specification[algorithm_specification_image_uri_key] = image_uri
+
     response = sagemaker_client.create_training_job(
         TrainingJobName=training_job_name,
         HyperParameters=hyperparameters,
-        AlgorithmSpecification={
-            'TrainingImage': image_uri,
-            'TrainingInputMode': 'FastFile'
-        },
+        AlgorithmSpecification=algorithm_specification,
         RoleArn=role,
         InputDataConfig=[
             {
