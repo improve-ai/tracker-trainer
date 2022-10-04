@@ -27,7 +27,7 @@ def unpack(event, context):
             'Invalid S3 event - model filename `{}` differs from expected `{}`'
             .format(s3_key, tc.EXPECTED_TRAINER_OUTPUT_FILENAME))
 
-    s3_model_name = path_parts[1]
+    s3_model_name = path_parts[2]
 
     print(f'loading s3://{s3_bucket}/{s3_key}')
     models_object = s3_client.get_object(Bucket=s3_bucket, Key=s3_key)
