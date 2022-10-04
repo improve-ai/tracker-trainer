@@ -52,12 +52,16 @@ def get_s3_model_save_uri(model_name: str):
 
     train_bucket_name = os.environ[tc.TRAIN_BUCKET_ENVVAR]
 
-    return f's3://{train_bucket_name}/train_output/{model_name}'
+    return f's3://{train_bucket_name}/train_output/{model_name}/models'
 
 
 def get_checkpoints_s3_uri(model_name):
+    if not is_valid_model_name(model_name):
+        raise ValueError(f'invalid model name {model_name}')
+
     train_bucket_name = os.environ[tc.TRAIN_BUCKET_ENVVAR]
-    return f's3://{train_bucket_name}/train_output/{model_name}'
+
+    return f's3://{train_bucket_name}/train_output/{model_name}/checkpoints'
 
 
 def is_valid_model_name(model_name: str) -> bool:

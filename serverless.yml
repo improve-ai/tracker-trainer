@@ -97,7 +97,7 @@ functions:
           existing: true # created in resources
           event: s3:ObjectCreated:*
           rules:
-            - prefix: train_output/
+            - prefix: train_output/models/
             - suffix: model.tar.gz
 
 stepFunctions:
