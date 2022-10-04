@@ -22,8 +22,6 @@ MIN_STAGE_LENGTH = 4
 # min 8 chars for model name
 MIN_MODEL_NAME_LENGTH = 8
 
-EXPECTED_TRAINER_OUTPUT_FILENAME = 'model.tar.gz'
-
 EVENT_MODEL_NAME_KEY = 'model_name'
 EVENT_WORKER_INSTANCE_TYPE_KEY = 'instance_type'
 EVENT_WORKER_COUNT_KEY = 'instance_count'

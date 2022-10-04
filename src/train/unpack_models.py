@@ -22,10 +22,8 @@ def unpack(event, context):
     
     path_parts = s3_key.split('/')
 
-    if path_parts[-1] != tc.EXPECTED_TRAINER_OUTPUT_FILENAME:
-        raise ValueError(
-            'Invalid S3 event - model filename `{}` differs from expected `{}`'
-            .format(s3_key, tc.EXPECTED_TRAINER_OUTPUT_FILENAME))
+    if path_parts[0] != 'train_output' or path_parts[1] != 'models' or path_parts[-1] != 'model.tar.gz':
+        raise ValueError(f'Invalid S3 event - key `{s3_key}` not expected format /train_output/models/**/model.tar.gz')
 
     s3_model_name = path_parts[2]
 
