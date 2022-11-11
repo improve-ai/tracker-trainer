@@ -1,8 +1,10 @@
-# Improve AI Gym: Track Decisions & Rewards, Train Decision Models
+# Improve AI Gym | Track Decisions | Train Models
 
-The Improve AI Gym is a scalable stack of serverless services that run on AWS for tracking decisions and rewards from Improve AI SDKs and managing the training of decision models.
+The Improve AI Gym makes it easy to deploy *reinforcement learning* systems in production. *Reinforcement learning* is a type of machine learning where desirable behaviors are rewarded and undesirable behaviors are punished. A numeric reward is assigned for each decision. By aligning rewards with business metrics, such as revenue, conversions, or user retention, reinforcement learning automatically optimizes your app to improve those metrics.
 
-These services are packaged into a Virtual Private Cloud that you deploy on AWS. A such, all data remains private to you and there are no operational dependencies on third parties other than AWS.
+With reinforcement learning you can easily optimize any variable, content, and configuration in your app and quickly implement personalization and recommendation systems. **It's like A/B testing on steroids.**
+
+The Gym is a scalable stack of serverless services that you deploy on AWS. A such, all data remains private to you and there are no operational dependencies on third parties other than AWS.
 
 # Deployment
 
@@ -28,7 +30,7 @@ To train models on up to 100,000 decisions, subscribe to the [free trainer](http
 
 To train models on over 100,000 decisions, subscribe to the [pro trainer](https://aws.amazon.com/marketplace/pp/prodview-adchtrf2zyvow)
 
-Once subscribed, copy your the trainer Docker image URLs and add them to **config/config.yml**
+Once subscribed, copy your the trainer Docker image URLs and paste them in **config/config.yml**
 
 ## Configure Models and Training Parameters
 
@@ -44,23 +46,62 @@ Deploy a new dev stage in us-east-1
 $ serverless deploy --stage dev
 ```
 
-The output of the deployment will list the HTTPS URL for the *track* endpoint like https://xxxx.lambda-url.us-east-1.on.aws
-
 ```console
-Deploying improveai-acme-demo to stage prod (us-east-1)
+Deploying improveai-acme-demo to stage dev (us-east-1)
 
-✔ Service deployed to stack improveai-acme-demo-prod (111s)
+✔ Service deployed to stack improveai-acme-demo-dev (111s)
 
-endpoint: https://xxx.lambda-url.us-east-1.on.aws/
+endpoint: https://xxxx.lambda-url.us-east-1.on.aws/
 
 ```
 
-Either configure a CDN in front of this track endpoint URL, or use it directly in the client SDKs to track decisions and rewards.
+The output of the deployment will list the *track endpoint* URL like **https://xxxx.lambda-url.us-east-1.on.aws**.  The *track endpoint* URL may be used directly by the client SDKs to track decisions and rewards.  Alternately, a CDN may be configured in front of the *track endpoint* URL for greater administrative control.
 
-The deployment will also create a *models* S3 bucket in the form of *improveai-acme-demo-prod-models* where the continuously trained 
-models will automatically be uploaded.
+The deployment will also create a *models* S3 bucket in the form of *improveai-{organization}-{project}-{stage}-models*. After each round of training, updated models are automatically uploaded to the *models* bucket.
 
-Either configure a CDN in front of the models S3 bucket, or make the 'models' directory public to serve models directly from S3.
+The *models* bucket is private by default.  Make the '/models/latest/' directory public to serve models directly from S3. Alternatively, a CDN may be configured in front of the models S3 bucket.
+
+Model URLs follow the template of **https://{modelsBucket}.s3.amazonaws.com/models/latest/{modelName}.{mlmodel|xgb}.gz**. The Android and Python SDKs use .xgb.gz models and the iOS SDK uses .mlmodel.gz models.
+
+## Integrate a Client SDK
+
+Improve AI SDKs are currently available for [Swift/Objective-C](https://github.com/improve-ai/ios-sdk), [Java/Kotlin](https://github.com/improve-ai/android-sdk), and [Python](https://github.com/improve-ai/python-sdk).
+
+For example if we're using Improve AI for In App Personalization in Swift, we would use the *trackURL* and *modelURL* that we configured in the Improve AI Gym.
+
+```swift
+import ImproveAI
+```
+
+```swift
+func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+
+    DecisionModel.defaultTrackURL = trackURL // trackUrl is obtained from your Improve AI Gym configuration
+
+    DecisionModel["greetings"].loadAsync(greetingsModelUrl) // greetingsModelUrl is a trained model output by the Improve AI Gym
+
+    return true
+}
+```
+
+To make a decision, use the *which* statement. *which* is like an AI if/then statement.
+```swift
+greeting = DecisionModel["greetings"].which("Hello", "Howdy", "Hola")
+```
+
+*which* makes decisions on-device using a *decision model*. Decisions are automatically tracked with the Improve AI Gym via the *trackURL*.
+
+```swift
+if (success) {
+    DecisionModel["greetings"].addReward(1.0)
+}
+```
+
+Rewards are credited to the most recent decision made by the model and are also tracked with the Improve AI Gym via the *trackURL*. During the next model training, the rewards will be joined with their associated decisions and the model will be trained to make decisions that provide the highest expected rewards.
+
+# Algorithm
+
+The reinforcement learning algorithm is a [contextual multi-armed bandit](https://en.wikipedia.org/wiki/Multi-armed_bandit#Contextual_bandit) with [XGBoost](https://github.com/dmlc/xgboost) acting as the core regression algorithm. As such, it is ideal for making decisions on structured data, such as JSON or native objects in [Swift/Objective-C](https://github.com/improve-ai/ios-sdk), [Java/Kotlin](https://github.com/improve-ai/android-sdk), and [Python](https://github.com/improve-ai/python-sdk). Unlike *deep reinforcement learning* algorithms, which often require simulator environments and hundreds of millions of decisions, this algorithm performs well with the more modest amounts of data found in real world applications. Compared to A/B testing it requires exponentially less data for good results.
 
 # Architecture
 
@@ -70,7 +111,7 @@ The Improve AI Gym stack consists of a number of components to track decisions a
 
 The *track* HTTPS endpoint is an AWS Lambda service that scalably tracks decisions and rewards. The *track* endpoint URL is used by the client SDKs to track 
 decisions and rewards.  Events received by the track endpoint Lambda are sent to AWS Firehose for persistence and further processing. 
-The maximum payload size for *track* is 1MB.
+The maximum payload size for *track* is 999 KiB.
 
 ## AWS Kinesis Firehose
 
@@ -82,7 +123,7 @@ and written to the *firehose* S3 bucket.
 When a new firehose file is written to the firehose S3 bucket, an AWS Lambda job ingests the new data from firehose and adds it to the training data 
 for each model in the *train* S3 bucket.
 
-## Grooming Training Data
+## Joining Rewards with Decisions
 
 Prior to each training, the .parquet files containing the training data are optimized and all available rewards are joined with their decisions, ensuring
 the most up-to-date data is used for each training cycle.

@@ -17,21 +17,18 @@ def unpack(event, context):
 
     s3_record = event['Records'][0]['s3']
 
-    input_key = s3_record['object']['key']
-    path_parts = input_key.split('/')
+    s3_bucket = s3_record['bucket']['name']
+    s3_key = s3_record['object']['key']
+    
+    path_parts = s3_key.split('/')
 
-    if path_parts[-1] != tc.EXPECTED_TRAINER_OUTPUT_FILENAME:
-        raise ValueError(
-            'Invalid S3 event - model filename `{}` differs from expected `{}`'
-            .format(input_key, tc.EXPECTED_TRAINER_OUTPUT_FILENAME))
+    if path_parts[0] != 'train_output' or path_parts[1] != 'models' or path_parts[-1] != 'model.tar.gz':
+        raise ValueError(f'Invalid S3 event - key `{s3_key}` not expected format /train_output/models/**/model.tar.gz')
 
-    s3_model_name = path_parts[1]
+    s3_model_name = path_parts[2]
 
-    params = {
-        'Bucket': s3_record['bucket']['name'],
-        'Key': input_key}
-
-    models_object = s3_client.get_object(**params)
+    print(f'loading s3://{s3_bucket}/{s3_key}')
+    models_object = s3_client.get_object(Bucket=s3_bucket, Key=s3_key)
 
     if 'Body' not in models_object:
         raise ValueError('Missing `Body` in S3 `get_object()` response')
@@ -64,13 +61,14 @@ def unpack(event, context):
                 model_fileobject=model)
 
 
-def upload_model(
-        key: str, latest_key: str, s3_client, model_fileobject: BytesIO):
+def upload_model(key: str, latest_key: str, s3_client, model_fileobject: BytesIO):
 
+    models_bucket = os.getenv(tc.MODELS_BUCKET_ENVVAR)
+    
     # upload gzipped compressed model
     write_params = {
         'Fileobj': BytesIO(gzip.compress(model_fileobject)),
-        'Bucket': os.getenv(tc.MODELS_BUCKET_ENVVAR),
+        'Bucket': models_bucket,
         'Key': key,
         'ExtraArgs': {
             'ContentType': 'application/gzip'
@@ -78,12 +76,15 @@ def upload_model(
     }
 
     copy_params = {
-        'Bucket': os.getenv(tc.MODELS_BUCKET_ENVVAR),
-        'CopySource': os.getenv(tc.MODELS_BUCKET_ENVVAR) + '/' + key,
+        'Bucket': models_bucket,
+        'CopySource': models_bucket + '/' + key,
         'Key': latest_key,
     }
 
+    print(f'writing s3://{models_bucket}/{key}')
     s3_client.upload_fileobj(**write_params)
+
+    print(f'copying to s3://{models_bucket}/{latest_key}')
     s3_client.copy_object(**copy_params)
 
 def get_latest_s3_key(model_name: str, extension: str) -> str:
