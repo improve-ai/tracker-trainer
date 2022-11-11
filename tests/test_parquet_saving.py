@@ -9,7 +9,6 @@ from pandas._testing import assert_frame_equal
 # Local imports
 from partition import RewardedDecisionPartition
 from firehose_record import assert_valid_rewarded_decision_record
-from firehose_record import TIMESTAMP_KEY
 from firehose_record import VARIANT_KEY
 from firehose_record import GIVENS_KEY
 from firehose_record import COUNT_KEY
@@ -76,7 +75,6 @@ def test_parquet_types_unrewarded_rewarded_decision_record(tmp_path):
     # A rewarded decision record that has NOT been rewarded
     rdr1 = {
         DECISION_ID_KEY : "000000000000000000000000001",
-        TIMESTAMP_KEY   : datetime.fromisoformat("2021-10-07T07:24:06.126+02:00"),
         VARIANT_KEY     : '{ "text": "variant text" }',
         GIVENS_KEY      : '{ "device" : "iPhone", "page" : 2462, "shared" : { "a": 1 } }',
         COUNT_KEY       : 1,
@@ -88,11 +86,9 @@ def test_parquet_types_unrewarded_rewarded_decision_record(tmp_path):
     # A rewarded decision record with all the possible missing values
     rdr2 = {
         DECISION_ID_KEY : "000000000000000000000000002",
-        TIMESTAMP_KEY   : datetime.fromisoformat("2021-10-07T07:24:06.126+02:00"),
         VARIANT_KEY     : '{}',
         GIVENS_KEY      : '{}',
         COUNT_KEY       : 1,
-        # RUNNERS_UP_KEY  : must not be set when missing,
         SAMPLE_KEY      :  '{}',
     }
     assert_valid_rewarded_decision_record(rdr2, record_type="decision")
@@ -118,7 +114,6 @@ def test_parquet_types_rewarded_decision_record(tmp_path):
     # A rewarded decision record that HAS been rewarded
     rdr1 = {
         DECISION_ID_KEY : "000000000000000000000000001",
-        TIMESTAMP_KEY   : datetime.fromisoformat("2021-10-07T07:24:06.126+02:00"),
         VARIANT_KEY     : '{ "text": "variant text" }',
         GIVENS_KEY      : '{ "device" : "iPhone", "page" : 2462, "shared" : { "a": 1 } }',
         COUNT_KEY       : 1,
@@ -133,11 +128,9 @@ def test_parquet_types_rewarded_decision_record(tmp_path):
     # The minimum possible rewarded decision record coming from a decision
     rdr2 = {
         DECISION_ID_KEY : "000000000000000000000000002",
-        TIMESTAMP_KEY   : datetime.fromisoformat("2021-10-07T07:24:06.126+02:00"),
         VARIANT_KEY     : '{}',
         GIVENS_KEY      : '{}',
         COUNT_KEY       : 1,
-        # RUNNERS_UP_KEY  : must not be set when missing,
         SAMPLE_KEY      : '{}',
     }
     assert_valid_rewarded_decision_record(rdr2, record_type="decision")

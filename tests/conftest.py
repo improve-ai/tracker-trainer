@@ -9,7 +9,7 @@ from pytest_cases import fixture
 
 # Local imports
 from firehose_record import MESSAGE_ID_KEY
-from firehose_record import TIMESTAMP_KEY
+# from firehose_record import TIMESTAMP_KEY
 from firehose_record import TYPE_KEY
 from firehose_record import MODEL_KEY
 from firehose_record import VARIANT_KEY
@@ -87,7 +87,6 @@ def get_record():
         # Record with common fields
         record = {
             MESSAGE_ID_KEY : msg_id_val,
-            TIMESTAMP_KEY  : ts_val,
             TYPE_KEY       : type_val,
             MODEL_KEY      : model_val,            
         }

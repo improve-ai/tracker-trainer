@@ -194,8 +194,8 @@ def test_list_s3_keys_after(s3, current_cases, mocker, keys):
 
         selected_keys = list_s3_keys(TRAIN_BUCKET, after_key=p_start)
 
-        assert isinstance(selected_keys, list)
-        assert len(selected_keys) == len(expected)
+        assert isinstance(selected_keys, map)
+        assert len(list(selected_keys)) == len(expected)
         assert all([a == b for a, b in zip(selected_keys, expected)])
 
 
@@ -228,8 +228,8 @@ def test_list_partitions_after(s3, current_cases, mocker, keys):
 
         selected_keys = list_s3_keys(TRAIN_BUCKET, after_key=p_start)
 
-        assert isinstance(selected_keys, list)
-        assert len(selected_keys) == len(expected)
+        assert isinstance(selected_keys, map)
+        assert len(list(selected_keys)) == len(expected)
         assert all([a == b for a, b in zip(selected_keys, expected)])
 
 
@@ -276,12 +276,9 @@ def test_incorrectly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec)
 
 
     # Ensure the key is not listed by the function of interest
-    s3_keys = list_partitions(
-        bucket_name= TRAIN_BUCKET,
-        after_key=f'rewarded_decisions/{model_name}/parquet/',
-        prefix=f'rewarded_decisions/{model_name}/')
+    s3_keys = list_partitions(model_name=model_name)
 
-    assert s3_key not in s3_keys
+    assert s3_key not in list(s3_keys)
 
 
 def test_incorrectly_named_s3_partition_in_correct_folder(s3, tmp_path, get_rewarded_decision_rec):
@@ -325,12 +322,9 @@ def test_incorrectly_named_s3_partition_in_correct_folder(s3, tmp_path, get_rewa
     assert s3_key in all_keys
 
     # Ensure the key is not listed by the function of interest
-    s3_keys = list_partitions(
-        bucket_name=TRAIN_BUCKET,
-        after_key=f'rewarded_decisions/{model_name}/parquet/',
-        prefix=f'rewarded_decisions/{model_name}/')
+    s3_keys = list_partitions(model_name=model_name)
 
-    assert s3_key not in s3_keys
+    assert s3_key not in list(s3_keys)
 
 
 def test_correctly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec):
@@ -377,9 +371,7 @@ def test_correctly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec):
     all_keys = [x['Key'] for x in response['Contents']]
 
     # Ensure the key is not listed by the function of interest
-    s3_keys = list_partitions(
-        bucket_name=TRAIN_BUCKET,
-        after_key=f'rewarded_decisions/{model_name}/parquet/',
-        prefix=f'rewarded_decisions/{model_name}/')
+    # list_partition_s3_keys(model_name)
+    s3_keys = list_partitions(model_name=model_name)
 
-    np.testing.assert_array_equal(sorted(all_keys), s3_keys)
+    np.testing.assert_array_equal(all_keys, list(s3_keys))

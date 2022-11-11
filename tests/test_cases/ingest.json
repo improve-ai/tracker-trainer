@@ -1,0 +1,8 @@
+{
+  "records_file": "improveai-acme-kwtest-kw1-firehose-3-2022-10-14-13-31-49-9d65908f-bd7a-3d34-93f2-dbee51c26eb4.gz",
+  "firehose_s3_key_prefix": "2022/10/14/13",
+  "expected_train_files": [
+    "rewarded_decisions/test-model-0/parquet/2022/10/14/20221014T133148Z-20221014T133148Z-6-d4885c7f-5364-45d6-83ed-9ee02d9472b3.parquet",
+    "rewarded_decisions/test-model-1/parquet/2022/10/14/20221014T133148Z-20221014T133148Z-4-123522a1-b8bf-4db0-acbd-d2d67999b5e6.parquet",
+    "rewarded_decisions/test-model-2/parquet/2022/10/14/20221014T133148Z-20221014T133148Z-6-8e525c39-af1f-4241-9d8d-f6d13cb727d1.parquet"]
+}
