@@ -6,6 +6,8 @@ import math
 from typing import List
 
 # External imports
+import numpy as np
+import orjson
 import orjson as json
 import pandas as pd
 
@@ -32,12 +34,22 @@ DF_SCHEMA = {
     DECISION_ID_KEY : 'object',
     VARIANT_KEY     : 'object',
     GIVENS_KEY      : 'object',
-    COUNT_KEY       : 'Int64',
+    # TODO this should be an int but int in numpy does not allow NaNs
+    COUNT_KEY       : 'float64',  # it makes no sense to keep this as Int64 - > it will be loaded into object by default anyway and casting it fot Int64 will always truncate and not raise an error
     RUNNERS_UP_KEY  : 'object',
     SAMPLE_KEY      : 'object',
     REWARDS_KEY     : 'object',
     REWARD_KEY      : 'float64',
 }
+
+# ['2Hs40zK3P8fK1OKSmlTLHeuTVZX' '{"$value":0}' '{}' 200.0 None '{"$value":29}' '{}' 0.0]
+
+DF_COLUMNS = list(DF_SCHEMA.keys())
+EMPTY_REWARDS_JSON_ENCODED = '{}'
+NO_REWARDS_REWARD_VALUE = 0.0
+
+REWARDS_COLUMN_INDEX = -2
+REWARD_COLUMN_INDEX = -1
 
 class FirehoseRecord:
     # slots are faster and use much less memory than dicts

@@ -54,7 +54,7 @@ class CasesMergeOfRewardedDecisions:
 
         rdr = get_rewarded_decision_rec()
         # Simulate that this record has already been merged with some rewards
-        rdr["rewards"] = '{ "000000000000000000000000001" : -10 }'
+        rdr["rewards"] = '{"000000000000000000000000001":-10}'
 
         # A partial rewarded decicion record with a different message_id value
         partial_rewarded_dec_rec = get_partial_rewarded_dec_rec(msg_id_val="000000000000000000000000002")
