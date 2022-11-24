@@ -42,7 +42,7 @@ class RewardedDecisionPartition:
         self.sorted = False
 
 
-    def process(self):
+    def process(self, use_old_merge: bool = False):
 
         # load the existing .parquet files (if any) from s3
         self.load()
@@ -54,6 +54,7 @@ class RewardedDecisionPartition:
         self.sort()
 
         # merge the rewarded decisions together to accumulate the rewards
+
         self.merge()
 
         # save the consolidated partition to s3 as one or more .parquet files
@@ -118,49 +119,120 @@ class RewardedDecisionPartition:
         assert self.sorted
         return self.df[DECISION_ID_KEY].iat[-1]
 
-    def merge_many_records_groups(
-            self, df_np, not_nans_mask, group_start_index, group_end_index, into):
 
-        # select all records for currently processed decision ID
-        group_np = df_np[group_start_index:group_end_index, :]
-        # select a subset of mask indicating not nullish entries in processed df
-        group_not_nans_mask = not_nans_mask[group_start_index:group_end_index, :]
+    def merge_many_records_group(
+            self, records_array, array_not_nans_mask, group_slice_start, group_slice_end, into):
+        """
+        Merges a single decision ID group into a single record (into parameter)
 
-        into[:REWARDS_COLUMN_INDEX] = group_np[np.argmax((group_not_nans_mask[:, :-2]), axis=0), np.arange(0, group_np.shape[1] - 2)]
+        Parameters
+        ----------
+        records_array: np.ndarray
+            a 2D array of fully and partially rewarded decision records
+        array_not_nans_mask:
+            a 2D boolean array indicating where np.nans are located in the records_array  
+        group_slice_start: int
+            an index of records_array at which merged records group starts 
+        group_slice_end: int
+            index value indicating records_array subset end (true group end is at group_end_index - 1)
+        into: np.ndarray
+            a numpy array into which merging results will be written
 
-        if ~(group_not_nans_mask[:, REWARDS_COLUMN_INDEX].any()):
+        Returns
+        -------
+        None
+            None
+
+        """
+
+        # extract the slice from all records array
+        group_slice = records_array[group_slice_start:group_slice_end, :]
+        # extract the not np.nans mask slice from all records mask
+        group_not_nans_mask = array_not_nans_mask[group_slice_start:group_slice_end, :]
+
+        # for all columns other than "rewards" and "reward" select first not np.nan element
+        # np.argmax() allows to select index of first encountered True value in each column of group_not_nans_mask
+        # and provides per-column subset indices
+        # numpy syntax allows to selecting per-column row cells with the following call:
+        # <array>[<per column row indices>, <column indices>]
+        into[:REWARDS_COLUMN_INDEX] = group_slice[
+            np.argmax((group_not_nans_mask[:, :REWARDS_COLUMN_INDEX]), axis=0), np.arange(0, group_slice[0, :REWARDS_COLUMN_INDEX].shape[0])]
+
+        # find a boolean mask for all not empty (!= "{}") and not np.nan rewards JSONs
+        not_empty_rewards = \
+            group_not_nans_mask[:, REWARDS_COLUMN_INDEX] * (group_slice[:, REWARDS_COLUMN_INDEX] != EMPTY_REWARDS_JSON_ENCODED)
+
+        # If all cells in "rewards" column are empty it means that resulting reward is 0.0 and rewards equal to "{}"
+        if (~not_empty_rewards).all():
             into[REWARDS_COLUMN_INDEX:] = [EMPTY_REWARDS_JSON_ENCODED, NO_REWARDS_REWARD_VALUE]
         else:
 
             # TODO test this thoroughly
             # TODO test this with an already processed s3 df
 
-            # if only empty dicts are in the 'rewards' column this means that
-            # resulting rewards is also an empty dict and resulting reward is 0.0
-            not_empty_rewards = \
-                group_not_nans_mask[:, REWARDS_COLUMN_INDEX] * \
-                (group_np[:, REWARDS_COLUMN_INDEX] != EMPTY_REWARDS_JSON_ENCODED)
+            # This is a trick which significantly speeds up entire merge process
+            # "rewards" column stores flat dicts with a simple structure:
+            # {<reward message ID>: <reward value>, ...}
+            # This means that all not empty entries of "rewards column can be concatenated
+            # without loading them by a simple procedure:
+            # - strip leading "{" and trailing "}" of each record's "rewards", e.g. (please note that
+            # at this point np.nan can be present in "reward" column )
+            # -- | ..... |      "rewards"     |  "reward"  |
+            # ---|-------|--------------------|------------|
+            # 0: | ..... | '{"a": 1, "b": 2}' |   np.nan   |
+            # 1: | ..... | '{"c": 1, "d": 2}' |   np.nan   |
+            # 2: | ..... |    '{"e": 1}'      |   np.nan   |
+            #
+            # 'stripped' "rewards" column / array -> ['"a": 1, "b": 2', '"c": 1, "d": 2', '"e": 1']
+            # - string concatenation with a ',' and wrapping result with "{" + <string concatenation result> + "}"
+            #   will provide a JSON string containing all rewards dicts without even loading it with orjson.loads:
+            #   "{" + ','.join(['"a": 1, "b": 2', '"c": 1, "d": 2', '"e": 1']) "}" =
+            #   '{"a": 1, "b": 2', "c": 1, "d": 2, "e": 1}'
+            # - the last setp is to call orjson.loads() on the concatenated rewards. If the JSON string is broken
+            #   orjson.loads() will raise as it would for a single malformed "rewards" element
+            # this logic is encapsulated within method concat_rewards_dicts_without_loads()
+            loaded_rewards = orjson.loads(
+                concat_rewards_dicts_without_loads(group_slice[:, REWARDS_COLUMN_INDEX][not_empty_rewards]))
+            # Once all rewards are merged in to a single dict they can be dumped in the "rewards" column of into
+            # It is possible to skip orjson.dumps() call (and make a code a bit faster) by working
+            # on plain strings all the way for "rewards" column but it is safer to use orjson.dumps()
+            into[REWARDS_COLUMN_INDEX] = \
+                orjson.dumps(loaded_rewards, option=orjson.OPT_SORT_KEYS).decode('utf-8')
+            # reward is a sum of all values() from loaded_rewards
+            # if any of the values is malformed (e.g. a nested dict instead of <message id>: <reward> key - value pair
+            # this is where error will be raised
+            into[REWARD_COLUMN_INDEX] = sum(loaded_rewards.values())
 
-            if ~(not_empty_rewards.any()):
-                into[REWARDS_COLUMN_INDEX:] = [EMPTY_REWARDS_JSON_ENCODED, NO_REWARDS_REWARD_VALUE]
-            else:
-                loaded_rewards = orjson.loads(concat_rewards_dicts_without_loads(group_np[:, REWARDS_COLUMN_INDEX][not_empty_rewards]))
-                into[REWARDS_COLUMN_INDEX] = \
-                    orjson.dumps(loaded_rewards, option=orjson.OPT_SORT_KEYS).decode('utf-8')
-                into[REWARD_COLUMN_INDEX] = sum(loaded_rewards.values())
 
-    def get_decision_id_groups_starts_ends(self, df_array):
+    def get_group_slicing_indices(self, records_array):
+        """
+        Utility function for most recent merge() implementation. Assuming self.df
+        is sorted by decision ID method attempts to extract groups' start and end
+        slicing indices from records_array index
+
+        Parameters
+        ----------
+        records_array: np.ndarray
+            2D array representing all merged records
+
+        Returns
+        -------
+        tuple
+            a tuple of 2 1D arrays: (<groups starts indices>, <groups ends indices>)
+
+        """
+        assert self.sorted
         # create an integer index of df_array, fastest way seems to be np.arange()
         # remark: tried np.roll() approach - it provides shorter code but is observabluy slower
-        df_array_indices = np.arange(0, df_array.shape[0])
+        df_array_indices = np.arange(0, records_array.shape[0])
         # create a np array to store operations needed to determine groups starts and ends
-        groups_boundaries = np.empty((df_array.shape[0], 3), dtype=object)
+        groups_boundaries = np.empty((records_array.shape[0], 3), dtype=object)
         # cache original decision IDs in the first column
-        groups_boundaries[:, 0] = df_array[:, 0]
+        groups_boundaries[:, 0] = records_array[:, 0]
         # 'move down' decision IDs (this creates a 'previous' decision ID column) to be able to compare it with first column
-        groups_boundaries[1:, 1] = df_array[:-1, 0]
+        groups_boundaries[1:, 1] = records_array[:-1, 0]
         # 'move up' decision IDs (this creates a 'next' decision ID column) to be able to compare it with first column
-        groups_boundaries[:-1, 2] = df_array[1:, 0]
+        groups_boundaries[:-1, 2] = records_array[1:, 0]
 
         # This comparison: groups_boundaries[:, 0] != groups_boundaries[:, 1]
         # creates a boolean mask which shows at which index a group with identical decision ID starts
@@ -205,28 +277,28 @@ class RewardedDecisionPartition:
     def merge(self):
         # make sure that df is sorted -> this is crucial for current merge() implementation
         assert self.sorted
-        # since df_array is of object type np.isnan() won't work
+        # since records_array is of object type np.isnan() won't work
         # an alternative approach is to use elementwise multiplication by 0 which
         # will make all not nan values become empty strings or 0s while nans will
         # remain 'untouched'
         # extract numpy array from pandas DF
-        df_array = self.df.values
+        records_array = self.df.values
 
         # Saving file to parquet converts all NaN values in object typed columns to None
         # This means that if a s3 key from train bucket is being merged along with gzipped jsonlines
         # the self.df contains both NaNs and Nones in object typed columns. This raises problems
         # with fast missing values mask creation:
         # - np.isnan() does not work with object dtypes
-        # - None is not of a float type and will cause df_array * np.full(df_array.shape, 0) to fail
+        # - None is not of a float type and will cause records_array * np.full(records_array.shape, 0) to fail
         # In order to get the element-wise multiplication to work all Nones must be replaced with np.nans
         if self.s3_keys is not None:
-            df_array[df_array == None] = np.nan
+            records_array[records_array == None] = np.nan
 
         # In order to create a boolean mask indicating which cell contains not np.nan value
         # 2 steps are needed:
-        # - df_array multiplication by an array full of 0s -> strings will become '', numbers
+        # - records_array multiplication by an array full of 0s -> strings will become '', numbers
         # will become 0 / 0.0 and np.nans will remain np.nans
-        nans_filtering_container = df_array * np.full(df_array.shape, 0)
+        nans_filtering_container = records_array * np.full(records_array.shape, 0)
         # - simple comparison of multiplication result with '' and 0 / 0.0 allows to create a
         # boolean mask indicating where np.nans are located
         df_not_nans_mask = (nans_filtering_container == '') + (nans_filtering_container == 0)
@@ -240,11 +312,11 @@ class RewardedDecisionPartition:
         # rows where decision id != 'previous decision id' indicate groups starts
         # rows where decision id != 'next decision id' indicate groups ends
         # this procedure is implemented according to numpy's vectorized paradigm in the get_decision_id_groups_starts_ends()
-        groups_starts, groups_ends = self.get_decision_id_groups_starts_ends(df_array)
+        groups_starts, groups_ends = self.get_group_slicing_indices(records_array)
 
         # Create a placeholder for merging results (number of records should be
         # equal to number of groups / unique decision ids)
-        merged_records = np.full((groups_starts.shape[0], df_array.shape[1]), np.nan, dtype=object)
+        merged_records = np.full((groups_starts.shape[0], records_array.shape[1]), np.nan, dtype=object)
 
         # Assuming that the rewards will be sparse it is expected to see most of the
         # groups have only 1 record. Such groups can be processed 'together'
@@ -261,13 +333,13 @@ class RewardedDecisionPartition:
 
         # processing groups with single record
         self.merge_one_record_groups(
-            df_array, df_not_nans_mask, groups_starts[~is_many_records_group], ~is_many_records_group,
+            records_array, df_not_nans_mask, groups_starts[~is_many_records_group], ~is_many_records_group,
             one_record_groups_indices, merged_records)
 
         # processing groups with multiple records
         for i in many_records_groups_indices:
-            self.merge_many_records_groups(
-                df_array, df_not_nans_mask, groups_starts[i], groups_ends[i], merged_records[i])
+            self.merge_many_records_group(
+                records_array, df_not_nans_mask, groups_starts[i], groups_ends[i], merged_records[i])
 
         # final df with merged records is created
         self.df = pd.DataFrame(merged_records, columns=DF_COLUMNS)
@@ -275,94 +347,6 @@ class RewardedDecisionPartition:
         # only 2 columns need to be cast to floats (by default the DF infers object column type)
         for cn in [COUNT_KEY, REWARD_KEY]:
             self.df[cn] = self.df[cn].astype('float64')
-
-    # def old_merge(self):
-    #     """
-    #     Merge full or partial "rewarded decision records".
-    #     This process is idempotent. It may be safely repeated on
-    #     duplicate records and performed in any order.
-    #     If fields collide, one will win, but which one is unspecified.
-    #
-    #     """
-    #
-    #     assert self.sorted
-    #
-    #     def merge_rewards(rewards_series):
-    #         """Shallow merge of a list of dicts"""
-    #         rewards_dicts = rewards_series.dropna().apply(lambda x: orjson.loads(x))
-    #         return json_dumps(dict(ChainMap(*rewards_dicts)))
-    #
-    #     def sum_rewards(rewards_series):
-    #         """ Sum all the merged rewards values """
-    #         merged_rewards = orjson.loads(merge_rewards(rewards_series))
-    #         return float(sum(merged_rewards.values()))
-    #
-    #     def get_first_cell(col_series):
-    #         """Return the first cell of a column """
-    #
-    #         if col_series.isnull().all():
-    #             first_element = col_series.iloc[0]
-    #         else:
-    #             first_element = col_series.dropna().iloc[0]
-    #
-    #             if col_series.name == "count":
-    #                 return first_element.astype("int64")
-    #         return first_element
-    #
-    #
-    #     non_reward_keys = [key for key in self.df.columns if key not in [REWARD_KEY, REWARDS_KEY]]
-    #
-    #     # Create dict of aggregations with cols in the same order as the expected result
-    #     aggregations = { key : pd.NamedAgg(column=key, aggfunc=get_first_cell) for key in non_reward_keys }
-    #
-    #     if REWARDS_KEY in self.df.columns:
-    #         aggregations[REWARDS_KEY] = pd.NamedAgg(column="rewards", aggfunc=merge_rewards)
-    #         aggregations[REWARD_KEY]  = pd.NamedAgg(column="rewards", aggfunc=sum_rewards)
-    #
-    #     """
-    #     Now perform the aggregations. This is how it works:
-    #
-    #     1) "groupby" creates subsets of the original DF where each subset
-    #     has rows with the same decision_id.
-    #
-    #     2) "agg" uses the aggregations dict to create a new row for each
-    #     subset. The columns will be new and named after each key in the
-    #     aggregations dict. The cell values of each column will be based on
-    #     the NamedAgg named tuple, specified in the aggregations dict.
-    #
-    #     3) These NamedAgg named tuples specify which column of the subset
-    #     will be passed to the specified aggregation functions.
-    #
-    #     4) The aggregation functions process the values of the passed column
-    #     and return a single value, which will be the contents of the cell
-    #     in a new column for that subset.
-    #
-    #     Example:
-    #
-    #     >>> df = pd.DataFrame({
-    #     ...     "A": [1, 1, 2, 2],
-    #     ...     "B": [1, 2, 3, 4],
-    #     ...     "C": [0.362838, 0.227877, 1.267767, -0.562860],
-    #     ... })
-    #
-    #     >>> df
-    #        A  B         C
-    #     0  1  1  0.362838
-    #     1  1  2  0.227877
-    #     2  2  3  1.267767
-    #     3  2  4 -0.562860
-    #
-    #     >>> df.groupby("A").agg(
-    #     ...     b_min=pd.NamedAgg(column="B", aggfunc="min"),
-    #     ...     c_sum=pd.NamedAgg(column="C", aggfunc="sum")
-    #     ... )
-    #         b_min     c_sum
-    #     A
-    #     1      1  0.590715
-    #     2      3  0.704907
-    #     """
-    #
-    #     self.df = self.df.groupby("decision_id").agg(**aggregations).reset_index(drop=True).astype(DF_SCHEMA)
 
 
     def cleanup(self):
