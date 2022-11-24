@@ -149,16 +149,32 @@ class RewardedDecisionPartition:
                     orjson.dumps(loaded_rewards, option=orjson.OPT_SORT_KEYS).decode('utf-8')
                 into[REWARD_COLUMN_INDEX] = sum(loaded_rewards.values())
 
-    def get_decision_id_groups_starts_ends(self, df_np):
-        indices = np.arange(0, df_np.shape[0])
-        # remark: tried np.roll() approach - it is more concise but slower
-        split_indices_df = np.empty((df_np.shape[0], 3), dtype=object)
-        split_indices_df[:, 0] = df_np[:, 0]
-        split_indices_df[1:, 1] = df_np[:-1, 0]
-        split_indices_df[:-1, 2] = df_np[1:, 0]
+    def get_decision_id_groups_starts_ends(self, df_array):
+        # create an integer index of df_array, fastest way seems to be np.arange()
+        # remark: tried np.roll() approach - it provides shorter code but is observabluy slower
+        df_array_indices = np.arange(0, df_array.shape[0])
+        # create a np array to store operations needed to determine groups starts and ends
+        groups_boundaries = np.empty((df_array.shape[0], 3), dtype=object)
+        # cache original decision IDs in the first column
+        groups_boundaries[:, 0] = df_array[:, 0]
+        # 'move down' decision IDs (this creates a 'previous' decision ID column) to be able to compare it with first column
+        groups_boundaries[1:, 1] = df_array[:-1, 0]
+        # 'move up' decision IDs (this creates a 'next' decision ID column) to be able to compare it with first column
+        groups_boundaries[:-1, 2] = df_array[1:, 0]
 
-        return indices[split_indices_df[:, 0] != split_indices_df[:, 1]], \
-            indices[split_indices_df[:, 0] != split_indices_df[:, 2]] + 1
+        # This comparison: groups_boundaries[:, 0] != groups_boundaries[:, 1]
+        # creates a boolean mask which shows at which index a group with identical decision ID starts
+        # This comparison: groups_boundaries[:, 0] != groups_boundaries[:, 2]
+        # creates a boolean mask which shows at which index a group with identical decision ID ends
+        # df_array_indices[groups_boundaries[:, 0] != groups_boundaries[:, 1]] selects only those indices for which
+        # the logical statement is True -> as a result indices of groups starts are selected
+        # Same approach using groups ends mask allows to select indices at which groups end.
+        # Remark: groups end indicate exact index at which each group ends.
+        # python's array sntax <array>[<start>:<end>] will actually return an array until <end> - 1 index
+        # which mean that for such array subsetting the last element of each group would be excluded from the subset.
+        # In order to avoid this the 'groups ends' must be incremented by one
+        return df_array_indices[groups_boundaries[:, 0] != groups_boundaries[:, 1]], \
+            df_array_indices[groups_boundaries[:, 0] != groups_boundaries[:, 2]] + 1
 
     def merge_one_record_groups(
             self, df_np, not_nans_mask, one_record_groups_starts,
@@ -260,93 +276,93 @@ class RewardedDecisionPartition:
         for cn in [COUNT_KEY, REWARD_KEY]:
             self.df[cn] = self.df[cn].astype('float64')
 
-    def old_merge(self):
-        """
-        Merge full or partial "rewarded decision records".
-        This process is idempotent. It may be safely repeated on
-        duplicate records and performed in any order.
-        If fields collide, one will win, but which one is unspecified.
-
-        """
-
-        assert self.sorted
-
-        def merge_rewards(rewards_series):
-            """Shallow merge of a list of dicts"""
-            rewards_dicts = rewards_series.dropna().apply(lambda x: orjson.loads(x))
-            return json_dumps(dict(ChainMap(*rewards_dicts)))
-
-        def sum_rewards(rewards_series):
-            """ Sum all the merged rewards values """
-            merged_rewards = orjson.loads(merge_rewards(rewards_series))
-            return float(sum(merged_rewards.values()))
-
-        def get_first_cell(col_series):
-            """Return the first cell of a column """
-
-            if col_series.isnull().all():
-                first_element = col_series.iloc[0]
-            else:
-                first_element = col_series.dropna().iloc[0]
-
-                if col_series.name == "count":
-                    return first_element.astype("int64")
-            return first_element
-
-
-        non_reward_keys = [key for key in self.df.columns if key not in [REWARD_KEY, REWARDS_KEY]]
-
-        # Create dict of aggregations with cols in the same order as the expected result
-        aggregations = { key : pd.NamedAgg(column=key, aggfunc=get_first_cell) for key in non_reward_keys }
-
-        if REWARDS_KEY in self.df.columns:
-            aggregations[REWARDS_KEY] = pd.NamedAgg(column="rewards", aggfunc=merge_rewards)
-            aggregations[REWARD_KEY]  = pd.NamedAgg(column="rewards", aggfunc=sum_rewards)
-
-        """
-        Now perform the aggregations. This is how it works:
-
-        1) "groupby" creates subsets of the original DF where each subset
-        has rows with the same decision_id.
-
-        2) "agg" uses the aggregations dict to create a new row for each
-        subset. The columns will be new and named after each key in the
-        aggregations dict. The cell values of each column will be based on
-        the NamedAgg named tuple, specified in the aggregations dict.
-
-        3) These NamedAgg named tuples specify which column of the subset
-        will be passed to the specified aggregation functions.
-
-        4) The aggregation functions process the values of the passed column
-        and return a single value, which will be the contents of the cell
-        in a new column for that subset.
-
-        Example:
-
-        >>> df = pd.DataFrame({
-        ...     "A": [1, 1, 2, 2],
-        ...     "B": [1, 2, 3, 4],
-        ...     "C": [0.362838, 0.227877, 1.267767, -0.562860],
-        ... })
-
-        >>> df
-           A  B         C
-        0  1  1  0.362838
-        1  1  2  0.227877
-        2  2  3  1.267767
-        3  2  4 -0.562860
-
-        >>> df.groupby("A").agg(
-        ...     b_min=pd.NamedAgg(column="B", aggfunc="min"),
-        ...     c_sum=pd.NamedAgg(column="C", aggfunc="sum")
-        ... )
-            b_min     c_sum
-        A
-        1      1  0.590715
-        2      3  0.704907
-        """
-
-        self.df = self.df.groupby("decision_id").agg(**aggregations).reset_index(drop=True).astype(DF_SCHEMA)
+    # def old_merge(self):
+    #     """
+    #     Merge full or partial "rewarded decision records".
+    #     This process is idempotent. It may be safely repeated on
+    #     duplicate records and performed in any order.
+    #     If fields collide, one will win, but which one is unspecified.
+    #
+    #     """
+    #
+    #     assert self.sorted
+    #
+    #     def merge_rewards(rewards_series):
+    #         """Shallow merge of a list of dicts"""
+    #         rewards_dicts = rewards_series.dropna().apply(lambda x: orjson.loads(x))
+    #         return json_dumps(dict(ChainMap(*rewards_dicts)))
+    #
+    #     def sum_rewards(rewards_series):
+    #         """ Sum all the merged rewards values """
+    #         merged_rewards = orjson.loads(merge_rewards(rewards_series))
+    #         return float(sum(merged_rewards.values()))
+    #
+    #     def get_first_cell(col_series):
+    #         """Return the first cell of a column """
+    #
+    #         if col_series.isnull().all():
+    #             first_element = col_series.iloc[0]
+    #         else:
+    #             first_element = col_series.dropna().iloc[0]
+    #
+    #             if col_series.name == "count":
+    #                 return first_element.astype("int64")
+    #         return first_element
+    #
+    #
+    #     non_reward_keys = [key for key in self.df.columns if key not in [REWARD_KEY, REWARDS_KEY]]
+    #
+    #     # Create dict of aggregations with cols in the same order as the expected result
+    #     aggregations = { key : pd.NamedAgg(column=key, aggfunc=get_first_cell) for key in non_reward_keys }
+    #
+    #     if REWARDS_KEY in self.df.columns:
+    #         aggregations[REWARDS_KEY] = pd.NamedAgg(column="rewards", aggfunc=merge_rewards)
+    #         aggregations[REWARD_KEY]  = pd.NamedAgg(column="rewards", aggfunc=sum_rewards)
+    #
+    #     """
+    #     Now perform the aggregations. This is how it works:
+    #
+    #     1) "groupby" creates subsets of the original DF where each subset
+    #     has rows with the same decision_id.
+    #
+    #     2) "agg" uses the aggregations dict to create a new row for each
+    #     subset. The columns will be new and named after each key in the
+    #     aggregations dict. The cell values of each column will be based on
+    #     the NamedAgg named tuple, specified in the aggregations dict.
+    #
+    #     3) These NamedAgg named tuples specify which column of the subset
+    #     will be passed to the specified aggregation functions.
+    #
+    #     4) The aggregation functions process the values of the passed column
+    #     and return a single value, which will be the contents of the cell
+    #     in a new column for that subset.
+    #
+    #     Example:
+    #
+    #     >>> df = pd.DataFrame({
+    #     ...     "A": [1, 1, 2, 2],
+    #     ...     "B": [1, 2, 3, 4],
+    #     ...     "C": [0.362838, 0.227877, 1.267767, -0.562860],
+    #     ... })
+    #
+    #     >>> df
+    #        A  B         C
+    #     0  1  1  0.362838
+    #     1  1  2  0.227877
+    #     2  2  3  1.267767
+    #     3  2  4 -0.562860
+    #
+    #     >>> df.groupby("A").agg(
+    #     ...     b_min=pd.NamedAgg(column="B", aggfunc="min"),
+    #     ...     c_sum=pd.NamedAgg(column="C", aggfunc="sum")
+    #     ... )
+    #         b_min     c_sum
+    #     A
+    #     1      1  0.590715
+    #     2      3  0.704907
+    #     """
+    #
+    #     self.df = self.df.groupby("decision_id").agg(**aggregations).reset_index(drop=True).astype(DF_SCHEMA)
 
 
     def cleanup(self):
