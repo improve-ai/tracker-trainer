@@ -1,8 +1,4 @@
 # Built-in imports
-from collections import ChainMap
-import itertools
-from typing import List
-import math
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -16,10 +12,10 @@ from uuid import uuid4
 
 # Local imports
 from config import s3client, TRAIN_BUCKET, PARQUET_FILE_MAX_DECISION_RECORDS, S3_CONNECTION_COUNT
-from firehose_record import DECISION_ID_KEY, REWARDS_KEY, REWARD_KEY, DF_SCHEMA, DF_COLUMNS, \
-    REWARDS_COLUMN_INDEX, REWARD_COLUMN_INDEX, COUNT_KEY, EMPTY_REWARDS_JSON_ENCODED, NO_REWARDS_REWARD_VALUE
+from firehose_record import DECISION_ID_KEY, REWARD_KEY, DF_SCHEMA, DF_COLUMNS, REWARDS_COLUMN_INDEX, \
+    REWARD_COLUMN_INDEX, COUNT_KEY, EMPTY_REWARDS_JSON_ENCODED, NO_REWARDS_REWARD_VALUE
 from firehose_record import is_valid_message_id
-from utils import is_valid_model_name, is_valid_rewarded_decisions_s3_key, json_dumps, list_s3_keys
+from utils import is_valid_model_name, is_valid_rewarded_decisions_s3_key, list_s3_keys
 
 ISO_8601_BASIC_FORMAT = '%Y%m%dT%H%M%SZ'
 skip_first_and_last_char = np.vectorize(lambda x: x[1:-1])
