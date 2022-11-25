@@ -54,7 +54,6 @@ class RewardedDecisionPartition:
         self.sort()
 
         # merge the rewarded decisions together to accumulate the rewards
-
         self.merge()
 
         # save the consolidated partition to s3 as one or more .parquet files
@@ -170,7 +169,7 @@ class RewardedDecisionPartition:
             # TODO test this thoroughly
             # TODO test this with an already processed s3 df
 
-            # This is a trick which significantly speeds up entire merge process
+            # This is a trick which significantly speeds up an entire merge process
             # "rewards" column stores flat dicts with a simple structure:
             # {<reward message ID>: <reward value>, ...}
             # This means that all not empty entries of "rewards column can be concatenated
@@ -249,28 +248,51 @@ class RewardedDecisionPartition:
             df_array_indices[groups_boundaries[:, 0] != groups_boundaries[:, 2]] + 1
 
     def merge_one_record_groups(
-            self, df_np, not_nans_mask, one_record_groups_starts,
-            is_one_record_group_mask, one_record_groups_indices, merged_records):
+            self, records_array, array_not_nans_mask, records_array_one_record_groups_starts,
+            merged_records_one_record_groups_indices, merged_records):
+        """
 
-        # TODO work on direct indexing ->
-        single_record_groups_df_np = df_np[one_record_groups_starts, :]
+
+        Parameters
+        ----------
+        records_array: np.ndarray
+
+        array_not_nans_mask
+        records_array_one_record_groups_starts
+        merged_records_one_record_groups_indices
+        merged_records
+
+        Returns
+        -------
+
+        """
+
+        # select all single record groups from records_array
+        single_record_groups_df_np = records_array[records_array_one_record_groups_starts, :]
 
         # TODO this is valid if reward is a last column (column index = -1)
         #  and rewards is penultimate column (column index = -2)
-        merged_records[is_one_record_group_mask, :REWARD_COLUMN_INDEX] = single_record_groups_df_np[:, :REWARD_COLUMN_INDEX]
+        # copy all columns but "rewards" and "reward" into merged_records
+        # (this is equivalent to selecting first and if possible not np.nan element)
+        merged_records[merged_records_one_record_groups_indices, :REWARD_COLUMN_INDEX] = single_record_groups_df_np[:, :REWARD_COLUMN_INDEX]
 
-        # assign '{}' and 0.0 to indices which store '{}' or nan under rewards key
-        # single_row_groups_rewards_not_nan_mask = not_nans_mask[single_record_groups_start_indices, REWARDS_COLUMN_INDEX]
-        # not_empty_dicts_rewards_nan_mask = df_np[single_record_groups_start_indices, :REWARDS_COLUMN_INDEX] != '{}'
-
+        # First a mask indicating which elements are not np.nan and != "{}" is created
         rewards_to_parse_filter = \
-            not_nans_mask[one_record_groups_starts, REWARDS_COLUMN_INDEX] * (single_record_groups_df_np[:, REWARDS_COLUMN_INDEX] != '{}')
-        no_rewards_to_parse_indices = one_record_groups_indices[~rewards_to_parse_filter]
-        rewards_to_parse_indices = one_record_groups_indices[rewards_to_parse_filter]
+            array_not_nans_mask[records_array_one_record_groups_starts, REWARDS_COLUMN_INDEX] * (single_record_groups_df_np[:, REWARDS_COLUMN_INDEX] != '{}')
 
+        # Selecting indices of merged_records which have np.nan or "{}" in "Rewards" columns
+        no_rewards_to_parse_indices = merged_records_one_record_groups_indices[~rewards_to_parse_filter]
+
+        # Then all records for which "reward" is either np.nan or "{}" have "{}" assigned to "rewards" column
+        # and 0.0 to "reward" column
         merged_records[no_rewards_to_parse_indices, REWARDS_COLUMN_INDEX] = EMPTY_REWARDS_JSON_ENCODED
         merged_records[no_rewards_to_parse_indices, REWARD_COLUMN_INDEX] = NO_REWARDS_REWARD_VALUE
 
+        # Selecting indices of merged_records which need to be merged (have not nulish entries in "rewards" column)
+        rewards_to_parse_indices = merged_records_one_record_groups_indices[rewards_to_parse_filter]
+        # For all records which have not nullish "rewards" for each record:
+        # - orjson.loads() value of "rewards" column for a given record
+        # - sum values ot loaded JSON string
         merged_records[rewards_to_parse_indices, REWARD_COLUMN_INDEX] = \
             [sum(orjson.loads(rewards).values()) for rewards in merged_records[rewards_to_parse_indices, REWARDS_COLUMN_INDEX]]
 
@@ -333,7 +355,7 @@ class RewardedDecisionPartition:
 
         # processing groups with single record
         self.merge_one_record_groups(
-            records_array, df_not_nans_mask, groups_starts[~is_many_records_group], ~is_many_records_group,
+            records_array, df_not_nans_mask, groups_starts[~is_many_records_group],
             one_record_groups_indices, merged_records)
 
         # processing groups with multiple records
