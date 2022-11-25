@@ -251,19 +251,25 @@ class RewardedDecisionPartition:
             self, records_array, array_not_nans_mask, records_array_one_record_groups_starts,
             merged_records_one_record_groups_indices, merged_records):
         """
-
+        Merges all group with single record at once.
 
         Parameters
         ----------
         records_array: np.ndarray
-
-        array_not_nans_mask
-        records_array_one_record_groups_starts
-        merged_records_one_record_groups_indices
-        merged_records
+            a 2D array of fully and partially rewarded decision records
+        array_not_nans_mask:
+            a 2D boolean array indicating where np.nans are located in the records_array
+        records_array_one_record_groups_starts: np.ndarray
+            this is an array with single record groups indices for records_array
+        merged_records_one_record_groups_indices: np.ndarray
+            this is an array with single record groups indices for merged_records
+        merged_records: np.ndarray
+            2D array storing merge results
 
         Returns
         -------
+        None
+            None
 
         """
 
