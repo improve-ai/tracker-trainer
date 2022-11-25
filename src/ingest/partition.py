@@ -543,6 +543,4 @@ def concat_rewards_dicts_without_loads(rewards_jsons):
 
     """
 
-    # return '{' + ','.join(np.hstack(np.char.split(np.char.rstrip(np.char.lstrip(rewards_jsons.astype(str), chars='{'), chars='}'), ','))) + '}'
-    # return "{" + ','.join([rewards[1:-1] for rewards in np.unique(rewards_jsons)]) + "}"
     return "{" + ','.join([rewards[1:-1] for rewards in rewards_jsons]) + "}"
