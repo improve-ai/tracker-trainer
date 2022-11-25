@@ -64,7 +64,6 @@ class RewardedDecisionPartition:
 
             with ThreadPoolExecutor(max_workers=S3_CONNECTION_COUNT) as executor:
                 dfs = list(executor.map(read_parquet, self.s3_keys))
-                dfs_concat = pd.concat(dfs, ignore_index=True)
 
                 if self.df is not None and isinstance(self.df, pd.DataFrame):
                     dfs.append(self.df)
@@ -348,20 +347,15 @@ class RewardedDecisionPartition:
         is_many_records_group = (groups_ends - groups_starts) > 1
 
         # All indices of merged groups are prepared
-        groups_merged_records_index = np.arange(0, merged_records.shape[0])
-
-        # indices of results for groups with only one record to merge
-        one_record_groups_indices = groups_merged_records_index[~is_many_records_group]
-        # indices of results for groups with multiple records to merge
-        many_records_groups_indices = groups_merged_records_index[is_many_records_group]
-
+        merged_records_index = np.arange(0, merged_records.shape[0])
         # processing groups with single record
+        # merged_records_index[~is_many_records_group] -> indices of results for groups with only one record to merge
         self.merge_one_record_groups(
             records_array, df_not_nans_mask, groups_starts[~is_many_records_group],
-            one_record_groups_indices, merged_records)
-
+            merged_records_index[~is_many_records_group], merged_records)
         # processing groups with multiple records
-        for i in many_records_groups_indices:
+        # merged_records_index[is_many_records_group] -> indices of results for groups with multiple records to merge
+        for i in merged_records_index[is_many_records_group]:
             self.merge_many_records_group(
                 records_array, df_not_nans_mask, groups_starts[i], groups_ends[i], merged_records[i])
 
