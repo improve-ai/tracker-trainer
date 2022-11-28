@@ -1,0 +1,8 @@
+{
+  "test_case": {
+    "gzipped_records": "appconfig-model-only-rewards-batch.gz",
+    "merged_s3_keys": ["appconfig-model-initial-batch.parquet"],
+    "model_names": ["appconfig"]
+  },
+  "expected_outputs_files": ["appconfig-model-batches-merged.parquet"]
+}

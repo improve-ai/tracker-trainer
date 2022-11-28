@@ -16,9 +16,9 @@ def dicts_to_df(dicts: list, columns: list = None, dtypes: dict = None):
     return df
 
 
-def upload_gzipped_records_to_firehose_bucket(s3client, path, key):
+def upload_gzipped_records_to_firehose_bucket(s3_client, path, key):
 
-    s3client.upload_fileobj(
+    s3_client.upload_fileobj(
         Fileobj=BytesIO(open(path, 'rb').read()),
         Bucket=config.FIREHOSE_BUCKET,
         Key=key,

@@ -1,15 +1,30 @@
 # External imports
+import orjson
+import os
+from pytest import fixture
 from pytest_cases import parametrize_with_cases
 import pandas as pd
-from pandas._testing import assert_frame_equal
+from pandas.testing import assert_frame_equal
+from unittest import TestCase
 
 # Local imports
-from src.ingest.partition import RewardedDecisionPartition
+import src.ingest.config
+
+src.ingest.config.FIREHOSE_BUCKET = os.getenv('FIREHOSE_BUCKET', None)
+assert src.ingest.config.FIREHOSE_BUCKET is not None
+
+src.ingest.config.TRAIN_BUCKET = os.getenv('TRAIN_BUCKET', None)  # os.environ['TRAIN_BUCKET']
+assert src.ingest.config.TRAIN_BUCKET is not None
+
+import src.ingest.firehose_record
 from src.ingest.firehose_record import DF_SCHEMA, REWARD_KEY, REWARDS_KEY,\
     TYPE_KEY, FirehoseRecordGroup, FirehoseRecord, assert_valid_rewarded_decision_record
+import src.ingest.partition
+from src.ingest.partition import RewardedDecisionPartition
+import src.ingest.utils
 from src.ingest.utils import json_dumps
 
-from tests_utils import dicts_to_df
+from tests_utils import dicts_to_df, upload_gzipped_records_to_firehose_bucket
 
 # TODO: start at jsons and end up merging
 
@@ -150,7 +165,6 @@ class CasesMergeOfRewardedDecisions:
 
     def case_same_rewarded_decision_records_with_no_reward(self, get_decision_rec, helpers):
 
-
         decision_record = get_decision_rec()
 
         # Even though the name says "rewarded", has no rewards in it
@@ -210,3 +224,134 @@ def test_idempotency1(rewarded_records_df, expected_df):
     rdg3.merge()
 
     assert_frame_equal(rdg3.df, expected_df, check_column_type=True)
+
+
+def unpack_merge_test_case(test_case_file: str):
+    test_case_path = os.sep.join([os.getenv('TEST_CASES_DIR'), test_case_file])
+    with open(test_case_path, 'r') as tcf:
+        test_case_json = orjson.loads(tcf.read())
+    return test_case_json
+
+
+def prepare_moto_deps(s3_client, firehose_bucket_file=None, train_bucket_files=None):
+    # create firehose bucket
+    s3_client.create_bucket(Bucket=src.ingest.config.FIREHOSE_BUCKET)
+
+    test_cases_dir = os.getenv('TEST_CASES_DIR', None)
+    assert test_cases_dir is not None
+
+    merge_test_cases_relative_dir = os.getenv('MERGE_TEST_CASES_RELATIVE_DIR', None)
+    assert merge_test_cases_relative_dir is not None
+
+    if firehose_bucket_file is not None:
+        firehose_bucket_file_path = \
+            os.sep.join([test_cases_dir, merge_test_cases_relative_dir, firehose_bucket_file])
+        # firehose_file_s3_key = f's3://{src.ingest.config.FIREHOSE_BUCKET/{firehose_bucket_file}'
+        upload_gzipped_records_to_firehose_bucket(
+            s3_client=s3_client, path=firehose_bucket_file_path, key=firehose_bucket_file)
+
+    # create train bucket
+    s3_client.create_bucket(Bucket=src.ingest.config.TRAIN_BUCKET)
+    if train_bucket_files is not None:
+        for train_bucket_file in train_bucket_files:
+            train_bucket_file_path = os.sep.join(
+                [test_cases_dir, merge_test_cases_relative_dir, train_bucket_file])
+            # read parquet if provided
+            full_parquet_s3_key = f's3://{src.ingest.config.TRAIN_BUCKET}/{train_bucket_file}'
+            # call to_parquet() specifying proper S3 key
+            pd.read_parquet(train_bucket_file_path).to_parquet(full_parquet_s3_key, compression='ZSTD', index=False)
+
+
+def get_expected_outputs(expected_output_files):
+    test_cases_dir = os.getenv('TEST_CASES_DIR', None)
+    assert test_cases_dir is not None
+
+    merge_test_cases_relative_dir = os.getenv('MERGE_TEST_CASES_RELATIVE_DIR', None)
+    assert merge_test_cases_relative_dir is not None
+
+    expected_outputs = []
+    for expected_output_file in expected_output_files:
+        expected_output_path = \
+            os.sep.join([test_cases_dir, merge_test_cases_relative_dir, expected_output_file])
+        expected_outputs.append(pd.read_parquet(expected_output_path).astype(DF_SCHEMA))
+
+    return expected_outputs
+
+
+# TODO add multiple decision model merge test case!!!
+def _generic_merge_test_case(test_case_file, s3):
+
+    test_case_json = unpack_merge_test_case(test_case_file=test_case_file)
+    test_case = test_case_json.get('test_case', None)
+    assert test_case is not None
+
+    gzipped_records = test_case.get('gzipped_records', None)
+    assert gzipped_records is not None
+
+    merged_s3_keys = test_case.get('merged_s3_keys', None)
+    # assert merged_s3_keys is not None
+
+    model_names = test_case.get('model_names', None)
+    assert model_names is not None
+
+    # Patch the s3 client used in list_delimited_s3_keys
+    src.ingest.config.s3client = src.ingest.utils.s3client = \
+        src.ingest.partition.s3client = src.ingest.firehose_record.s3client = s3
+
+    # upload all dependencies to mocked s3
+    prepare_moto_deps(
+        s3_client=s3, firehose_bucket_file=gzipped_records,
+        train_bucket_files=merged_s3_keys)
+
+    objs = s3.list_objects_v2(Bucket=src.ingest.config.FIREHOSE_BUCKET)
+    print(objs)
+
+    # create record groups
+    record_groups = FirehoseRecordGroup.load_groups(s3_key=gzipped_records)
+
+    # create model_name: <s3 key> map
+    if merged_s3_keys is not None:
+        model_name_to_parquet_key_map = dict(zip(model_names, merged_s3_keys))
+
+    # prepare partitions from record groups
+    partitions = [
+        RewardedDecisionPartition(
+            rg.model_name, rg.to_pandas_df(),
+            s3_keys=[model_name_to_parquet_key_map[rg.model_name]] if merged_s3_keys is not None else None)
+        for rg in record_groups]
+
+    for p in partitions:
+        p.load()
+        p.sort()
+        p.merge()
+
+    # compare results with expected parquet files
+    # load expected outputs
+    expected_outputs_files = test_case_json.get('expected_outputs_files', None)
+    assert expected_outputs_files is not None
+
+    expected_outputs = get_expected_outputs(expected_outputs_files)
+
+    # result of each partition must be equal to corresponding expected output
+    for p, expected_output in zip(partitions, expected_outputs):
+        pd.testing.assert_frame_equal(p.df, expected_output)
+
+
+# test merge with initial batch jsonlines
+def test_initial_batch_merge(s3):
+    test_case_file = os.getenv('TEST_MERGE_INITIAL_BATCH_JSON', None)
+    assert test_case_file is not None
+    _generic_merge_test_case(test_case_file, s3)
+
+
+def test_additional_rewards_batch_merge(s3):
+    test_case_file = os.getenv('TEST_MERGE_INITIAL_BATCH_AND_ADDITIONAL_REWARDS_BATCH_JSON', None)
+    assert test_case_file is not None
+    _generic_merge_test_case(test_case_file, s3)
+
+
+def test_only_additional_rewards_batch_merge(s3):
+    test_case_file = os.getenv('TEST_MERGE_ONLY_ADDITIONAL_REWARDS_BATCH_JSON', None)
+    assert test_case_file is not None
+    _generic_merge_test_case(test_case_file, s3)
+
