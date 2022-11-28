@@ -1,11 +1,9 @@
 # External imports
 import orjson
 import os
-from pytest import fixture
 from pytest_cases import parametrize_with_cases
 import pandas as pd
 from pandas.testing import assert_frame_equal
-from unittest import TestCase
 
 # Local imports
 import src.ingest.config
@@ -13,7 +11,7 @@ import src.ingest.config
 src.ingest.config.FIREHOSE_BUCKET = os.getenv('FIREHOSE_BUCKET', None)
 assert src.ingest.config.FIREHOSE_BUCKET is not None
 
-src.ingest.config.TRAIN_BUCKET = os.getenv('TRAIN_BUCKET', None)  # os.environ['TRAIN_BUCKET']
+src.ingest.config.TRAIN_BUCKET = os.getenv('TRAIN_BUCKET', None)
 assert src.ingest.config.TRAIN_BUCKET is not None
 
 import src.ingest.firehose_record
