@@ -303,9 +303,6 @@ def _generic_merge_test_case(test_case_file, s3):
         s3_client=s3, firehose_bucket_file=gzipped_records,
         train_bucket_files=merged_s3_keys)
 
-    objs = s3.list_objects_v2(Bucket=src.ingest.config.FIREHOSE_BUCKET)
-    print(objs)
-
     # create record groups
     record_groups = FirehoseRecordGroup.load_groups(s3_key=gzipped_records)
 
@@ -331,27 +328,45 @@ def _generic_merge_test_case(test_case_file, s3):
     assert expected_outputs_files is not None
 
     expected_outputs = get_expected_outputs(expected_outputs_files)
+    expected_outputs_map = dict(zip(model_names, expected_outputs))
 
     # result of each partition must be equal to corresponding expected output
-    for p, expected_output in zip(partitions, expected_outputs):
-        pd.testing.assert_frame_equal(p.df, expected_output)
+    for p in partitions:
+        pd.testing.assert_frame_equal(p.df, expected_outputs_map[p.model_name])
 
 
 # test merge with initial batch jsonlines
-def test_initial_batch_merge(s3):
-    test_case_file = os.getenv('TEST_MERGE_INITIAL_BATCH_JSON', None)
+def test_initial_batch_merge_single_model(s3):
+    test_case_file = os.getenv('TEST_SINGLE_MODEL_MERGE_INITIAL_BATCH_JSON', None)
     assert test_case_file is not None
     _generic_merge_test_case(test_case_file, s3)
 
 
-def test_additional_rewards_batch_merge(s3):
-    test_case_file = os.getenv('TEST_MERGE_INITIAL_BATCH_AND_ADDITIONAL_REWARDS_BATCH_JSON', None)
+def test_additional_rewards_batch_merge_single_model(s3):
+    test_case_file = os.getenv('TEST_SINGLE_MODEL_MERGE_INITIAL_BATCH_AND_ADDITIONAL_REWARDS_BATCH_JSON', None)
     assert test_case_file is not None
     _generic_merge_test_case(test_case_file, s3)
 
 
-def test_only_additional_rewards_batch_merge(s3):
-    test_case_file = os.getenv('TEST_MERGE_ONLY_ADDITIONAL_REWARDS_BATCH_JSON', None)
+def test_only_additional_rewards_batch_merge_single_model(s3):
+    test_case_file = os.getenv('TEST_SINGLE_MODEL_MERGE_ONLY_ADDITIONAL_REWARDS_BATCH_JSON', None)
     assert test_case_file is not None
     _generic_merge_test_case(test_case_file, s3)
 
+
+def test_initial_batch_merge_multiple_models(s3):
+    test_case_file = os.getenv('TEST_MULTIPLE_MODELS_MERGE_INITIAL_BATCH_JSON', None)
+    assert test_case_file is not None
+    _generic_merge_test_case(test_case_file, s3)
+
+
+def test_additional_rewards_batch_merge_multiple_models(s3):
+    test_case_file = os.getenv('TEST_MULTIPLE_MODELS_MERGE_INITIAL_BATCH_AND_ADDITIONAL_REWARDS_BATCH_JSON', None)
+    assert test_case_file is not None
+    _generic_merge_test_case(test_case_file, s3)
+
+
+def test_only_additional_rewards_batch_merge_multiple_models(s3):
+    test_case_file = os.getenv('TEST_MULTIPLE_MODELS_MERGE_ONLY_ADDITIONAL_REWARDS_BATCH_JSON', None)
+    assert test_case_file is not None
+    _generic_merge_test_case(test_case_file, s3)
