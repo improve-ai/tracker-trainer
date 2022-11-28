@@ -18,7 +18,6 @@ from firehose_record import is_valid_message_id
 from utils import is_valid_model_name, is_valid_rewarded_decisions_s3_key, list_s3_keys
 
 ISO_8601_BASIC_FORMAT = '%Y%m%dT%H%M%SZ'
-skip_first_and_last_char = np.vectorize(lambda x: x[1:-1])
 
 class RewardedDecisionPartition:
 
@@ -363,8 +362,8 @@ class RewardedDecisionPartition:
         self.df = pd.DataFrame(merged_records, columns=DF_COLUMNS)
 
         # only 2 columns need to be cast to floats (by default the DF infers object column type)
-        for cn in [COUNT_KEY, REWARD_KEY]:
-            self.df[cn] = self.df[cn].astype('float64')
+        for column_name in [COUNT_KEY, REWARD_KEY]:
+            self.df[column_name] = self.df[column_name].astype('float64')
 
 
     def cleanup(self):
