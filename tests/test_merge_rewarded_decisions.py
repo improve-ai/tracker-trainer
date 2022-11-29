@@ -238,12 +238,12 @@ def prepare_moto_deps(s3_client, firehose_bucket_file=None, train_bucket_files=N
     test_cases_dir = os.getenv('TEST_CASES_DIR', None)
     assert test_cases_dir is not None
 
-    merge_test_cases_relative_dir = os.getenv('MERGE_TEST_CASES_RELATIVE_DIR', None)
-    assert merge_test_cases_relative_dir is not None
+    merge_test_data_relative_dir = os.getenv('MERGE_TEST_DATA_RELATIVE_DIR', None)
+    assert merge_test_data_relative_dir is not None
 
     if firehose_bucket_file is not None:
         firehose_bucket_file_path = \
-            os.sep.join([test_cases_dir, merge_test_cases_relative_dir, firehose_bucket_file])
+            os.sep.join([test_cases_dir, merge_test_data_relative_dir, firehose_bucket_file])
         # firehose_file_s3_key = f's3://{src.ingest.config.FIREHOSE_BUCKET/{firehose_bucket_file}'
         upload_gzipped_records_to_firehose_bucket(
             s3_client=s3_client, path=firehose_bucket_file_path, key=firehose_bucket_file)
@@ -253,7 +253,7 @@ def prepare_moto_deps(s3_client, firehose_bucket_file=None, train_bucket_files=N
     if train_bucket_files is not None:
         for train_bucket_file in train_bucket_files:
             train_bucket_file_path = os.sep.join(
-                [test_cases_dir, merge_test_cases_relative_dir, train_bucket_file])
+                [test_cases_dir, merge_test_data_relative_dir, train_bucket_file])
             # read parquet if provided
             full_parquet_s3_key = f's3://{src.ingest.config.TRAIN_BUCKET}/{train_bucket_file}'
             # call to_parquet() specifying proper S3 key
@@ -264,13 +264,13 @@ def get_expected_outputs(expected_output_files):
     test_cases_dir = os.getenv('TEST_CASES_DIR', None)
     assert test_cases_dir is not None
 
-    merge_test_cases_relative_dir = os.getenv('MERGE_TEST_CASES_RELATIVE_DIR', None)
-    assert merge_test_cases_relative_dir is not None
+    merge_test_data_relative_dir = os.getenv('MERGE_TEST_DATA_RELATIVE_DIR', None)
+    assert merge_test_data_relative_dir is not None
 
     expected_outputs = []
     for expected_output_file in expected_output_files:
         expected_output_path = \
-            os.sep.join([test_cases_dir, merge_test_cases_relative_dir, expected_output_file])
+            os.sep.join([test_cases_dir, merge_test_data_relative_dir, expected_output_file])
         expected_outputs.append(pd.read_parquet(expected_output_path).astype(DF_SCHEMA))
 
     return expected_outputs
