@@ -113,7 +113,7 @@ class RewardedDecisionPartition:
         return self.df[DECISION_ID_KEY].iat[-1]
 
 
-    def merge_many_records_group(
+    def _merge_many_records_group(
             self, records_array, array_not_nans_mask, group_slice_start, group_slice_end, into):
         """
         Merges a single decision ID group into a single record (into parameter)
@@ -197,7 +197,7 @@ class RewardedDecisionPartition:
             into[REWARD_COLUMN_INDEX] = sum(loaded_rewards.values())
 
 
-    def get_group_slicing_indices(self, records_array):
+    def _get_group_slicing_indices(self, records_array):
         """
         Utility function for most recent merge() implementation. Assuming self.df
         is sorted by decision ID method attempts to extract groups' start and end
@@ -241,7 +241,7 @@ class RewardedDecisionPartition:
         return df_array_indices[groups_boundaries[:, 0] != groups_boundaries[:, 1]], \
             df_array_indices[groups_boundaries[:, 0] != groups_boundaries[:, 2]] + 1
 
-    def merge_one_record_groups(
+    def _merge_one_record_groups(
             self, records_array, array_not_nans_mask, records_array_one_record_groups_starts,
             merged_records_one_record_groups_indices, merged_records):
         """
@@ -334,7 +334,7 @@ class RewardedDecisionPartition:
         # rows where decision id != 'previous decision id' indicate groups starts
         # rows where decision id != 'next decision id' indicate groups ends
         # this procedure is implemented according to numpy's vectorized paradigm in the get_decision_id_groups_starts_ends()
-        groups_starts, groups_ends = self.get_group_slicing_indices(records_array)
+        groups_starts, groups_ends = self._get_group_slicing_indices(records_array)
 
         # Create a placeholder for merging results (number of records should be
         # equal to number of groups / unique decision ids)
@@ -349,13 +349,13 @@ class RewardedDecisionPartition:
         merged_records_index = np.arange(0, merged_records.shape[0])
         # processing groups with single record
         # merged_records_index[~is_many_records_group] -> indices of results for groups with only one record to merge
-        self.merge_one_record_groups(
+        self._merge_one_record_groups(
             records_array, df_not_nans_mask, groups_starts[~is_many_records_group],
             merged_records_index[~is_many_records_group], merged_records)
         # processing groups with multiple records
         # merged_records_index[is_many_records_group] -> indices of results for groups with multiple records to merge
         for i in merged_records_index[is_many_records_group]:
-            self.merge_many_records_group(
+            self._merge_many_records_group(
                 records_array, df_not_nans_mask, groups_starts[i], groups_ends[i], merged_records[i])
 
         # final df with merged records is created
