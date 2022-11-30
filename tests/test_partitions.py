@@ -2,6 +2,7 @@ import gzip
 import numpy as np
 import orjson
 import os
+from pytest import raises
 
 import pandas as pd
 from firehose_record import DF_SCHEMA, FirehoseRecord, FirehoseRecordGroup, \
@@ -253,3 +254,14 @@ def test__merge_many_records_group_8():
     test_case_file = os.getenv('TEST__MERGE_MANY_RECORDS_GROUP_8_JSON', None)
     assert test_case_file is not None
     _generic_test__merge_many_records_group(test_case_file=test_case_file)
+
+
+def test__merge_many_records_group_raises_for_bad_slice():
+    raising_test_cases = \
+        [f'TEST__MERGE_MANY_RECORDS_GROUP_{i}_JSON' for i in range(9, 14)]
+
+    for test_case in raising_test_cases:
+        with raises(AssertionError) as aerr:
+            test_case_file = os.getenv(test_case, None)
+            assert test_case_file is not None
+            _generic_test__merge_many_records_group(test_case_file=test_case_file)

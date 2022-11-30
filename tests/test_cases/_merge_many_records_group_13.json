@@ -1,0 +1,14 @@
+{
+  "test_case": {
+    "records": [
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVX", "{\"$value\":0}", "{}", 50.0, null, "{\"$value\":4}", null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVX", null, null, null, null, null, "{\"2I2MRFFDSlWu0NUemxSrBEIi9C7\":100,\"2I2MRI6zTPnQkhxhuz7UnRBwLQT\":100}", 200.0],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVX", null, null, null, null, null, "{\"2I2MRFFDSlWu0NUemxSrBEIi9C8\":100}", null]
+    ],
+    "group_slice_start": -10,
+    "group_slice_end": 15,
+    "model_name": "dummy-test-model"
+  },
+  "expected_output": [[
+    "2I2MR4toRgTZnCuwVRuIHeNZGVX", "{\"$value\":0}", "{}", 50.0, null, "{\"$value\":4}", "{\"2I2MRFFDSlWu0NUemxSrBEIi9C7\":100,\"2I2MRFFDSlWu0NUemxSrBEIi9C8\":100,\"2I2MRI6zTPnQkhxhuz7UnRBwLQT\":100}", 300.0]]
+}
