@@ -159,10 +159,6 @@ class RewardedDecisionPartition:
         if (~not_empty_rewards).all():
             into[REWARDS_COLUMN_INDEX:] = [EMPTY_REWARDS_JSON_ENCODED, NO_REWARDS_REWARD_VALUE]
         else:
-
-            # TODO test this thoroughly
-            # TODO test this with an already processed s3 df
-
             # This is a trick which significantly speeds up an entire merge process
             # "rewards" column stores flat dicts with a simple structure:
             # {<reward message ID>: <reward value>, ...}
@@ -242,18 +238,18 @@ class RewardedDecisionPartition:
             df_array_indices[groups_boundaries[:, 0] != groups_boundaries[:, 2]] + 1
 
     def _merge_one_record_groups(
-            self, records_array, array_not_nans_mask, records_array_one_record_groups_starts,
+            self, records, records_not_nans_mask, records_one_record_groups_starts,
             merged_records_one_record_groups_indices, merged_records):
         """
         Merges all group with single record at once.
 
         Parameters
         ----------
-        records_array: np.ndarray
+        records: np.ndarray
             a 2D array of fully and partially rewarded decision records
-        array_not_nans_mask:
+        records_not_nans_mask:
             a 2D boolean array indicating where np.nans are located in the records_array
-        records_array_one_record_groups_starts: np.ndarray
+        records_one_record_groups_starts: np.ndarray
             this is an array with single record groups indices for records_array
         merged_records_one_record_groups_indices: np.ndarray
             this is an array with single record groups indices for merged_records
@@ -268,7 +264,7 @@ class RewardedDecisionPartition:
         """
 
         # select all single record groups from records_array
-        single_record_groups_df_np = records_array[records_array_one_record_groups_starts, :]
+        single_record_groups_df_np = records[records_one_record_groups_starts, :]
 
         # TODO this is valid if reward is a last column (column index = -1)
         #  and rewards is penultimate column (column index = -2)
@@ -278,7 +274,7 @@ class RewardedDecisionPartition:
 
         # First a mask indicating which elements are not np.nan and != "{}" is created
         rewards_to_parse_filter = \
-            array_not_nans_mask[records_array_one_record_groups_starts, REWARDS_COLUMN_INDEX] * (single_record_groups_df_np[:, REWARDS_COLUMN_INDEX] != '{}')
+            records_not_nans_mask[records_one_record_groups_starts, REWARDS_COLUMN_INDEX] * (single_record_groups_df_np[:, REWARDS_COLUMN_INDEX] != '{}')
 
         # Selecting indices of merged_records which have np.nan or "{}" in "Rewards" columns
         no_rewards_to_parse_indices = merged_records_one_record_groups_indices[~rewards_to_parse_filter]
