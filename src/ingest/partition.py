@@ -137,7 +137,7 @@ class RewardedDecisionPartition:
             None
 
         """
-
+        assert group_slice_start >= 0 and group_slice_end > 0 and (group_slice_end - group_slice_start) > 1
         # extract the slice from all records array
         group_slice = records_array[group_slice_start:group_slice_end, :]
         # extract the not np.nans mask slice from all records mask
