@@ -1,0 +1,15 @@
+{
+  "test_case": {
+    "records": [
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVX", "{\"$value\":0}", null, 50.0, null, null, null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVX", "{\"$value\":0}", "{}", null, null, "{\"$value\":4}", null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVX", null, null, null, null, null, null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVX", null, null, null, null, null, "{}", 0.0]
+    ],
+    "group_slice_start": 0,
+    "group_slice_end": 4,
+    "model_name": "dummy-test-model"
+  },
+  "expected_output": [[
+    "2I2MR4toRgTZnCuwVRuIHeNZGVX", "{\"$value\":0}", "{}", 50.0, null, "{\"$value\":4}", "{}", 0.0]]
+}

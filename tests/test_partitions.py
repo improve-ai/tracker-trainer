@@ -219,3 +219,37 @@ def test__merge_many_records_group_4():
     test_case_file = os.getenv('TEST__MERGE_MANY_RECORDS_GROUP_4_JSON', None)
     assert test_case_file is not None
     _generic_test__merge_many_records_group(test_case_file=test_case_file)
+
+
+def test__merge_many_records_group_5():
+    # This case tests a scenario in which a group consist of 2 rewards records
+    test_case_file = os.getenv('TEST__MERGE_MANY_RECORDS_GROUP_5_JSON', None)
+    assert test_case_file is not None
+    _generic_test__merge_many_records_group(test_case_file=test_case_file)
+
+
+def test__merge_many_records_group_6():
+    # This case tests a scenario in which a group consist of 2 'decision records' and
+    # 2 reward records with nulls in "rewards" and "reward" columns
+    test_case_file = os.getenv('TEST__MERGE_MANY_RECORDS_GROUP_6_JSON', None)
+    assert test_case_file is not None
+    _generic_test__merge_many_records_group(test_case_file=test_case_file)
+
+
+def test__merge_many_records_group_7():
+    # This case tests a scenario in which a group consist of 2 'decision records' and
+    # 2 reward records of which 1 with nulls in "rewards" and "reward" columns and
+    # second with "{}" in rewards and 0.0 in reward column
+    test_case_file = os.getenv('TEST__MERGE_MANY_RECORDS_GROUP_7_JSON', None)
+    assert test_case_file is not None
+    _generic_test__merge_many_records_group(test_case_file=test_case_file)
+
+
+def test__merge_many_records_group_8():
+    # This case tests a scenario in which a group
+    # - 2 'decision records'
+    # - 1 partial reward record (already merged)
+    # - 1 new reward record
+    test_case_file = os.getenv('TEST__MERGE_MANY_RECORDS_GROUP_8_JSON', None)
+    assert test_case_file is not None
+    _generic_test__merge_many_records_group(test_case_file=test_case_file)
