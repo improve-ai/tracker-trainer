@@ -299,31 +299,31 @@ class RewardedDecisionPartition:
     def merge(self):
         # make sure that df is sorted -> this is crucial for current merge() implementation
         assert self.sorted
-        # since records_array is of object type np.isnan() won't work
+        # since records is of object type np.isnan() won't work
         # an alternative approach is to use elementwise multiplication by 0 which
         # will make all not nan values become empty strings or 0s while nans will
         # remain 'untouched'
         # extract numpy array from pandas DF
-        records_array = self.df.values
+        records = self.df.values
 
         # Saving file to parquet converts all NaN values in object typed columns to None
         # This means that if a s3 key from train bucket is being merged along with gzipped jsonlines
         # the self.df contains both NaNs and Nones in object typed columns. This raises problems
         # with fast missing values mask creation:
         # - np.isnan() does not work with object dtypes
-        # - None is not of a float type and will cause records_array * np.full(records_array.shape, 0) to fail
+        # - None is not of a float type and will cause records * np.full(records.shape, 0) to fail
         # In order to get the element-wise multiplication to work all Nones must be replaced with np.nans
         if self.s3_keys is not None:
-            records_array[records_array == None] = np.nan
+            records[records == None] = np.nan
 
         # In order to create a boolean mask indicating which cell contains not np.nan value
         # 2 steps are needed:
-        # - records_array multiplication by an array full of 0s -> strings will become '', numbers
+        # - records multiplication by an array full of 0s -> strings will become '', numbers
         # will become 0 / 0.0 and np.nans will remain np.nans
-        nans_filtering_container = records_array * np.full(records_array.shape, 0)
+        nans_filtering_container = records * np.full(records.shape, 0)
         # - simple comparison of multiplication result with '' and 0 / 0.0 allows to create a
         # boolean mask indicating where np.nans are located
-        df_not_nans_mask = (nans_filtering_container == '') + (nans_filtering_container == 0)
+        records_not_nans_mask = (nans_filtering_container == '') + (nans_filtering_container == 0)
 
         # Since the df values are sorted by decision ids the df is already grouped.
         # What remains to be determined is finding groups start and end indices
@@ -334,29 +334,29 @@ class RewardedDecisionPartition:
         # rows where decision id != 'previous decision id' indicate groups starts
         # rows where decision id != 'next decision id' indicate groups ends
         # this procedure is implemented according to numpy's vectorized paradigm in the get_decision_id_groups_starts_ends()
-        groups_starts, groups_ends = self._get_group_slicing_indices(records_array)
+        groups_slices_starts, groups_slices_ends = self._get_group_slicing_indices(records)
 
         # Create a placeholder for merging results (number of records should be
         # equal to number of groups / unique decision ids)
-        merged_records = np.full((groups_starts.shape[0], records_array.shape[1]), np.nan, dtype=object)
+        merged_records = np.full((groups_slices_starts.shape[0], records.shape[1]), np.nan, dtype=object)
 
         # Assuming that the rewards will be sparse it is expected to see most of the
         # groups have only 1 record. Such groups can be processed 'together'
         # First step is the identification of the groups which have more than 1 record to merge
-        is_many_records_group = (groups_ends - groups_starts) > 1
+        is_many_records_group = (groups_slices_ends - groups_slices_starts) > 1
 
         # All indices of merged groups are prepared
         merged_records_index = np.arange(0, merged_records.shape[0])
         # processing groups with single record
         # merged_records_index[~is_many_records_group] -> indices of results for groups with only one record to merge
         self._merge_one_record_groups(
-            records_array, df_not_nans_mask, groups_starts[~is_many_records_group],
+            records, records_not_nans_mask, groups_slices_starts[~is_many_records_group],
             merged_records_index[~is_many_records_group], merged_records)
         # processing groups with multiple records
         # merged_records_index[is_many_records_group] -> indices of results for groups with multiple records to merge
         for i in merged_records_index[is_many_records_group]:
             self._merge_many_records_group(
-                records_array, df_not_nans_mask, groups_starts[i], groups_ends[i], merged_records[i])
+                records, records_not_nans_mask, groups_slices_starts[i], groups_slices_ends[i], merged_records[i])
 
         # final df with merged records is created
         self.df = pd.DataFrame(merged_records, columns=DF_COLUMNS)

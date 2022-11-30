@@ -1,7 +1,9 @@
 # Built-in imports
 from io import BytesIO
+import os
 
 # External imports
+import orjson
 import pandas as pd
 
 # Local imports
@@ -14,6 +16,13 @@ def dicts_to_df(dicts: list, columns: list = None, dtypes: dict = None):
     if dtypes is not None:
         df = df.astype(dtypes)
     return df
+
+
+def load_ingest_test_case(test_case_file: str):
+    test_case_path = os.sep.join([os.getenv('TEST_CASES_DIR'), test_case_file])
+    with open(test_case_path, 'r') as tcf:
+        test_case_json = orjson.loads(tcf.read())
+    return test_case_json
 
 
 def upload_gzipped_records_to_firehose_bucket(s3_client, path, key):

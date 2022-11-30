@@ -22,7 +22,8 @@ from src.ingest.partition import RewardedDecisionPartition
 import src.ingest.utils
 from src.ingest.utils import json_dumps
 
-from tests_utils import dicts_to_df, upload_gzipped_records_to_firehose_bucket
+from tests_utils import dicts_to_df, upload_gzipped_records_to_firehose_bucket, \
+    load_ingest_test_case
 
 # TODO: start at jsons and end up merging
 
@@ -224,13 +225,6 @@ def test_idempotency1(rewarded_records_df, expected_df):
     assert_frame_equal(rdg3.df, expected_df, check_column_type=True)
 
 
-def unpack_merge_test_case(test_case_file: str):
-    test_case_path = os.sep.join([os.getenv('TEST_CASES_DIR'), test_case_file])
-    with open(test_case_path, 'r') as tcf:
-        test_case_json = orjson.loads(tcf.read())
-    return test_case_json
-
-
 def prepare_moto_deps(s3_client, firehose_bucket_file=None, train_bucket_files=None):
     # create firehose bucket
     s3_client.create_bucket(Bucket=src.ingest.config.FIREHOSE_BUCKET)
@@ -279,7 +273,7 @@ def get_expected_outputs(expected_output_files):
 # TODO add multiple decision model merge test case!!!
 def _generic_merge_test_case(test_case_file, s3):
 
-    test_case_json = unpack_merge_test_case(test_case_file=test_case_file)
+    test_case_json = load_ingest_test_case(test_case_file=test_case_file)
     test_case = test_case_json.get('test_case', None)
     assert test_case is not None
 
