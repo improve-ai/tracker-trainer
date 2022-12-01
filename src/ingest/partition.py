@@ -487,31 +487,6 @@ def list_partition_s3_keys(model_name):
                   list_s3_keys(bucket_name=TRAIN_BUCKET, prefix=f'rewarded_decisions/{model_name}/parquet/'))
 
 
-def concat_rewards_then_json_loads(rewards_jsons):
-    """
-    Concatenates JSON strings before calling orjson.loads() to save runtime:
-    From a collection of JSON dict strings, e.g.:
-    ['{"a": 1}', '{"b": 2}', '{"c": 3}']
-    creates a single string:
-    '{"a": 1, "b": 2, "c": 3}'
-    and then calls orjson.loads() on it.
-    This way orjson.loads() is only called once
-
-    Parameters
-    ----------
-    rewards_jsons: list or np.ndarray
-        list of JSON strings with rewards dicts
-
-    Returns
-    -------
-    dict
-        a JSON loaded concat of input rewards JSONS
-
-    """
-
-    return orjson.loads("[" + ','.join(rewards_jsons) + "]")
-
-
 def concat_rewards_dicts_without_loads(rewards_jsons):
     """
     Reward dicts can be concatenated without even calling orjson loads. Each of the
