@@ -182,9 +182,6 @@ def _generic_test__merge_many_records_group(test_case_file: str):
         pd.DataFrame(merged_records, columns=DF_SCHEMA.keys())\
         .astype(DF_SCHEMA).values
 
-    for cv, ev in zip(merged_records_desired_dtypes[0], expected_output[0]):
-        print(f'cv: {cv} (type: {type(cv)}) | ev: {cv} (type: {type(ev)}) | equal: {cv == ev}')
-
     merged_df = \
         pd.DataFrame(merged_records, columns=DF_SCHEMA).astype(DF_SCHEMA)
     expected_df = \
@@ -323,18 +320,30 @@ def _generic_test__merge_single_record_groups(test_case_file):
 
 
 def test__merge_one_record_groups_1():
+    # test case with has one 2 record group and other single records group
+    # only 2 records group has any rewards
     test_case_file = os.getenv('TEST__MERGE_SINGLE_RECORD_GROUPS_1_JSON', None)
     assert test_case_file is not None
     _generic_test__merge_single_record_groups(test_case_file)
 
 
 def test__merge_one_record_groups_2():
+    # only decision records, all single groups, no rewards
     test_case_file = os.getenv('TEST__MERGE_SINGLE_RECORD_GROUPS_2_JSON', None)
     assert test_case_file is not None
     _generic_test__merge_single_record_groups(test_case_file)
 
 
 def test__merge_one_record_groups_3():
+    # only decision records, all single groups, last record has rewards and bad value of reward
+    # this is to check if reward will be recalculated properly
     test_case_file = os.getenv('TEST__MERGE_SINGLE_RECORD_GROUPS_3_JSON', None)
+    assert test_case_file is not None
+    _generic_test__merge_single_record_groups(test_case_file)
+
+
+def test__merge_one_record_groups_4():
+    # N - 1 decision records, 1 reward record with non- null "rewards" and "reward"
+    test_case_file = os.getenv('TEST__MERGE_SINGLE_RECORD_GROUPS_4_JSON', None)
     assert test_case_file is not None
     _generic_test__merge_single_record_groups(test_case_file)
