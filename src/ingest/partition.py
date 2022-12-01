@@ -12,8 +12,8 @@ from uuid import uuid4
 
 # Local imports
 from config import s3client, TRAIN_BUCKET, PARQUET_FILE_MAX_DECISION_RECORDS, S3_CONNECTION_COUNT
-from firehose_record import DECISION_ID_KEY, REWARD_KEY, DF_SCHEMA, DF_COLUMNS, REWARDS_COLUMN_INDEX, \
-    REWARD_COLUMN_INDEX, COUNT_KEY, EMPTY_REWARDS_JSON_ENCODED, NO_REWARDS_REWARD_VALUE
+from firehose_record import DECISION_ID_KEY, REWARD_KEY, DF_SCHEMA, DF_COLUMNS, DECISION_ID_COLUMN_INDEX, \
+    REWARDS_COLUMN_INDEX, REWARD_COLUMN_INDEX, COUNT_KEY, EMPTY_REWARDS_JSON_ENCODED, NO_REWARDS_REWARD_VALUE
 from firehose_record import is_valid_message_id
 from utils import is_valid_model_name, is_valid_rewarded_decisions_s3_key, list_s3_keys
 
@@ -112,6 +112,49 @@ class RewardedDecisionPartition:
         assert self.sorted
         return self.df[DECISION_ID_KEY].iat[-1]
 
+    def _get_groups_slices_indices(self, records):
+        """
+        Utility function for most recent merge() implementation. Assuming self.df
+        is sorted by decision ID method attempts to extract groups' start and end
+        slicing indices from records_array index
+
+        Parameters
+        ----------
+        records: np.ndarray
+            2D array representing all merged records
+
+        Returns
+        -------
+        tuple
+            a tuple of 2 1D arrays: (<groups starts indices>, <groups ends indices>)
+
+        """
+        assert self.sorted
+        # create an integer index of df_array, fastest way seems to be np.arange()
+        # remark: tried np.roll() approach - it provides shorter code but is observabluy slower
+        records_indices = np.arange(0, records.shape[0])
+        # create a np array to store operations needed to determine groups starts and ends
+        groups_slices = np.empty((records.shape[0], 3), dtype=object)
+        # cache original decision IDs in the first column
+        groups_slices[:, 0] = records[:, DECISION_ID_COLUMN_INDEX]
+        # 'move down' decision IDs (this creates a 'previous' decision ID column) to be able to compare it with first column
+        groups_slices[1:, 1] = records[:-1, DECISION_ID_COLUMN_INDEX]
+        # 'move up' decision IDs (this creates a 'next' decision ID column) to be able to compare it with first column
+        groups_slices[:-1, 2] = records[1:, DECISION_ID_COLUMN_INDEX]
+
+        # This comparison: groups_slices[:, 0] != groups_slices[:, 1]
+        # creates a boolean mask which shows at which index a group with identical decision ID starts
+        # This comparison: groups_slices[:, 0] != groups_slices[:, 2]
+        # creates a boolean mask which shows at which index a group with identical decision ID ends
+        # records_indices[groups_slices[:, 0] != groups_slices[:, 1]] selects only those indices for which
+        # the logical statement is True -> as a result indices of groups starts are selected
+        # Same approach using groups ends mask allows to select indices at which groups end.
+        # Remark: groups end indicate exact index at which each group ends.
+        # python's array sntax <array>[<start>:<end>] will actually return an array until <end> - 1 index
+        # which mean that for such array subsetting the last element of each group would be excluded from the subset.
+        # In order to avoid this the 'groups ends' must be incremented by one
+        return records_indices[groups_slices[:, 0] != groups_slices[:, 1]], \
+            records_indices[groups_slices[:, 0] != groups_slices[:, 2]] + 1
 
     def _merge_many_records_group(
             self, records_array, array_not_nans_mask, group_slice_start, group_slice_end, into):
@@ -123,9 +166,9 @@ class RewardedDecisionPartition:
         records_array: np.ndarray
             a 2D array of fully and partially rewarded decision records
         array_not_nans_mask:
-            a 2D boolean array indicating where np.nans are located in the records_array  
+            a 2D boolean array indicating where np.nans are located in the records_array
         group_slice_start: int
-            an index of records_array at which merged records group starts 
+            an index of records_array at which merged records group starts
         group_slice_end: int
             index value indicating records_array subset end (true group end is at group_end_index - 1)
         into: np.ndarray
@@ -191,51 +234,6 @@ class RewardedDecisionPartition:
             # if any of the values is malformed (e.g. a nested dict instead of <message id>: <reward> key - value pair
             # this is where error will be raised
             into[REWARD_COLUMN_INDEX] = sum(loaded_rewards.values())
-
-
-    def _get_group_slicing_indices(self, records_array):
-        """
-        Utility function for most recent merge() implementation. Assuming self.df
-        is sorted by decision ID method attempts to extract groups' start and end
-        slicing indices from records_array index
-
-        Parameters
-        ----------
-        records_array: np.ndarray
-            2D array representing all merged records
-
-        Returns
-        -------
-        tuple
-            a tuple of 2 1D arrays: (<groups starts indices>, <groups ends indices>)
-
-        """
-        assert self.sorted
-        # create an integer index of df_array, fastest way seems to be np.arange()
-        # remark: tried np.roll() approach - it provides shorter code but is observabluy slower
-        df_array_indices = np.arange(0, records_array.shape[0])
-        # create a np array to store operations needed to determine groups starts and ends
-        groups_boundaries = np.empty((records_array.shape[0], 3), dtype=object)
-        # cache original decision IDs in the first column
-        groups_boundaries[:, 0] = records_array[:, 0]
-        # 'move down' decision IDs (this creates a 'previous' decision ID column) to be able to compare it with first column
-        groups_boundaries[1:, 1] = records_array[:-1, 0]
-        # 'move up' decision IDs (this creates a 'next' decision ID column) to be able to compare it with first column
-        groups_boundaries[:-1, 2] = records_array[1:, 0]
-
-        # This comparison: groups_boundaries[:, 0] != groups_boundaries[:, 1]
-        # creates a boolean mask which shows at which index a group with identical decision ID starts
-        # This comparison: groups_boundaries[:, 0] != groups_boundaries[:, 2]
-        # creates a boolean mask which shows at which index a group with identical decision ID ends
-        # df_array_indices[groups_boundaries[:, 0] != groups_boundaries[:, 1]] selects only those indices for which
-        # the logical statement is True -> as a result indices of groups starts are selected
-        # Same approach using groups ends mask allows to select indices at which groups end.
-        # Remark: groups end indicate exact index at which each group ends.
-        # python's array sntax <array>[<start>:<end>] will actually return an array until <end> - 1 index
-        # which mean that for such array subsetting the last element of each group would be excluded from the subset.
-        # In order to avoid this the 'groups ends' must be incremented by one
-        return df_array_indices[groups_boundaries[:, 0] != groups_boundaries[:, 1]], \
-            df_array_indices[groups_boundaries[:, 0] != groups_boundaries[:, 2]] + 1
 
     def _merge_one_record_groups(
             self, records, records_not_nans_mask, records_one_record_groups_starts,
@@ -330,7 +328,7 @@ class RewardedDecisionPartition:
         # rows where decision id != 'previous decision id' indicate groups starts
         # rows where decision id != 'next decision id' indicate groups ends
         # this procedure is implemented according to numpy's vectorized paradigm in the get_decision_id_groups_starts_ends()
-        groups_slices_starts, groups_slices_ends = self._get_group_slicing_indices(records)
+        groups_slices_starts, groups_slices_ends = self._get_groups_slices_indices(records)
 
         # Create a placeholder for merging results (number of records should be
         # equal to number of groups / unique decision ids)

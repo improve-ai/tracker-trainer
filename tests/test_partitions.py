@@ -347,3 +347,46 @@ def test__merge_one_record_groups_4():
     test_case_file = os.getenv('TEST__MERGE_SINGLE_RECORD_GROUPS_4_JSON', None)
     assert test_case_file is not None
     _generic_test__merge_single_record_groups(test_case_file)
+
+
+def _generic_test__get_group_slicing_indices(test_case_file):
+    test_case_json = load_ingest_test_case(test_case_file=test_case_file)
+
+    test_case = test_case_json.get('test_case', None)
+    assert test_case is not None
+
+    records = test_case.get("records", None)
+    assert records is not None
+    records = _process_tested_records(records)
+
+    model_name = test_case.get("model_name", None)
+    assert model_name is not None
+
+    p = RewardedDecisionPartition(model_name=model_name)
+    p.sorted = True
+
+    groups_slices_starts, groups_slices_ends = \
+        p._get_groups_slices_indices(records=records)
+
+    expected_output = test_case_json.get("expected_output", None)
+    assert expected_output is not None
+
+    expected_groups_slices_starts = expected_output.get("groups_slices_starts", None)
+    assert expected_groups_slices_starts is not None
+
+    expected_groups_slices_ends = expected_output.get("groups_slices_ends", None)
+    assert expected_groups_slices_ends is not None
+
+    np.testing.assert_array_equal(expected_groups_slices_starts, groups_slices_starts)
+
+    print('### groups_slices_ends ###')
+    print(groups_slices_ends)
+    print(expected_groups_slices_ends)
+
+    np.testing.assert_array_equal(expected_groups_slices_ends, groups_slices_ends)
+
+
+def test__get_group_slicing_indices_1():
+    test_case_file = os.getenv('TEST__GET_GROUPS_SLICES_INDICES_1_JSON', None)
+    assert test_case_file is not None
+    _generic_test__get_group_slicing_indices(test_case_file)
