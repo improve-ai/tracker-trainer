@@ -379,10 +379,6 @@ def _generic_test__get_group_slicing_indices(test_case_file):
 
     np.testing.assert_array_equal(expected_groups_slices_starts, groups_slices_starts)
 
-    print('### groups_slices_ends ###')
-    print(groups_slices_ends)
-    print(expected_groups_slices_ends)
-
     np.testing.assert_array_equal(expected_groups_slices_ends, groups_slices_ends)
 
 
@@ -390,3 +386,28 @@ def test__get_group_slicing_indices_1():
     test_case_file = os.getenv('TEST__GET_GROUPS_SLICES_INDICES_1_JSON', None)
     assert test_case_file is not None
     _generic_test__get_group_slicing_indices(test_case_file)
+
+
+def test__get_group_slicing_indices_2():
+    test_case_file = os.getenv('TEST__GET_GROUPS_SLICES_INDICES_2_JSON', None)
+    assert test_case_file is not None
+    _generic_test__get_group_slicing_indices(test_case_file)
+
+
+def test__get_group_slicing_indices_3():
+    test_case_file = os.getenv('TEST__GET_GROUPS_SLICES_INDICES_3_JSON', None)
+    assert test_case_file is not None
+    _generic_test__get_group_slicing_indices(test_case_file)
+
+
+def test__get_group_slicing_indices_4():
+    test_case_file = os.getenv('TEST__GET_GROUPS_SLICES_INDICES_4_JSON', None)
+    assert test_case_file is not None
+    _generic_test__get_group_slicing_indices(test_case_file)
+
+
+def test__get_group_slicing_indices_raises_for_not_sorted_df():
+    p = RewardedDecisionPartition(model_name='dummy-model')
+    with raises(AssertionError) as aerr:
+        p._get_groups_slices_indices(records=np.array([]))
+

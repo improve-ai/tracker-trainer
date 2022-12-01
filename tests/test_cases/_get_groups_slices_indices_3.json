@@ -1,0 +1,18 @@
+{
+  "test_case": {
+    "records": [
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVA", "{\"$value\":0}", null, 50.0, null, null, null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVA", "{\"$value\":1}", "{\"a\":2}", 50.0, null, "{\"$value\":1}", null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVB", "{\"$value\":2}", "{}", 50.0, null, "{\"$value\":3}", null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVB", "{\"$value\":3}", "{}", 50.0, null, "{\"$value\":5}", null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVC", "{\"$value\":4}", "{\"b\":1}", 50.0, null, "{\"$value\":7}", null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVC", "{\"$value\":5}", "{\"c\":0}", 50.0, null, "{\"$value\":2}", null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVC", "{\"$value\":6}", "{}", 50.0, null, "{\"$value\":9}", null, null]
+    ],
+    "model_name": "dummy-test-model"
+  },
+  "expected_output": {
+    "groups_slices_starts": [0, 2, 4],
+    "groups_slices_ends":   [2, 4, 7]
+  }
+}

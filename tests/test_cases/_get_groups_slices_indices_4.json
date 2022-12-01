@@ -1,0 +1,12 @@
+{
+  "test_case": {
+    "records": [
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVA", "{\"$value\":0}", null, 50.0, null, null, null, null]
+    ],
+    "model_name": "dummy-test-model"
+  },
+  "expected_output": {
+    "groups_slices_starts": [0],
+    "groups_slices_ends":   [1]
+  }
+}
