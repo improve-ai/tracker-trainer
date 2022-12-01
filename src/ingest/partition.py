@@ -12,8 +12,9 @@ from uuid import uuid4
 
 # Local imports
 from config import s3client, TRAIN_BUCKET, PARQUET_FILE_MAX_DECISION_RECORDS, S3_CONNECTION_COUNT
-from firehose_record import DECISION_ID_KEY, REWARD_KEY, DF_SCHEMA, DF_COLUMNS, DECISION_ID_COLUMN_INDEX, \
-    REWARDS_COLUMN_INDEX, REWARD_COLUMN_INDEX, COUNT_KEY, EMPTY_REWARDS_JSON_ENCODED, NO_REWARDS_REWARD_VALUE
+from firehose_record import COUNT_KEY, DECISION_ID_KEY, DECISION_ID_COLUMN_INDEX, \
+    DF_COLUMNS, DF_SCHEMA, EMPTY_REWARDS_JSON_ENCODED, NO_REWARDS_REWARD_VALUE, \
+    NUMERIC_COLUMNS_DTYPE, REWARD_KEY, REWARDS_COLUMN_INDEX, REWARD_COLUMN_INDEX
 from firehose_record import is_valid_message_id
 from utils import is_valid_model_name, is_valid_rewarded_decisions_s3_key, list_s3_keys
 
@@ -357,7 +358,7 @@ class RewardedDecisionPartition:
 
         # only 2 columns need to be cast to floats (by default the DF infers object column type)
         for column_name in [COUNT_KEY, REWARD_KEY]:
-            self.df[column_name] = self.df[column_name].astype('float64')
+            self.df[column_name] = self.df[column_name].astype(NUMERIC_COLUMNS_DTYPE)
 
 
     def cleanup(self):

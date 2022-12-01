@@ -27,19 +27,24 @@ COUNT_KEY = 'count'
 SAMPLE_KEY = 'sample'
 RUNNERS_UP_KEY = 'runners_up'
 
+# # it makes no sense to keep this as Int64 - > it will be loaded into an object
+# dtype by default anyway and casting it to Int64 will always truncate (if count was float)
+# and never raise. The only property of Int64 we were using was that is supports missing values
+# (while int64 does not). However float64 supports missings as well and does not impact
+# speed and makes code simpler as well
+NUMERIC_COLUMNS_DTYPE = 'float64'
+
 DF_SCHEMA = {
     DECISION_ID_KEY : 'object',
     VARIANT_KEY     : 'object',
     GIVENS_KEY      : 'object',
     # TODO this should be an int but int in numpy does not allow NaNs
-    COUNT_KEY       : 'float64',  # it makes no sense to keep this as Int64 - > it will be loaded into object by default anyway and casting it fot Int64 will always truncate and not raise an error
+    COUNT_KEY       : NUMERIC_COLUMNS_DTYPE,
     RUNNERS_UP_KEY  : 'object',
     SAMPLE_KEY      : 'object',
     REWARDS_KEY     : 'object',
-    REWARD_KEY      : 'float64',
+    REWARD_KEY      : NUMERIC_COLUMNS_DTYPE,
 }
-
-# ['2Hs40zK3P8fK1OKSmlTLHeuTVZX' '{"$value":0}' '{}' 200.0 None '{"$value":29}' '{}' 0.0]
 
 DF_COLUMNS = list(DF_SCHEMA.keys())
 EMPTY_REWARDS_JSON_ENCODED = '{}'
