@@ -301,7 +301,6 @@ def _generic_test__merge_single_record_groups(test_case_file):
     expected_output = _process_expected_output(expected_output)
 
     merged_records = np.full(expected_output.shape, np.nan, dtype=object)
-    # 'passthrough' records not in merged_records_one_record_groups_indices index
 
     merged_records_one_record_groups_indices = test_case.get("merged_records_one_record_groups_indices", None)
     assert merged_records_one_record_groups_indices is not None
@@ -309,9 +308,6 @@ def _generic_test__merge_single_record_groups(test_case_file):
     passthrough_indices = \
         list(set(np.arange(expected_output.shape[0])).difference(set(merged_records_one_record_groups_indices)))
     merged_records[passthrough_indices, :] = expected_output[passthrough_indices, :]
-
-    # records, records_not_nans_mask, records_one_record_groups_starts,
-    #             merged_records_one_record_groups_indices, merged_records
 
     p._merge_one_record_groups(
         records=records, records_not_nans_mask=records_not_nans_mask,
@@ -328,5 +324,17 @@ def _generic_test__merge_single_record_groups(test_case_file):
 
 def test__merge_one_record_groups_1():
     test_case_file = os.getenv('TEST__MERGE_SINGLE_RECORD_GROUPS_1_JSON', None)
+    assert test_case_file is not None
+    _generic_test__merge_single_record_groups(test_case_file)
+
+
+def test__merge_one_record_groups_2():
+    test_case_file = os.getenv('TEST__MERGE_SINGLE_RECORD_GROUPS_2_JSON', None)
+    assert test_case_file is not None
+    _generic_test__merge_single_record_groups(test_case_file)
+
+
+def test__merge_one_record_groups_3():
+    test_case_file = os.getenv('TEST__MERGE_SINGLE_RECORD_GROUPS_3_JSON', None)
     assert test_case_file is not None
     _generic_test__merge_single_record_groups(test_case_file)

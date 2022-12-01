@@ -1,0 +1,25 @@
+{
+  "test_case": {
+    "records": [
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVA", "{\"$value\":0}", null, 50.0, null, null, null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVB", "{\"$value\":1}", "{\"a\":2}", 50.0, null, "{\"$value\":1}", null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVC", "{\"$value\":2}", "{}", 50.0, null, "{\"$value\":3}", null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVD", "{\"$value\":3}", "{}", 50.0, null, "{\"$value\":5}", null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVE", "{\"$value\":4}", "{\"b\":1}", 50.0, null, "{\"$value\":7}", null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVY", "{\"$value\":5}", "{\"c\":0}", 50.0, null, "{\"$value\":2}", null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVZ", "{\"$value\":6}", "{}", 50.0, null, "{\"$value\":9}", "{\"2I2MRFFDSlWu0NUemxSrBEIi9C7\":100,\"2I2MRI6zTPnQkhxhuz7UnRBwLQT\":100}", 100.0]
+    ],
+    "records_one_record_groups_starts": [0, 1, 2, 3, 4, 5, 6],
+    "merged_records_one_record_groups_indices": [0, 1, 2, 3, 4, 5, 6],
+    "model_name": "dummy-test-model"
+  },
+  "expected_output": [
+    ["2I2MR4toRgTZnCuwVRuIHeNZGVA", "{\"$value\":0}", null, 50.0, null, null, "{}", 0.0],
+    ["2I2MR4toRgTZnCuwVRuIHeNZGVB", "{\"$value\":1}", "{\"a\":2}", 50.0, null, "{\"$value\":1}", "{}", 0.0],
+    ["2I2MR4toRgTZnCuwVRuIHeNZGVC", "{\"$value\":2}", "{}", 50.0, null, "{\"$value\":3}", "{}", 0.0],
+    ["2I2MR4toRgTZnCuwVRuIHeNZGVD", "{\"$value\":3}", "{}", 50.0, null, "{\"$value\":5}", "{}", 0.0],
+    ["2I2MR4toRgTZnCuwVRuIHeNZGVE", "{\"$value\":4}", "{\"b\":1}", 50.0, null, "{\"$value\":7}", "{}", 0.0],
+    ["2I2MR4toRgTZnCuwVRuIHeNZGVY", "{\"$value\":5}", "{\"c\":0}", 50.0, null, "{\"$value\":2}", "{}", 0.0],
+    ["2I2MR4toRgTZnCuwVRuIHeNZGVZ", "{\"$value\":6}", "{}", 50.0, null, "{\"$value\":9}", "{\"2I2MRFFDSlWu0NUemxSrBEIi9C7\":100,\"2I2MRI6zTPnQkhxhuz7UnRBwLQT\":100}", 200.0]
+  ]
+}
