@@ -9,7 +9,6 @@ from pytest_cases import fixture
 
 # Local imports
 from firehose_record import MESSAGE_ID_KEY
-# from firehose_record import TIMESTAMP_KEY
 from firehose_record import TYPE_KEY
 from firehose_record import MODEL_KEY
 from firehose_record import VARIANT_KEY
@@ -140,12 +139,7 @@ def get_reward_rec(get_record):
     # Automatic different message_ids
     idval = 990
         
-    def __rew_rec(
-        msg_id_val=None,
-        decision_id_val='000000000000000000000000000',
-        reward_val= -10
-        ):
-        
+    def __rew_rec(msg_id_val=None, decision_id_val='000000000000000000000000000', reward_val= -10):
         # Automatic different message_ids
         nonlocal idval
         if msg_id_val is None:

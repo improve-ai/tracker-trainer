@@ -1,5 +1,4 @@
 # External imports
-import orjson
 import os
 from pytest_cases import parametrize_with_cases
 import pandas as pd
@@ -25,7 +24,6 @@ from src.ingest.utils import json_dumps
 from tests_utils import dicts_to_df, upload_gzipped_records_to_firehose_bucket, \
     load_ingest_test_case
 
-# TODO: start at jsons and end up merging
 
 class CasesMergeOfRewardedDecisions:
     """
@@ -122,8 +120,6 @@ class CasesMergeOfRewardedDecisions:
             "000000000000000000000000005" : 5
         })
         assert_valid_rewarded_decision_record(expected_rewarded_record, record[TYPE_KEY])
-
-
         dfs = pd.concat(records, ignore_index=True)
 
         expected_df = \
@@ -360,5 +356,11 @@ def test_additional_rewards_batch_merge_multiple_models(s3):
 
 def test_only_additional_rewards_batch_merge_multiple_models(s3):
     test_case_file = os.getenv('TEST_MULTIPLE_MODELS_MERGE_ONLY_ADDITIONAL_REWARDS_BATCH_JSON', None)
+    assert test_case_file is not None
+    _generic_merge_test_case(test_case_file, s3)
+
+
+def test_merge_json_property(s3):
+    test_case_file = os.getenv('TEST_SINGLE_MODEL_MERGE_TEST_JSON_PROPERTY_JSON', None)
     assert test_case_file is not None
     _generic_merge_test_case(test_case_file, s3)
