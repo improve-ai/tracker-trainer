@@ -380,7 +380,7 @@ class RewardedDecisionPartition:
 
 def read_parquet(s3_key):
 
-    s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}')
+    s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}', columns=DF_COLUMNS)
 
     # TODO: add more validations
     valid_idxs = s3_df.decision_id.apply(is_valid_message_id)

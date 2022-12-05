@@ -1,0 +1,11 @@
+{
+  "test_case": {
+    "gzipped_records": "multiple-models-initial-batch-additional-columns.gz",
+    "merged_s3_keys": null,
+    "model_names": ["appconfig", "dummy-model-0", "dummy-model-1"]
+  },
+  "expected_outputs_files": [
+    "multiple-models-appconfig-model-only-rewards-batch.parquet",
+    "multiple-models-dummy-model-0-only-rewards-batch.parquet",
+    "multiple-models-dummy-model-1-only-rewards-batch.parquet"]
+}
