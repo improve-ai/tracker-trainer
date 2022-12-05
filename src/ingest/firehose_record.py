@@ -5,7 +5,7 @@ import math
 from typing import List
 
 # External imports
-import orjson as json
+import orjson
 import pandas as pd
 
 # Local imports
@@ -181,8 +181,8 @@ class FirehoseRecord:
             # primitive values (including null values) are wrapped to ensure that all encoded JSON strings 
             # are either a JSON encoded dictionary or a JSON encoded list
             result[DECISION_ID_KEY] = self.message_id
-            result[VARIANT_KEY] = json_dumps_wrapping_primitive(self.variant)
-            result[GIVENS_KEY] = json_dumps_wrapping_primitive(self.givens)
+            result[VARIANT_KEY] = json_dumps(self.variant)  # json_dumps_wrapping_primitive(self.variant)
+            result[GIVENS_KEY] = json_dumps(self.givens)  # json_dumps_wrapping_primitive(self.givens)
             result[COUNT_KEY] = self.count
             
             # A not set runners_up must not be set in the result dictionary
@@ -194,12 +194,12 @@ class FirehoseRecord:
             # A set null sample must be wrapped and JSON encoded.
             # A not set sample must not be set in the result dictionary
             if self.has_sample():
-                result[SAMPLE_KEY] = json_dumps_wrapping_primitive(self.sample)
+                result[SAMPLE_KEY] = json_dumps(self.sample)  # json_dumps_wrapping_primitive(self.sample)
                 
         elif self.is_reward_record():
             # Only 'decision_id' and 'rewards' may be set when converting from 'type' == 'reward' firehose records
             result[DECISION_ID_KEY] = self.decision_id
-            result[REWARDS_KEY] = json_dumps({ self.message_id: self.reward })
+            result[REWARDS_KEY] = json_dumps({self.message_id: self.reward})
 
         return result
 
@@ -268,7 +268,7 @@ class FirehoseRecordGroup:
             for line in gzf.readlines():
     
                 try:
-                    record = FirehoseRecord(json.loads(line))
+                    record = FirehoseRecord(orjson.loads(line))
                     model = record.model
                     
                     if model not in records_by_model:
@@ -331,7 +331,7 @@ def is_valid_message_id(x):
 
 def is_valid_sample(x):
     try:
-        json.dumps(x)
+        orjson.dumps(x)
         return True
     except:
         return False
@@ -411,7 +411,7 @@ def assert_valid_rewarded_decision_record(rdr_dict, record_type):
         assert isinstance(rewards, str),  \
             f"{REWARDS_KEY} must be a json str, got {type(rewards)}"
 
-        rewards_dict = json.loads(rewards)
+        rewards_dict = orjson.loads(rewards)
         assert isinstance(rewards_dict, dict), \
             f"the json str 'rewards' must contain a dict, got {type(rewards_dict)}"
         
@@ -437,7 +437,7 @@ def assert_valid_rewarded_decision_record(rdr_dict, record_type):
         assert isinstance(rewards, str),  \
             f"{REWARDS_KEY} must be a json str, got {type(rewards)}"
         
-        rewards_dict = json.loads(rewards)
+        rewards_dict = orjson.loads(rewards)
         assert isinstance(rewards_dict, dict), \
             f"the json str 'rewards' must contain a dict, got {type(rewards_dict)}"
         
@@ -458,7 +458,7 @@ def assert_valid_rewarded_decision_record(rdr_dict, record_type):
         assert isinstance(variant, str), \
             f"'variant' must be a json string, got {type(variant)}"
         
-        assert json.loads(variant) is not None, \
+        assert orjson.loads(variant) is not None, \
             "'variant' must be non-null: {variant}"
 
 
@@ -468,8 +468,8 @@ def assert_valid_rewarded_decision_record(rdr_dict, record_type):
         givens = rdr_dict[GIVENS_KEY]
         assert isinstance(givens, str), \
             f"'givens' must be a json str, got {type(givens)}"
-        assert isinstance(json.loads(givens), dict), \
-            f"the json str 'givens' must be a dict, got {type(json.loads(givens))}"
+        assert isinstance(orjson.loads(givens), dict), \
+            f"the json str 'givens' must be a dict, got {type(orjson.loads(givens))}"
 
 
         ######################################################################
@@ -488,7 +488,7 @@ def assert_valid_rewarded_decision_record(rdr_dict, record_type):
             
             assert isinstance(runners_up, str), "'runners_up' should be a str" 
 
-            runners_up_list = json.loads(runners_up)
+            runners_up_list = orjson.loads(runners_up)
             assert isinstance(runners_up_list, list), \
                 "'runners_up' must be a list"
 
@@ -511,7 +511,7 @@ def assert_valid_rewarded_decision_record(rdr_dict, record_type):
         
         else:
             assert isinstance(sample, str), f"'sample' must be a str: {sample}"
-            assert is_valid_sample(json.loads(sample)), \
+            assert is_valid_sample(orjson.loads(sample)), \
                 f"invalid 'sample': {sample}"
 
 
