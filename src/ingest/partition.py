@@ -68,7 +68,7 @@ class RewardedDecisionPartition:
                 if self.df is not None and isinstance(self.df, pd.DataFrame):
                     dfs.append(self.df)
 
-                self.df = pd.concat(dfs, ignore_index=True).astype(DF_SCHEMA)[DF_SCHEMA.keys()]
+                self.df = pd.concat(dfs, ignore_index=True).astype(DF_SCHEMA)
                 self.sorted = False
 
             print(f'loaded {self.df.shape[0]} rewarded decisions for {self.model_name} across {len(self.s3_keys)} partitions')
@@ -380,7 +380,7 @@ class RewardedDecisionPartition:
 
 def read_parquet(s3_key):
 
-    s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}')
+    s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}', columns=DF_COLUMNS)
 
     # TODO: add more validations
     valid_idxs = s3_df.decision_id.apply(is_valid_message_id)
