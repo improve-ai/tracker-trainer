@@ -364,3 +364,27 @@ def test_merge_json_property(s3):
     test_case_file = os.getenv('TEST_SINGLE_MODEL_MERGE_TEST_JSON_PROPERTY_JSON', None)
     assert test_case_file is not None
     _generic_merge_test_case(test_case_file, s3)
+
+
+def test_merge_initial_batch_with_null_variants(s3):
+    test_case_file = os.getenv('TEST_SINGLE_MODEL_MERGE_INITIAL_BATCH_WITH_NULL_VARIANTS_JSON', None)
+    assert test_case_file is not None
+    _generic_merge_test_case(test_case_file, s3)
+
+
+# TEST_SINGLE_MODEL_MERGE_INITIAL_BATCH_AND_ADDITIONAL_REWARDS_BATCH_WITH_NULL_VARIANTS_JSON
+def test_additional_rewards_batch_merge_with_null_variants_1(s3):
+    test_case_file = os.getenv('TEST_SINGLE_MODEL_MERGE_INITIAL_BATCH_AND_ADDITIONAL_REWARDS_BATCH_WITH_NULL_VARIANTS_JSON', None)
+    assert test_case_file is not None
+    _generic_merge_test_case(test_case_file, s3)
+
+
+# TEST_SINGLE_MODEL_MERGE_ADDITIONAL_REWARDS_BATCH_AND_INITIAL_BATCH_WITH_NULL_VARIANTS_JSON
+def test_additional_rewards_batch_merge_with_null_variants_2(s3):
+    test_case_file = os.getenv(
+        'TEST_SINGLE_MODEL_MERGE_INITIAL_BATCH_AND_ADDITIONAL_REWARDS_BATCH_WITH_NULL_VARIANTS_JSON',
+        None)
+    assert test_case_file is not None
+    _generic_merge_test_case(test_case_file, s3)
+
+

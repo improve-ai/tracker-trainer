@@ -1,0 +1,8 @@
+{
+  "test_case": {
+    "gzipped_records": "appconfig-model-null-variants.gz",
+    "merged_s3_keys": null,
+    "model_names": ["appconfig"]
+  },
+  "expected_outputs_files": ["appconfig-model-null-variants.parquet"]
+}
