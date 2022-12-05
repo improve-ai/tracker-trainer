@@ -364,3 +364,17 @@ def test_merge_json_property(s3):
     test_case_file = os.getenv('TEST_SINGLE_MODEL_MERGE_TEST_JSON_PROPERTY_JSON', None)
     assert test_case_file is not None
     _generic_merge_test_case(test_case_file, s3)
+
+
+# TEST_MULTIPLE_MODELS_MERGE_INITIAL_BATCH_ADDITIONAL_COLUMNS_JSON
+def test_initial_batch_merge_multiple_models_additional_columns(s3):
+    test_case_file = os.getenv('TEST_MULTIPLE_MODELS_MERGE_INITIAL_BATCH_ADDITIONAL_COLUMNS_JSON', None)
+    assert test_case_file is not None
+    _generic_merge_test_case(test_case_file, s3)
+
+
+# TEST_MULTIPLE_MODELS_MERGE_INITIAL_BATCH_ADDITIONAL_REWARDS_BATCH_ADDITIONAL_COLUMNS_JSON
+def test_additional_rewards_batch_merge_multiple_models_additional_columns_1(s3):
+    test_case_file = os.getenv('TEST_MULTIPLE_MODELS_MERGE_INITIAL_BATCH_ADDITIONAL_REWARDS_BATCH_ADDITIONAL_COLUMNS_JSON', None)
+    assert test_case_file is not None
+    _generic_merge_test_case(test_case_file, s3)

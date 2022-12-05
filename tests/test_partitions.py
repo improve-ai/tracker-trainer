@@ -353,4 +353,3 @@ def test__get_group_slicing_indices_raises_for_not_sorted_df():
     p = RewardedDecisionPartition(model_name='dummy-model')
     with raises(AssertionError) as aerr:
         p._get_groups_slices_indices(records=np.array([]))
-
