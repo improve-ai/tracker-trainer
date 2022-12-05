@@ -68,7 +68,7 @@ class RewardedDecisionPartition:
                 if self.df is not None and isinstance(self.df, pd.DataFrame):
                     dfs.append(self.df)
 
-                self.df = pd.concat(dfs, ignore_index=True).astype(DF_SCHEMA)
+                self.df = pd.concat(dfs, ignore_index=True).astype(DF_SCHEMA)[DF_SCHEMA.keys()]
                 self.sorted = False
 
             print(f'loaded {self.df.shape[0]} rewarded decisions for {self.model_name} across {len(self.s3_keys)} partitions')
