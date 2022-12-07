@@ -114,7 +114,7 @@ def _generic_test__merge_many_records_group(test_case_file: str):
     records_not_nan_mask = _get_records_not_nan_mask(records)
 
     p._merge_many_records_group(
-        records_array=records, array_not_nans_mask=records_not_nan_mask,
+        records=records, records_not_nans_mask=records_not_nan_mask,
         group_slice_start=group_slice_start, group_slice_end=group_slice_end,
         into=merged_records[0])
     expected_output = test_case_json.get('expected_output', None)

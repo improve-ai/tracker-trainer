@@ -16,9 +16,14 @@ from firehose_record import COUNT_KEY, DECISION_ID_KEY, DECISION_ID_COLUMN_INDEX
     DF_COLUMNS, DF_SCHEMA, EMPTY_REWARDS_JSON_ENCODED, NO_REWARDS_REWARD_VALUE, \
     NUMERIC_COLUMNS_DTYPE, REWARD_KEY, REWARDS_COLUMN_INDEX, REWARD_COLUMN_INDEX
 from firehose_record import is_valid_message_id
-from utils import is_valid_model_name, is_valid_rewarded_decisions_s3_key, list_s3_keys
+from utils import is_valid_model_name, is_valid_rewarded_decisions_s3_key, json_dumps, list_s3_keys
 
 ISO_8601_BASIC_FORMAT = '%Y%m%dT%H%M%SZ'
+
+np_orjson_loads = np.frompyfunc(orjson.loads, nin=1, nout=1)
+np_concatenate_rewards = \
+    np.frompyfunc(lambda record_rewards, group_rewards: group_rewards.update(record_rewards), nin=2, nout=0)
+
 
 class RewardedDecisionPartition:
 
@@ -38,7 +43,7 @@ class RewardedDecisionPartition:
         self.sorted = False
 
 
-    def process(self, use_old_merge: bool = False):
+    def process(self):
 
         # load the existing .parquet files (if any) from s3
         self.load()
@@ -158,15 +163,15 @@ class RewardedDecisionPartition:
             records_indices[groups_slices[:, 0] != groups_slices[:, 2]] + 1
 
     def _merge_many_records_group(
-            self, records_array, array_not_nans_mask, group_slice_start, group_slice_end, into):
+            self, records, records_not_nans_mask, group_slice_start, group_slice_end, into):
         """
         Merges a single decision ID group into a single record (into parameter)
 
         Parameters
         ----------
-        records_array: np.ndarray
+        records: np.ndarray
             a 2D array of fully and partially rewarded decision records
-        array_not_nans_mask:
+        records_not_nans_mask:
             a 2D boolean array indicating where np.nans are located in the records_array
         group_slice_start: int
             an index of records_array at which merged records group starts
@@ -183,9 +188,9 @@ class RewardedDecisionPartition:
         """
         assert group_slice_start >= 0 and group_slice_end > 0 and (group_slice_end - group_slice_start) > 1
         # extract the slice from all records array
-        group_slice = records_array[group_slice_start:group_slice_end, :]
+        group_slice = records[group_slice_start:group_slice_end, :]
         # extract the not np.nans mask slice from all records mask
-        group_not_nans_mask = array_not_nans_mask[group_slice_start:group_slice_end, :]
+        group_not_nans_mask = records_not_nans_mask[group_slice_start:group_slice_end, :]
 
         # for all columns other than "rewards" and "reward" select first not np.nan element
         # np.argmax() allows to select index of first encountered True value in each column of group_not_nans_mask
@@ -203,38 +208,19 @@ class RewardedDecisionPartition:
         if (~not_empty_rewards).all():
             into[REWARDS_COLUMN_INDEX:] = [EMPTY_REWARDS_JSON_ENCODED, NO_REWARDS_REWARD_VALUE]
         else:
-            # This is a trick which significantly speeds up an entire merge process
-            # "rewards" column stores flat dicts with a simple structure:
-            # {<reward message ID>: <reward value>, ...}
-            # This means that all not empty entries of "rewards column can be concatenated
-            # without loading them by a simple procedure:
-            # - strip leading "{" and trailing "}" of each record's "rewards", e.g. (please note that
-            # at this point np.nan can be present in "reward" column )
-            # -- | ..... |      "rewards"     |  "reward"  |
-            # ---|-------|--------------------|------------|
-            # 0: | ..... | '{"a": 1, "b": 2}' |   np.nan   |
-            # 1: | ..... | '{"c": 1, "d": 2}' |   np.nan   |
-            # 2: | ..... |    '{"e": 1}'      |   np.nan   |
-            #
-            # 'stripped' "rewards" column / array -> ['"a": 1, "b": 2', '"c": 1, "d": 2', '"e": 1']
-            # - string concatenation with a ',' and wrapping result with "{" + <string concatenation result> + "}"
-            #   will provide a JSON string containing all rewards dicts without even loading it with orjson.loads:
-            #   "{" + ','.join(['"a": 1, "b": 2', '"c": 1, "d": 2', '"e": 1']) "}" =
-            #   '{"a": 1, "b": 2', "c": 1, "d": 2, "e": 1}'
-            # - the last setp is to call orjson.loads() on the concatenated rewards. If the JSON string is broken
-            #   orjson.loads() will raise as it would for a single malformed "rewards" element
-            # this logic is encapsulated within method concat_rewards_dicts_without_loads()
-            loaded_rewards = orjson.loads(
-                concat_rewards_dicts_without_loads(group_slice[:, REWARDS_COLUMN_INDEX][not_empty_rewards]))
+            # load rewards JSONs
+            loaded_rewards = np_orjson_loads(group_slice[:, REWARDS_COLUMN_INDEX][not_empty_rewards])
+            # concatenate rewards
+            group_rewards = {}
+            np_concatenate_rewards(loaded_rewards, group_rewards)
+
             # Once all rewards are merged in to a single dict they can be dumped in the "rewards" column of into
             # It is possible to skip orjson.dumps() call (and make a code a bit faster) by working
             # on plain strings all the way for "rewards" column but it is safer to use orjson.dumps()
-            into[REWARDS_COLUMN_INDEX] = \
-                orjson.dumps(loaded_rewards, option=orjson.OPT_SORT_KEYS).decode('utf-8')
+            into[REWARDS_COLUMN_INDEX] = json_dumps(group_rewards)
+
             # reward is a sum of all values() from loaded_rewards
-            # if any of the values is malformed (e.g. a nested dict instead of <message id>: <reward> key - value pair
-            # this is where error will be raised
-            into[REWARD_COLUMN_INDEX] = sum(loaded_rewards.values())
+            into[REWARD_COLUMN_INDEX] = sum(group_rewards.values())
 
     def _merge_one_record_groups(
             self, records, records_not_nans_mask, records_one_record_groups_starts,
@@ -289,7 +275,7 @@ class RewardedDecisionPartition:
         # - orjson.loads() value of "rewards" column for a given record
         # - sum values ot loaded JSON string
         merged_records[rewards_to_parse_indices, REWARD_COLUMN_INDEX] = \
-            [sum(orjson.loads(rewards).values()) for rewards in merged_records[rewards_to_parse_indices, REWARDS_COLUMN_INDEX]]
+            [sum(rewards.values()) for rewards in np_orjson_loads(merged_records[rewards_to_parse_indices, REWARDS_COLUMN_INDEX])]
 
     def merge(self):
         # make sure that df is sorted -> this is crucial for current merge() implementation
@@ -347,6 +333,7 @@ class RewardedDecisionPartition:
         self._merge_one_record_groups(
             records, records_not_nans_mask, groups_slices_starts[~is_many_records_group],
             merged_records_index[~is_many_records_group], merged_records)
+
         # processing groups with multiple records
         # merged_records_index[is_many_records_group] -> indices of results for groups with multiple records to merge
         for i in merged_records_index[is_many_records_group]:
@@ -359,7 +346,6 @@ class RewardedDecisionPartition:
         # only 2 columns need to be cast to floats (by default the DF infers object column type)
         for column_name in [COUNT_KEY, REWARD_KEY]:
             self.df[column_name] = self.df[column_name].astype(NUMERIC_COLUMNS_DTYPE)
-
 
     def cleanup(self):
         if self.s3_keys:
@@ -485,25 +471,3 @@ def parquet_s3_key(model_name, min_decision_id, max_decision_id, count):
 def list_partition_s3_keys(model_name):
     return filter(is_valid_rewarded_decisions_s3_key,
                   list_s3_keys(bucket_name=TRAIN_BUCKET, prefix=f'rewarded_decisions/{model_name}/parquet/'))
-
-
-def concat_rewards_dicts_without_loads(rewards_jsons):
-    """
-    Reward dicts can be concatenated without even calling orjson loads. Each of the
-    reward dicts is flat and has a <string> : <float> structure. This means that
-    the concatenation on JSON strings can go as follows:
-    1. for each JSON string skip '{' and '}'
-    2. concatenate strings with ','
-    3. add '{' as a first character and '}' as a last character to the resulting string
-
-
-    Parameters
-    ----------
-    rewards_jsons
-
-    Returns
-    -------
-
-    """
-
-    return "{" + ','.join([rewards[1:-1] for rewards in rewards_jsons]) + "}"
