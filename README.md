@@ -1,4 +1,4 @@
-# Improve AI Gym | Track Decisions | Train Models
+# Improve AI Tracker - Track Variants & Rewards
 
 The Improve AI Gym makes it easy to deploy *reinforcement learning* systems in production. *Reinforcement learning* is a type of machine learning where desirable behaviors are rewarded and undesirable behaviors are punished. A numeric reward is assigned for each decision. By aligning rewards with business metrics, such as revenue, conversions, or user retention, reinforcement learning automatically optimizes your app to improve those metrics.
 
