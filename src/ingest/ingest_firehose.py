@@ -1,14 +1,8 @@
 import json
-import os 
-import boto3
 
 from concurrent.futures import ThreadPoolExecutor
-import signal
-import sys
-import traceback
-import threading
 
-from config import TRAIN_BUCKET, FIREHOSE_BUCKET, S3_CONNECTION_COUNT
+from config import FIREHOSE_BUCKET, S3_CONNECTION_COUNT
 from firehose_record import FirehoseRecordGroup
 from partition import RewardedDecisionPartition
 
@@ -21,7 +15,6 @@ OBJECT_KEY = 'object'
 KEY_KEY = 'key'
 
 
-# Launch a reward assignment AWS Batch Job
 def lambda_handler(event, context):
     """
     Ingests a gzipped JSONlines file from the firehose S3 bucket and ouputs one merged rewarded decision partition file per model to the train bucket.
