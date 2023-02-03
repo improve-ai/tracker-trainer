@@ -1,10 +1,6 @@
-# Improve AI Gym | Track Decisions | Train Models
+# Improve AI Tracker - Track Rewards for Scoring & Ranking
 
-The Improve AI Gym makes it easy to deploy *reinforcement learning* systems in production. *Reinforcement learning* is a type of machine learning where desirable behaviors are rewarded and undesirable behaviors are punished. A numeric reward is assigned for each decision. By aligning rewards with business metrics, such as revenue, conversions, or user retention, reinforcement learning automatically optimizes your app to improve those metrics.
-
-With reinforcement learning you can easily optimize any variable, content, and configuration in your app and quickly implement personalization and recommendation systems. **It's like A/B testing on steroids.**
-
-The Gym is a scalable stack of serverless services that you deploy on AWS. A such, all data remains private to you and there are no operational dependencies on third parties other than AWS.
+The Tracker is a stack of serverless components that run on AWS to cheaply and easily track JSON items and their rewards from Improve AI libraries. These rewards are joined with the tracked items that they're associated with and used as input to training new scoring and ranking models.
 
 # Deployment
 
@@ -24,11 +20,11 @@ $ npm install -g serverless
 $ npm install
 ```
 
-## Subscribe to a Decision Model Trainer
+## Subscribe to a Scoring/Ranking Model Trainer
 
-To train models on up to 100,000 decisions, subscribe to the [free trainer](https://aws.amazon.com/marketplace/pp/prodview-pyqrpf5j6xv6g)
+[free trainer](https://aws.amazon.com/marketplace/pp/prodview-pyqrpf5j6xv6g)
 
-To train models on over 100,000 decisions, subscribe to the [pro trainer](https://aws.amazon.com/marketplace/pp/prodview-adchtrf2zyvow)
+[pro trainer](https://aws.amazon.com/marketplace/pp/prodview-adchtrf2zyvow)
 
 Once subscribed, copy your the trainer Docker image URLs and paste them in **config/config.yml**
 
@@ -63,9 +59,9 @@ The *models* bucket is private by default.  Make the '/models/latest/' directory
 
 Model URLs follow the template of **https://{modelsBucket}.s3.amazonaws.com/models/latest/{modelName}.{mlmodel|xgb}.gz**. The Android and Python SDKs use .xgb.gz models and the iOS SDK uses .mlmodel.gz models.
 
-## Integrate a Client SDK
+## Integrate a Ranker Library
 
-Improve AI SDKs are currently available for [Swift/Objective-C](https://github.com/improve-ai/ios-sdk), [Java/Kotlin](https://github.com/improve-ai/android-sdk), and [Python](https://github.com/improve-ai/python-sdk).
+Improve AI libraries are currently available for [Swift](https://github.com/improve-ai/ios-sdk), [Java](https://github.com/improve-ai/android-sdk), and [Python](https://github.com/improve-ai/python-sdk).
 
 For example if we're using Improve AI for In App Personalization in Swift, we would use the *trackURL* and *modelURL* that we configured in the Improve AI Gym.
 
