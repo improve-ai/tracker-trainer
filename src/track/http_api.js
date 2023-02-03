@@ -24,10 +24,6 @@ module.exports.track = async function(event, context) {
   if (!isValidKsuid(record.message_id)) {
     return errorResponse('invalid message_id field')
   }
-
-  if (!isValidType(record.type)) {
-    return errorResponse('invalid type field')
-  }
   
   const firehoseRecord = {
     DeliveryStreamName: FIREHOSE_DELIVERY_STREAM_NAME,
@@ -62,11 +58,6 @@ function errorResponse(message) {
     body: JSON.stringify({ error: { message: message } })
   }
   return response
-}
-
-
-function isValidType(type) {
-  return type && typeof type === 'string' && (type === 'decision' || type === 'reward')
 }
 
 
