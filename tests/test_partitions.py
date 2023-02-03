@@ -6,7 +6,7 @@ from pytest import raises
 
 import pandas as pd
 from firehose_record import DF_SCHEMA, FirehoseRecord, FirehoseRecordGroup, \
-    DECISION_ID_KEY, MESSAGE_ID_KEY, TYPE_KEY
+    DECISION_ID_KEY, MESSAGE_ID_KEY, COUNT_KEY
 from partition import RewardedDecisionPartition, parquet_s3_key_prefix
 from tests_utils import load_ingest_test_case
 
@@ -28,7 +28,7 @@ def _get_records_array_from_gzipped_records_file(records_file):
 
     # prepare jsonlines
     for jl in jsonlines:
-        if jl[TYPE_KEY] == 'decision':
+        if jl.get(COUNT_KEY, 0) > 0:
             jl[DECISION_ID_KEY] = jl[MESSAGE_ID_KEY]
 
     records_jsonlines = \

@@ -10,12 +10,10 @@ import firehose_record as fr
 TEST_MODEL_NAME = 'test-model'
 RECORD_PATTERN = {
     fr.MESSAGE_ID_KEY: None,
-    fr.VARIANT_KEY: {'$value': 0},
-    fr.GIVENS_KEY: {},
+    fr.ITEM_KEY: {'$value': 0},
+    fr.CONTEXT_KEY: {},
     fr.COUNT_KEY: 1,
-    fr.TYPE_KEY: fr.DECISION_TYPE,
     fr.MODEL_KEY: TEST_MODEL_NAME,
-    fr.RUNNERS_UP_KEY: None,
 }
 
 def _get_expected_df(json_records):
@@ -27,14 +25,13 @@ def _get_expected_df(json_records):
         current_record_dict[fr.DECISION_ID_KEY] = current_record_dict[fr.MESSAGE_ID_KEY]
 
         del current_record_dict[fr.MESSAGE_ID_KEY]
-        del current_record_dict[fr.TYPE_KEY]
         del current_record_dict[fr.MODEL_KEY]
 
         df_records.append(current_record_dict)
 
     df = pd.DataFrame(df_records, columns=fr.DF_SCHEMA.keys())
 
-    for column in [fr.VARIANT_KEY, fr.GIVENS_KEY]:
+    for column in [fr.ITEM_KEY, fr.CONTEXT_KEY]:
         df[column] = df[column].apply(lambda x: orjson.dumps(x).decode('utf-8'))
 
     return df.astype(fr.DF_SCHEMA)

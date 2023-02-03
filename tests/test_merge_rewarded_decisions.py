@@ -14,8 +14,7 @@ src.ingest.config.TRAIN_BUCKET = os.getenv('TRAIN_BUCKET', None)
 assert src.ingest.config.TRAIN_BUCKET is not None
 
 import src.ingest.firehose_record
-from src.ingest.firehose_record import DF_SCHEMA, REWARD_KEY, REWARDS_KEY,\
-    TYPE_KEY, FirehoseRecordGroup, FirehoseRecord, assert_valid_rewarded_decision_record
+from src.ingest.firehose_record import DF_SCHEMA, REWARD_KEY, REWARDS_KEY, COUNT_KEY, FirehoseRecordGroup, FirehoseRecord
 import src.ingest.partition
 from src.ingest.partition import RewardedDecisionPartition
 import src.ingest.utils
@@ -23,6 +22,8 @@ from src.ingest.utils import json_dumps
 
 from tests_utils import dicts_to_df, upload_gzipped_records_to_firehose_bucket, \
     load_ingest_test_case
+
+from conftest import assert_valid_rewarded_decision_record
 
 
 class CasesMergeOfRewardedDecisions:
@@ -49,7 +50,7 @@ class CasesMergeOfRewardedDecisions:
         expected_rewarded_record = FirehoseRecord(record).to_rewarded_decision_dict()
         expected_rewarded_record[REWARD_KEY] = -10
         expected_rewarded_record[REWARDS_KEY] = json_dumps({ "000000000000000000000000001" : -10 })
-        assert_valid_rewarded_decision_record(expected_rewarded_record, record[TYPE_KEY])
+        assert_valid_rewarded_decision_record(expected_rewarded_record, "decision" if record.get(COUNT_KEY, 0) > 0 else "reward")
 
         rewarded_records_df = dicts_to_df(
             dicts=[get_rewarded_decision_rec(), get_partial_rewarded_dec_rec()],
@@ -79,7 +80,7 @@ class CasesMergeOfRewardedDecisions:
             "000000000000000000000000001" : -10,
             "000000000000000000000000002" : -10
         })
-        assert_valid_rewarded_decision_record(expected_rewarded_record, record[TYPE_KEY])
+        assert_valid_rewarded_decision_record(expected_rewarded_record, "decision" if record.get(COUNT_KEY, 0) > 0 else "reward")
 
         dfs = dicts_to_df(
             dicts=[rdr, partial_rewarded_dec_rec], columns=DF_SCHEMA.keys(),
@@ -119,7 +120,7 @@ class CasesMergeOfRewardedDecisions:
             "000000000000000000000000004" : 4,
             "000000000000000000000000005" : 5
         })
-        assert_valid_rewarded_decision_record(expected_rewarded_record, record[TYPE_KEY])
+        assert_valid_rewarded_decision_record(expected_rewarded_record, "decision" if record.get(COUNT_KEY, 0) > 0 else "reward")
         dfs = pd.concat(records, ignore_index=True)
 
         expected_df = \
@@ -173,7 +174,7 @@ class CasesMergeOfRewardedDecisions:
         expected_rewarded_record = FirehoseRecord(record).to_rewarded_decision_dict()
         expected_rewarded_record[REWARD_KEY] = 0
         expected_rewarded_record[REWARDS_KEY] = json_dumps({})
-        assert_valid_rewarded_decision_record(expected_rewarded_record, record[TYPE_KEY])
+        assert_valid_rewarded_decision_record(expected_rewarded_record, "decision" if record.get(COUNT_KEY, 0) > 0 else "reward")
 
         dfs = dicts_to_df(
             dicts=[rewarded_decision_record1, rewarded_decision_record2],

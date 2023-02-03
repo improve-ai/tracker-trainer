@@ -15,8 +15,7 @@ from config import s3client, TRAIN_BUCKET, PARQUET_FILE_MAX_DECISION_RECORDS, S3
 from firehose_record import COUNT_KEY, DECISION_ID_KEY, DECISION_ID_COLUMN_INDEX, \
     DF_COLUMNS, DF_SCHEMA, EMPTY_REWARDS_JSON_ENCODED, NO_REWARDS_REWARD_VALUE, \
     NUMERIC_COLUMNS_DTYPE, REWARD_KEY, REWARDS_COLUMN_INDEX, REWARD_COLUMN_INDEX
-from firehose_record import is_valid_message_id
-from utils import is_valid_model_name, is_valid_rewarded_decisions_s3_key, json_dumps, list_s3_keys
+from utils import is_valid_ksuid, is_valid_model_name, is_valid_rewarded_decisions_s3_key, json_dumps, list_s3_keys
 
 ISO_8601_BASIC_FORMAT = '%Y%m%dT%H%M%SZ'
 
@@ -39,7 +38,6 @@ class RewardedDecisionPartition:
             
         self.s3_keys = s3_keys
         
-
         self.sorted = False
 
 
@@ -48,9 +46,6 @@ class RewardedDecisionPartition:
         # load the existing .parquet files (if any) from s3
         self.load()
         
-        # remove any invalid rows
-        self.filter_valid()
-
         # sort the combined dataframe and update min/max decision_ids
         self.sort()
 
@@ -95,11 +90,6 @@ class RewardedDecisionPartition:
                 
             chunk.to_parquet(f's3://{TRAIN_BUCKET}/{chunk_s3_key}', compression='ZSTD', index=False)
 
-    
-    def filter_valid(self):
-        # TODO we might not do this since unrecoverable copying now happens in read_parquet
-        pass
-    
     
     def sort(self):
         self.df.sort_values(DECISION_ID_KEY, inplace=True, ignore_index=True)
@@ -369,7 +359,7 @@ def read_parquet(s3_key):
     s3_df = pd.read_parquet(f's3://{TRAIN_BUCKET}/{s3_key}', columns=DF_COLUMNS)
 
     # TODO: add more validations
-    valid_idxs = s3_df.decision_id.apply(is_valid_message_id)
+    valid_idxs = s3_df.decision_id.apply(is_valid_ksuid)
     if not valid_idxs.all():
         unrecoverable_key = f'unrecoverable/{s3_key}'
 
