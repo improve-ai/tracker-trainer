@@ -92,7 +92,7 @@ class FirehoseRecord:
 
             # parse and validate reward
             reward = json_record[REWARD_KEY]
-    
+
             if not isinstance(reward, (int, float)):
                 raise ValueError('invalid reward')
     
@@ -122,7 +122,7 @@ class FirehoseRecord:
             
 
     def is_decision_record(self):
-        return self.count and self.count >= 1
+        return hasattr(self, 'count') and self.count >= 1
         
         
     def is_reward_record(self):

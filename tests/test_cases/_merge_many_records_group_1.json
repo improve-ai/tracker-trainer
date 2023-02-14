@@ -6,5 +6,5 @@
     "model_name": "dummy-test-model"
   },
   "expected_output": [[
-    "2I2MR4toRgTZnCuwVRuIHeNZGVX", "0", "{}", 50.0, null, "4", "{\"2I2MRFFDSlWu0NUemxSrBEIi9C7\":100,\"2I2MRI6zTPnQkhxhuz7UnRBwLQT\":100}", 200]]
+    "2I2MR4toRgTZnCuwVRuIHeNZGVX", "0", "{}", 50.0, "4", "{\"2I2MRFFDSlWu0NUemxSrBEIi9C7\":100,\"2I2MRI6zTPnQkhxhuz7UnRBwLQT\":100}", 200]]
 }

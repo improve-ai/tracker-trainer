@@ -1,13 +1,13 @@
 {
   "test_case": {
     "records": [
-      ["2I2MR4toRgTZnCuwVRuIHeNZGVX", null, null, null, null, null, null, null],
-      ["2I2MR4toRgTZnCuwVRuIHeNZGVX", null, null, null, null, null, null, null]
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVX", null, null, null, null, null, null],
+      ["2I2MR4toRgTZnCuwVRuIHeNZGVX", null, null, null, null, null, null]
     ],
     "group_slice_start": 0,
     "group_slice_end": 2,
     "model_name": "dummy-test-model"
   },
   "expected_output": [[
-    "2I2MR4toRgTZnCuwVRuIHeNZGVX", null, null, null, null, null, "{}", 0.0]]
+    "2I2MR4toRgTZnCuwVRuIHeNZGVX", null, null, null, null, "{}", 0.0]]
 }

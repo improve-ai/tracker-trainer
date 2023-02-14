@@ -2,9 +2,11 @@
 import os
 
 # External imports
-import pytest
 import boto3
 from moto import mock_s3
+import numpy as np
+import orjson
+import pytest
 from pytest_cases import fixture
 
 # Local imports
@@ -15,8 +17,12 @@ from firehose_record import CONTEXT_KEY
 from firehose_record import COUNT_KEY
 from firehose_record import SAMPLE_KEY
 from firehose_record import REWARD_KEY
+from firehose_record import REWARDS_KEY
 from firehose_record import DECISION_ID_KEY
 from firehose_record import FirehoseRecord
+
+from src.train.naming import is_valid_model_name
+from utils import is_valid_ksuid
 
 
 @pytest.fixture(scope='function')
@@ -61,7 +67,7 @@ def get_record():
     def __get_record(
         # Common fields
         msg_id_val = "000000000000000000000000000",
-        ts_val     = "2021-10-07T07:24:06.126+02:00",
+        # ts_val     = "2021-10-07T07:24:06.126+02:00",
         type_val   = None,
         model_val  = "test-model-name-1.0",
         
@@ -69,7 +75,7 @@ def get_record():
         count_val      = 3, # depends on runners_up length
         variant_val    = { "text": "variant text" },
         givens_val     = { "device" : "iPhone", "page" : 2462, "shared" : { "a": 1 }, },
-        runners_up_val = [ { "text": "You are safe." } ],
+        # runners_up_val = [ { "text": "You are safe." } ],
         sample_val     = { "text": "sample text" },
 
         # type == "reward" fields
@@ -120,7 +126,7 @@ def get_rewarded_decision_rec(get_decision_rec, helpers):
     def __rdr(decision_id='000000000000000000000000000'):
         decision_record = get_decision_rec(msg_id_val=decision_id)
         rdr = helpers.to_rewarded_decision_record(decision_record)
-        assert_valid_rewarded_decision_record(rdr, record_type="decision")
+        assert_valid_rewarded_decision_record(rdr)
         return rdr
 
     return __rdr
@@ -157,7 +163,7 @@ def get_partial_rewarded_dec_rec(get_reward_rec, helpers):
     def __partial_rewarded_dec_rec(msg_id_val="000000000000000000000000001"):
         reward_record = get_reward_rec(msg_id_val=msg_id_val)
         prdr = helpers.to_rewarded_decision_record(reward_record)
-        assert_valid_rewarded_decision_record(prdr, record_type="reward")
+        assert_valid_rewarded_decision_record(prdr)
         return prdr
         
     return __partial_rewarded_dec_rec
@@ -183,7 +189,7 @@ def naive_is_valid_runners_up(x):
 
 
 def is_valid_reward(x):
-    return isinstance(x, (int, float)) and math.isfinite(x)
+    return isinstance(x, (int, float)) and np.isfinite(x)
 
 
 def is_valid_decision_id(x):
@@ -211,8 +217,8 @@ def assert_valid_record(json_dict):
     message_id = json_dict[MESSAGE_ID_KEY]
     assert is_valid_message_id(message_id), f"invalid message_id: {message_id}"
     
-    rec_type = json_dict[TYPE_KEY]
-    assert is_valid_type(rec_type), f"invalid type: {rec_type}"
+    # rec_type = json_dict[TYPE_KEY]
+    # assert is_valid_type(rec_type), f"invalid type: {rec_type}"
 
     model_name = json_dict[MODEL_KEY]
     assert is_valid_model_name(model_name), f"invalid model name: {model_name}"
@@ -221,18 +227,18 @@ def assert_valid_record(json_dict):
     ##########################################################################
     # Decision record fields assertions
     ##########################################################################
-    if json_dict[TYPE_KEY] == "decision":
+    if json_dict.get(COUNT_KEY, None) is not None:
 
         assert is_valid_givens(json_dict[CONTEXT_KEY]), "invalid 'givens'"
-        
-        runners_up = json_dict.get(RUNNERS_UP_KEY, None)
-        assert naive_is_valid_runners_up(runners_up), "invalid' runners up'"
+
+        # runners_up = json_dict.get(RUNNERS_UP_KEY, None)
+        # assert naive_is_valid_runners_up(runners_up), "invalid' runners up'"
 
         count = json_dict[COUNT_KEY]
         assert is_valid_count(count), f"invalid 'count': {count}"
 
         has_sample = SAMPLE_KEY in json_dict
-        sample_pool_size = _get_sample_pool_size(count, runners_up)
+        sample_pool_size = json_dict[COUNT_KEY] - 1
 
         assert sample_pool_size >= 0, "invalid 'count' or 'runners up'"
 
@@ -245,7 +251,7 @@ def assert_valid_record(json_dict):
     ##########################################################################
     # Reward record fields assertions
     ##########################################################################
-    elif json_dict[TYPE_KEY] == "reward":
+    else:
 
         assert is_valid_decision_id(json_dict[DECISION_ID_KEY]), \
             "invalid 'decision id'"
@@ -253,11 +259,9 @@ def assert_valid_record(json_dict):
         assert is_valid_reward(json_dict[REWARD_KEY]), "invalid 'reward'"
 
 
-def assert_valid_rewarded_decision_record(rdr_dict, record_type):
+def assert_valid_rewarded_decision_record(rdr_dict):
     """
     """
-
-    assert record_type in ("reward", "decision")
 
     ##########################################################################
     # decision_id validation
@@ -312,8 +316,7 @@ def assert_valid_rewarded_decision_record(rdr_dict, record_type):
         assert reward == sum(rewards_dict.values()), \
             f"{REWARD_KEY} != sum({REWARDS_KEY})"
     
-
-    if record_type == "decision":
+    if rdr_dict.get(COUNT_KEY, None) is not None:
 
         ######################################################################
         # variant validation
@@ -344,25 +347,25 @@ def assert_valid_rewarded_decision_record(rdr_dict, record_type):
         assert is_valid_count(count), f"invalid 'count': {count}"
 
 
-        ######################################################################
-        # runners_up validation
-        ######################################################################
-        runners_up = rdr_dict.get(RUNNERS_UP_KEY)
-        
-        if runners_up is not None:
-            
-            assert isinstance(runners_up, str), "'runners_up' should be a str" 
-
-            runners_up_list = orjson.loads(runners_up)
-            assert isinstance(runners_up_list, list), \
-                "'runners_up' must be a list"
-
-            assert len(runners_up_list) > 0, "len(runners_up) must be > 0"
-    
-        # runners up must not be set if missing
-        elif runners_up is None:
-            assert RUNNERS_UP_KEY not in rdr_dict, \
-                f"{RUNNERS_UP_KEY} must not be set if missing"
+        # ######################################################################
+        # # runners_up validation
+        # ######################################################################
+        # runners_up = rdr_dict.get(RUNNERS_UP_KEY)
+        #
+        # if runners_up is not None:
+        #
+        #     assert isinstance(runners_up, str), "'runners_up' should be a str"
+        #
+        #     runners_up_list = orjson.loads(runners_up)
+        #     assert isinstance(runners_up_list, list), \
+        #         "'runners_up' must be a list"
+        #
+        #     assert len(runners_up_list) > 0, "len(runners_up) must be > 0"
+        #
+        # # runners up must not be set if missing
+        # elif runners_up is None:
+        #     assert RUNNERS_UP_KEY not in rdr_dict, \
+        #         f"{RUNNERS_UP_KEY} must not be set if missing"
 
 
         ######################################################################
@@ -379,8 +382,7 @@ def assert_valid_rewarded_decision_record(rdr_dict, record_type):
             assert is_valid_sample(orjson.loads(sample)), \
                 f"invalid 'sample': {sample}"
 
-
-    elif record_type == "reward":
+    else:
 
         ######################################################################
         # variant validation
