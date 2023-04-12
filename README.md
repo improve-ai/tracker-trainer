@@ -1,6 +1,6 @@
-# Improve AI Tracker - Track Rewards for Scoring & Ranking
+# Improve AI Tracker/Trainer - Track Rewards & Train Ranking Models
 
-The Tracker is a stack of serverless components that run on AWS to cheaply and easily track JSON items and their rewards from Improve AI libraries. These rewards are joined with the tracked items that they're associated with and used as input to training new scoring and ranking models.
+The Tracker/Trainer is a stack of serverless components that run on AWS to cheaply and easily track JSON items and their rewards from Improve AI libraries. These rewards are joined with the tracked items that they're associated with and used as input to training new scoring and ranking models.
 
 # Deployment
 
