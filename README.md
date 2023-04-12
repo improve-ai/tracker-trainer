@@ -20,14 +20,6 @@ $ npm install -g serverless
 $ npm install
 ```
 
-## Subscribe to a Scoring/Ranking Model Trainer
-
-[free trainer](https://aws.amazon.com/marketplace/pp/prodview-pyqrpf5j6xv6g)
-
-[pro trainer](https://aws.amazon.com/marketplace/pp/prodview-adchtrf2zyvow)
-
-Once subscribed, copy your the trainer Docker image URLs and paste them in **config/config.yml**
-
 ## Configure Models and Training Parameters
 
 ```console
