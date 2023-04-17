@@ -137,12 +137,10 @@ def get_train_job_name(model_name: str) -> str:
     assert all([val is not None for val in train_job_name_elements])
 
     initial_job_name = \
-        tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR.join(
-            [val for val in train_job_name_elements if val])
+        tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR.join([val for val in train_job_name_elements if val])
 
     if len(initial_job_name) <= 63:
-        train_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-',
-                                initial_job_name)
+        train_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-', initial_job_name)
         return train_job_name
 
     # if full job name components form a job name which is longer than 63 characters
@@ -163,8 +161,7 @@ def get_train_job_name(model_name: str) -> str:
     if len(stage) == 0:
         remaining_chars += tc.MIN_STAGE_LENGTH
     # if remaining_chars is negative it means that service_name should be trimmed
-    truncated_service_name = service_name[
-                             :remaining_chars] if remaining_chars < 0 else service_name
+    truncated_service_name = service_name[:remaining_chars] if remaining_chars < 0 else service_name
 
     remaining_chars_denominator = 1 if len(stage) == 0 else 2
     # length of model_name and stage should be determined
@@ -173,21 +170,16 @@ def get_train_job_name(model_name: str) -> str:
             int(remaining_chars / remaining_chars_denominator) if remaining_chars % 2 == 0
             else int(remaining_chars / remaining_chars_denominator) + 1)
 
-    extra_chars_stage = int(
-        remaining_chars / remaining_chars_denominator) if remaining_chars > 0 else 0
+    extra_chars_stage = int(remaining_chars / remaining_chars_denominator) if remaining_chars > 0 else 0
 
     truncated_model_name = model_name[:8 + extra_chars_model_name]
     truncated_stage = stage[:4 + extra_chars_stage]
 
-    truncated_train_job_name_components = [truncated_service_name,
-                                           truncated_stage,
-                                           truncated_model_name, start_dt]
+    truncated_train_job_name_components = [truncated_service_name, truncated_stage, truncated_model_name, start_dt]
     initial_truncated_job_name = \
-        tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR \
-            .join([val for val in truncated_train_job_name_components if val])
+        tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR.join([val for val in truncated_train_job_name_components if val])
 
-    training_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-',
-                               initial_truncated_job_name)
+    training_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-', initial_truncated_job_name)
     assert len(training_job_name) <= 63
     return training_job_name
 

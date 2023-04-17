@@ -126,8 +126,7 @@ def check_train_job_properties(event: dict):
 
     for param_name, param_value in zip(tc.EXPECTED_EVENT_ENTRIES, job_parameters):
         if param_value is None:
-            raise ValueError(
-                '`{}` parameter must be provided and must not be None'.format(param_name))
+            raise ValueError('`{}` parameter must be provided and must not be None'.format(param_name))
 
 
 def lambda_handler(event, context):
@@ -141,9 +140,7 @@ def lambda_handler(event, context):
     hyperparameters = get_hyperparameters_for_model(model_name, event)
 
     print(f'creating training job for model: {model_name}')
-    response = \
-        create_sagemaker_training_job(
-            sagemaker_client=sagemaker_client, hyperparameters=hyperparameters, event=event)
+    response = create_sagemaker_training_job(sagemaker_client=sagemaker_client, hyperparameters=hyperparameters, event=event)
 
     print('Sagemaker`s response was:')
     print(response)
