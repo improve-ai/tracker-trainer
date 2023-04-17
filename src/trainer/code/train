@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+
+import sys
+import time
+import traceback
+
+from dask.distributed import Client
+
+import config
+from cluster_utils import get_ip_from_host, start_daemons
+import propensities
+import decision_trainer
+
+def train(client):
+        
+    # train the propensity model
+    propensity_model = propensities.train(client)
+
+    # train the decision model
+    decision_model = decision_trainer.train(client, propensity_model)
+
+    # save .mlmodel and patched .xgb files to the model dir
+    decision_model.save()
+
+
+def run():
+    print(f'hosts: {config.ALL_HOSTNAMES}, current host: {config.CURRENT_WORKER_HOSTNAME}, is_master: {config.IS_MASTER}')
+
+    # get my ip
+    master_ip = get_ip_from_host(config.MASTER_HOSTNAME)
+
+    # start workers
+    _, worker_process = start_daemons(master_ip=master_ip, is_master=config.IS_MASTER)
+
+    if config.IS_MASTER:
+        client = Client(address='tcp://{ip}:8786'.format(ip=master_ip))
+
+        print('waiting for workers to spawn')
+        while len(client.scheduler_info()['workers']) != len(config.ALL_HOSTNAMES):
+            print('waiting for remaining workers')
+            time.sleep(1)
+
+        print(f'cluster spawned: {client.scheduler_info()["workers"]}')
+
+        # perform the actual training
+        train(client)
+
+        # wrap up dask cluster
+        workers = list(client.scheduler_info()['workers'])
+        client.retire_workers(workers, close_workers=True)
+        print('stopping workers')
+        time.sleep(5)
+        client.close()
+
+        sys.exit(0)
+
+    else:
+
+        while worker_process.poll() is None:
+            time.sleep(5)
+
+        # allow worker to be stopped gracefully
+        print('Got: {} status from Dask worker: {} -> worker process has been stopped'
+              .format(worker_process.poll(), config.CURRENT_WORKER_HOSTNAME))
+        print('Ending entrypoint on node: {}'.format(config.CURRENT_WORKER_HOSTNAME))
+        sys.exit(0)
+        
+        
+def print_configuration():
+    print(f'Improve AI Trainer ({config.SUBSCRIPTION.upper()}) v{config.VERSION}')
+    print(f'model: {config.MODEL_NAME}')
+    print(f'max_decision_records: {config.MAX_DECISION_RECORDS}')
+    print(f'max_trees: {config.MAX_TREES}')
+    print(f'max_features: {config.MAX_FEATURES}')
+    print(f'max_strings_per_feature: {config.MAX_STRINGS_PER_FEATURE}')
+    print(f'explore: {config.EXPLORE}')
+    print(f'normalize_rewards: {config.NORMALIZE_REWARDS}')
+    print(f'binary_rewards: {config.BINARY_REWARDS}')
+
+
+if __name__ == '__main__':
+
+    print_configuration()
+
+    try:
+        run()
+    except Exception as e:
+        # Write out an error file. This will be returned as the failureReason in the
+        # DescribeTrainingJob result.
+        trc = traceback.format_exc()
+        # Printing this causes the exception to be in the training job logs, as well.
+        print('Exception during training: ' + str(e) + '\n' + trc,
+              file=sys.stderr)
+
+        with open(config.FAILURE_MESSAGE_PATH, 'w') as s:
+            s.write('Exception during training: ' + str(e) + '\n' + trc)
+
+        # A non-zero exit code causes the training job to be marked as Failed.
+        sys.exit(255)
+        
+    print('finished training')

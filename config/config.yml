@@ -11,26 +11,19 @@ project: demo # ⬅️ !!! CHANGE BEFORE FIRST DEPLOYMENT !!!
 
 aws_region: us-east-1
 
-
-images:
-  free: # ⬅️ !!! Subscribe at https://aws.amazon.com/marketplace/pp/prodview-pyqrpf5j6xv6g and paste image url
-  pro: # ⬅️ !!! Subscribe at https://aws.amazon.com/marketplace/pp/prodview-adchtrf2zyvow and paste image url
-
-
 #
 # Configure the decision models to train
 #
 models:
 #  config: # uncomment to train a model named 'config'
 #    training: # each model can override the default training configuration
-#      schedule: rate(1 hour) # override the default training schedule
+#      schedule: rate(4 hours) # override the default training schedule
 
 
 #
 # Default training configuration
 #
 training:
-  image: free # free version trains on up to 100,000 decision records per model. Use pro to uncap
   schedule: rate(4 hours) # recommended rate for initial model training is 1 training per variant per week
   instance_type: ml.m5.2xlarge
   instance_count: 4
@@ -38,6 +31,6 @@ training:
   volume_size: 10 GB
   hyperparameters:
     max_decision_records: 8000000 # up to 1,000,000 records per xlarge is a reasonable starting point
-    trees: 150 # determines model size
-    features: 300 # affects training and decision memory usage and decision speed
+    max_trees: 150 # determines model size
+    max_features: 300 # affects training and decision memory usage and decision speed
     max_checkpoint_age: 24 hours

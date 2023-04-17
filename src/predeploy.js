@@ -41,20 +41,19 @@ function configure() {
   assert(isDict(models), 'config/config.yml:models is not a dictionary')
   
   const events = []
-  const images = config['images'] || {}
   const trainingDefaults = config['training'] || {}
 
   for (let [modelName, modelConfig] of Object.entries(models)) {
 
     assert(modelName.match(modelNameRegex), `invalid model name: ${modelName}`)
-    
+
     const event = {}
     const eventSchedule = {}
     event['schedule'] = eventSchedule
 
     const eventScheduleInput = {}
     eventSchedule['input'] = eventScheduleInput
-    
+
     eventSchedule['enabled'] = true
 
     // set rule name. serverless interpolates the ${opt:stage...} part
@@ -83,22 +82,7 @@ function configure() {
 
     // pass env vars as parameters
     eventScheduleInput['model_name'] = modelName
-    
-    const imageKey = trainingConfig['image']
-    assert(imageKey, `config/config.yml:(models/${modelName}/image, training/image) - not found`)
 
-    const imageUri = images[imageKey]
-    if (!imageUri) {
-      if (imageKey === 'free') {
-        fatal(`config/config.yml:images.${imageKey} - value not configured. subscribe at <TODO> and paste image uri`)
-      } else if (imageKey === 'pro') {
-        fatal(`config/config.yml:images.${imageKey} - value not configured. subscribe at <TODO> and paste image uri`)
-      }
-      throw `config/config.yml:images.${imageKey} - value not configured`
-    }
-
-    // the resolved image uri is set on the event
-    eventScheduleInput['image'] = imageUri
     eventScheduleInput['instance_type'] = trainingConfig['instance_type']
     eventScheduleInput['instance_count'] = trainingConfig['instance_count']
     eventScheduleInput['max_runtime'] = parseMaxRuntimeString(trainingConfig['max_runtime'])

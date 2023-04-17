@@ -9,6 +9,8 @@ HYPERPARAMETERS_KEY = 'hyperparameters'
 
 SERVICE_NAME_ENVVAR = 'SERVICE_NAME'
 STAGE_ENVVAR = 'STAGE'
+REPOSITORY_NAME_ENVVAR = 'REPOSITORY_NAME'
+IMAGE_TAG_ENVVAR = 'IMAGE_TAG'
 
 JOB_NAME_PREFIX = 'improve-train-job'
 
@@ -32,3 +34,15 @@ EVENT_IMAGE_KEY = 'image'
 EXPECTED_EVENT_ENTRIES = [EVENT_MODEL_NAME_KEY, EVENT_WORKER_INSTANCE_TYPE_KEY, EVENT_WORKER_COUNT_KEY, EVENT_MAX_RUNTIME_KEY]
 
 LOCAL_CHECKPOINT_PATH = '/opt/ml/checkpoints'
+
+# IMAGE_URI_REGEXP chunks:
+# - 12 digits in front for AWS account ID
+# - .dkr.ecr. is always present in private ECR URI
+# - after that comes region name which should be between 9 and 14 alnum + ['-'] characters:
+#   - shortest region name is e.g. 'us.east-1'
+#   - longest is e.g. 'ap-southeast-4'
+# - .amazonaws.com is always present in private ECR URI before '/<ecr repo name>:<image tag>
+IMAGE_URI_REGEXP = '^\d{12}\.dkr\.ecr\.[a-zA-Z0-9\-]{9,14}\.amazonaws.com'
+
+# expect: <account ID>,dkr.ecr.<region>.amazonaws.com/<repository name>:<tag>
+IMAGE_URI_PATTERN = '{}.dkr.ecr.{}.amazonaws.com/{}:{}'

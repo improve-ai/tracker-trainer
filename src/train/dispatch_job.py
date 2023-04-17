@@ -7,7 +7,7 @@ import boto3
 # Local imports
 import src.train.constants as tc
 from src.train.naming import get_train_job_name, get_training_s3_uri_for_model, \
-    get_s3_model_save_uri, get_checkpoints_s3_uri, is_valid_model_name, is_algorithm_arn
+    get_s3_model_save_uri, get_checkpoints_s3_uri, is_valid_model_name, get_image_uri
 
 
 def create_sagemaker_training_job(
@@ -35,15 +35,13 @@ def create_sagemaker_training_job(
 
     role = os.getenv(tc.IAM_ROLE_EVVAR)
 
-    image_uri = event[tc.EVENT_IMAGE_KEY]
-
     instance_count = event[tc.EVENT_WORKER_COUNT_KEY]
     instance_type = event[tc.EVENT_WORKER_INSTANCE_TYPE_KEY]
     volume_size = event[tc.EVENT_VOLUME_SIZE_KEY]
 
-    subnets = [os.getenv(tc.SUBNET_ENVVAR)]
-    security_groups_ids = \
-        [os.getenv(tc.SECURITY_GROUP_BATCH_ENVVAR)]
+    # subnets = [os.getenv(tc.SUBNET_ENVVAR)]
+    # security_groups_ids = \
+    #     [os.getenv(tc.SECURITY_GROUP_BATCH_ENVVAR)]
 
     training_max_runtime = event[tc.EVENT_MAX_RUNTIME_KEY]
 
@@ -51,15 +49,10 @@ def create_sagemaker_training_job(
     training_s3_uri = get_training_s3_uri_for_model(model_name=model_name)
     model_save_s3_uri = get_s3_model_save_uri(model_name=model_name)
 
-    algorithm_specification = {'TrainingInputMode': 'File'}
-    algorithm_specification_image_uri_key = \
-        'AlgorithmName' if is_algorithm_arn(trainer_source=image_uri) else 'TrainingImage'
-    algorithm_specification[algorithm_specification_image_uri_key] = image_uri
-
     response = sagemaker_client.create_training_job(
         TrainingJobName=training_job_name,
         HyperParameters=hyperparameters,
-        AlgorithmSpecification=algorithm_specification,
+        AlgorithmSpecification={'TrainingInputMode': 'File', 'TrainingImage': get_image_uri()},
         RoleArn=role,
         InputDataConfig=[
             {

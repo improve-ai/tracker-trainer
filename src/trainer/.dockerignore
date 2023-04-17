@@ -1,0 +1,11 @@
+local_test/*
+Dockerfile*
+*__pycache__*
+# remove once safe parquet loading is desired
+debug/*
+tests/*
+improve_trainer.egg-info/*
+*\.gitignore
+README.md
+sed_parameters
+setup.py

@@ -4,6 +4,8 @@ import random
 import re
 import string
 
+import boto3
+
 import src.train.constants as tc
 from src.ingest.constants import MODEL_NAME_REGEXP
 
@@ -26,7 +28,7 @@ def get_training_s3_uri_for_model(model_name: str):
     """
     if not is_valid_model_name(model_name):
         raise ValueError(f'invalid model name {model_name}')
-        
+
     train_bucket_name = os.environ[tc.TRAIN_BUCKET_ENVVAR]
 
     return f's3://{train_bucket_name}/rewarded_decisions/{model_name}/parquet/'
@@ -139,7 +141,8 @@ def get_train_job_name(model_name: str) -> str:
             [val for val in train_job_name_elements if val])
 
     if len(initial_job_name) <= 63:
-        train_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-', initial_job_name)
+        train_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-',
+                                initial_job_name)
         return train_job_name
 
     # if full job name components form a job name which is longer than 63 characters
@@ -160,7 +163,8 @@ def get_train_job_name(model_name: str) -> str:
     if len(stage) == 0:
         remaining_chars += tc.MIN_STAGE_LENGTH
     # if remaining_chars is negative it means that service_name should be trimmed
-    truncated_service_name = service_name[:remaining_chars] if remaining_chars < 0 else service_name
+    truncated_service_name = service_name[
+                             :remaining_chars] if remaining_chars < 0 else service_name
 
     remaining_chars_denominator = 1 if len(stage) == 0 else 2
     # length of model_name and stage should be determined
@@ -169,26 +173,59 @@ def get_train_job_name(model_name: str) -> str:
             int(remaining_chars / remaining_chars_denominator) if remaining_chars % 2 == 0
             else int(remaining_chars / remaining_chars_denominator) + 1)
 
-    extra_chars_stage = int(remaining_chars / remaining_chars_denominator) if remaining_chars > 0 else 0
+    extra_chars_stage = int(
+        remaining_chars / remaining_chars_denominator) if remaining_chars > 0 else 0
 
     truncated_model_name = model_name[:8 + extra_chars_model_name]
     truncated_stage = stage[:4 + extra_chars_stage]
 
-    truncated_train_job_name_components = [truncated_service_name, truncated_stage, truncated_model_name, start_dt]
+    truncated_train_job_name_components = [truncated_service_name,
+                                           truncated_stage,
+                                           truncated_model_name, start_dt]
     initial_truncated_job_name = \
-        tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR\
-        .join([val for val in truncated_train_job_name_components if val])
+        tc.SAGEMAKER_TRAIN_JOB_NAME_SEPARATOR \
+            .join([val for val in truncated_train_job_name_components if val])
 
-    training_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-', initial_truncated_job_name)
+    training_job_name = re.sub(tc.SPECIAL_CHARACTERS_REGEXP, '-',
+                               initial_truncated_job_name)
     assert len(training_job_name) <= 63
     return training_job_name
 
 
-def is_algorithm_arn(trainer_source: str):
-    # e.g. image URI
-    # 278455137857.dkr.ecr.us-east-2.amazonaws.com/improve.ai:hp-evvars-check
-    # e.g. algo ARN
-    # "arn:aws:sagemaker:us-east-2:057799348421:algorithm/improveai-trainer-free-prod-ma-e649b42949fc346095464c000d5cce87"
-    if trainer_source.startswith('arn:aws:sagemaker'):
-        return True
-    return False
+def get_image_uri():
+    """
+    Using env vars construct a full image URI to be used for the training job.
+    Assumes that trainer image is in the private repo deployed along with
+    tracker-trainer platform
+    Looks for following variables in environment:
+    - 'REPOSITORY_NAME' (tc.REPOSITORY_NAME_ENVVAR) -> repository name
+    - 'IMAGE_TAG' (tc.IMAGE_TAG_ENVVAR) -> image tag
+
+    Returns
+    -------
+    str
+        trainer image URI
+
+    """
+    repository_name = os.getenv(tc.REPOSITORY_NAME_ENVVAR, None)
+    assert repository_name is not None
+
+    image_tag = os.getenv(tc.IMAGE_TAG_ENVVAR, None)
+    assert image_tag is not None
+
+    # get account ID
+    sts = boto3.client('sts')
+    caller_identity_response = sts.get_caller_identity()
+    assert 'Account' in caller_identity_response, \
+        'In `get_caller_identity()` there is `Account` key missing'
+    account_id = caller_identity_response['Account']
+
+    region = boto3.session.Session().region_name
+    assert region is not None
+
+    # expect: <account ID>,dkr.ecr.<region>.amazonaws.com/<repository name>:<tag>
+    image_uri = tc.IMAGE_URI_PATTERN.format(account_id, region, repository_name,
+                                            image_tag)
+    assert re.search(tc.IMAGE_URI_REGEXP, image_uri)
+
+    return image_uri

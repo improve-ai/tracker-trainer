@@ -17,9 +17,14 @@ provider:
     images:
       ingest:
         path: ./src/ingest/
+      trainer:
+        path: ./src/trainer/
+        # added for macOS <-> AWS build compatibility
+        platform: linux/amd64
+        # figure out how to handle --secrets
   iam:
     role:
-      statements: 
+      statements:
         - Effect: Allow
           Action:
             - "firehose:*"
@@ -59,7 +64,7 @@ functions:
       cors: true
     environment:
       FIREHOSE_DELIVERY_STREAM_NAME: !Ref Firehose
-  ingestFirehose: # if renamed, FirehoseBucket event notifications must be manually deleted 
+  ingestFirehose: # if renamed, FirehoseBucket event notifications must be manually deleted
     description: Ingest New Firehose File to Train Bucket
     memorySize: 512
     image:
@@ -88,6 +93,10 @@ functions:
     handler: src/train/dispatch_job.lambda_handler
     environment:
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
+      # ECR repo into which the trainer image was pushed
+      REPOSITORY_NAME: serverless-${self:service}-${opt:stage, self:provider.stage}
+      # trainer image tag
+      IMAGE_TAG: trainer
       SERVICE_NAME: ${self:service}
   unpackModels:
     handler: src/train/unpack_models.unpack
@@ -99,6 +108,11 @@ functions:
           rules:
             - prefix: train_output/models/
             - suffix: model.tar.gz
+
+  forceDockerPushTrainer: # Serverless wants the image to be used to deploy it
+    description: Force Serverless to Push Docker Trainer Image to ECR
+    image:
+      name: trainer
 
 stepFunctions:
   stateMachines:

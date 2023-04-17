@@ -1,0 +1,12 @@
+distributed:
+  comm:
+    retry:
+      count: 10
+    timeouts:
+      connect: 120
+      tcp: 120
+  deploy:
+    lost-worker-timeout: 120
+  scheduler:
+    work-stealing: False
+    allowed-failures: 10
