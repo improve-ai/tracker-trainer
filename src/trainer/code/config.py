@@ -66,17 +66,26 @@ IS_MASTER = CURRENT_WORKER_HOSTNAME == MASTER_HOSTNAME
 #
 # Subscription Type and MAX_DECISION_RECORDS
 #
-try:
-    # for the free version, Docker build replaces this value using sed
-    # for the pro version this value remains unchanged, so the int conversion will throw an exception
-    MAX_DECISION_RECORDS_CAP = int('#sed_max_decision_records_cap#')
-except ValueError:
-    MAX_DECISION_RECORDS_CAP = None
+# TODO this (--secrets approach) no longer makes sense with trainer deployed along tracker
+# try:
+#     # for the free version, Docker build replaces this value using sed
+#     # for the pro version this value remains unchanged, so the int conversion will throw an exception
+#     MAX_DECISION_RECORDS_CAP = int('#sed_max_decision_records_cap#')
+# except ValueError:
+#     MAX_DECISION_RECORDS_CAP = None
+#
+# if MAX_DECISION_RECORDS_CAP:
+#     SUBSCRIPTION = 'free'
+# else:
+#     SUBSCRIPTION = 'pro'
 
-if MAX_DECISION_RECORDS_CAP:
-    SUBSCRIPTION = 'free'
-else:
-    SUBSCRIPTION = 'pro'
+# TODO this is just a free / pro 'mockup'
+SUBSCRIPTION = os.getenv('SUBSCRIPTION', 'free')
+MAX_DECISION_RECORDS_CAP = None
+if SUBSCRIPTION == 'free':
+    # new limit for free trainer is 10e6 decision records
+    MAX_DECISION_RECORDS_CAP = 10000000
+
 
 try: 
     MAX_DECISION_RECORDS = int(HYPERPARAMETERS.get('max_decision_records', MAX_DECISION_RECORDS_CAP))

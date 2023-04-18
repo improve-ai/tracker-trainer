@@ -93,11 +93,13 @@ functions:
     handler: src/train/dispatch_job.lambda_handler
     environment:
       TRAINING_ROLE_ARN: { Fn::GetAtt: [ SagemakerExecutionRole, Arn ] }
+      SERVICE_NAME: ${self:service}
       # ECR repo into which the trainer image was pushed
       REPOSITORY_NAME: serverless-${self:service}-${opt:stage, self:provider.stage}
       # trainer image tag
       IMAGE_TAG: trainer
-      SERVICE_NAME: ${self:service}
+      # pass subscription info (currently just for the record)
+      SUBSCRIPTION: ${self:custom.config.training.subscription}
   unpackModels:
     handler: src/train/unpack_models.unpack
     events:

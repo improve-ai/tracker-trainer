@@ -184,6 +184,23 @@ def get_train_job_name(model_name: str) -> str:
     return training_job_name
 
 
+def get_subscription() -> str:
+    """
+    Since --secret makes no longer sense for the tracker-trainer repo this is
+    a 'dummy' subscription  mockup
+
+    Returns
+    -------
+    str
+        subscription type from envvar
+
+    """
+    subscription = os.getenv(tc.SUBSCRIPTION_ENVVAR, tc.DEFAULT_SUBSCRIPTION)
+    if subscription not in tc.VALID_SUBSCRIPTIONS:
+        subscription = tc.DEFAULT_SUBSCRIPTION
+    return subscription
+
+
 def get_image_uri():
     """
     Using env vars construct a full image URI to be used for the training job.
