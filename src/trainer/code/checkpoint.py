@@ -16,9 +16,11 @@ ALLOWED_MAX_CHECKPOINT_AGE_UNITS = {
     'seconds': 'seconds',
     'minutes': 'minutes',
     'hours': 'hours',
+    'days': 'days',
     'second': 'seconds',
     'minute': 'minutes',
-    'hour': 'hours'}
+    'hour': 'hours',
+    'day': 'days'}
 
 
 def load_checkpoint():
@@ -36,7 +38,7 @@ def load_checkpoint():
 
     # create booster object for checkpointed model
     checkpoint_booster = xgb.Booster()
-    loaded_checkpoint_path = CHECKPOINTS_PATH / f'phase1.xgb'
+    loaded_checkpoint_path = CHECKPOINTS_PATH / 'phase1.xgb'
 
     try:
         # attempt to load model from checkpoint file

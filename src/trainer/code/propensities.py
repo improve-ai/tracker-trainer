@@ -64,10 +64,11 @@ class PropensityModel:
 def train(client) -> PropensityModel:
     
     print('starting phase 1')
-    checkpoint = load_checkpoint()
-    if checkpoint is not None:
+    loaded_checkpoint_artifacts = load_checkpoint()
+    if loaded_checkpoint_artifacts is not None:
         print('using checkpoint model for phase 1')
-        return PropensityModel(*checkpoint) # TODO sorry a bit ugly, need to resolve circle dependecy in checkpoint_utils
+        # TODO sorry a bit ugly, need to resolve circle dependecy in checkpoint_utils
+        return PropensityModel(*loaded_checkpoint_artifacts)
 
     # Set both min_rows and max_rows to MAX_DECISION_RECORDS so that min_rows overrides the sample and loads as many records as possible in the case where there are
     # less than MAX_DECISION_RECORDS x ~63% records available when exploring. We use the ~63% sample here so that in the case of greater than MAX_DECISION_RECORDS x ~63% records available
