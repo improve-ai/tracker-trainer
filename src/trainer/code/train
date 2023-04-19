@@ -67,7 +67,7 @@ def run():
         
         
 def print_configuration():
-    print(f'Improve AI Trainer ({config.SUBSCRIPTION.upper()}) v{config.VERSION}')
+    print(f'Improve AI Trainer v{config.VERSION}')
     print(f'model: {config.MODEL_NAME}')
     print(f'max_decision_records: {config.MAX_DECISION_RECORDS}')
     print(f'max_trees: {config.MAX_TREES}')

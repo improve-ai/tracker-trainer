@@ -32,8 +32,6 @@ ENV PYTHONPATH="/code:${PYTHONPATH}"
 # make sure python from venv is visible and responds as default to python3 command
 ENV PATH="/code/venv/bin/:$PATH"
 
-# TODO make secrets part working again
-
 WORKDIR /code
 # make sure that python3 is invoked as an entrypoint
 ENTRYPOINT [ "python3" ]
