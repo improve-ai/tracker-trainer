@@ -31,13 +31,13 @@ def run():
     master_ip = get_ip_from_host(config.MASTER_HOSTNAME)
 
     # start workers
-    _, worker_process = start_daemons(master_ip=master_ip, is_master=config.IS_MASTER)
+    _, worker_process, n_worker_processes = start_daemons(master_ip=master_ip, is_master=config.IS_MASTER)
 
     if config.IS_MASTER:
         client = Client(address='tcp://{ip}:8786'.format(ip=master_ip))
 
         print('waiting for workers to spawn')
-        while len(client.scheduler_info()['workers']) != len(config.ALL_HOSTNAMES):
+        while len(client.scheduler_info()['workers']) != len(config.ALL_HOSTNAMES) * n_worker_processes:
             print('waiting for remaining workers')
             time.sleep(1)
 
