@@ -20,10 +20,10 @@ from src.ingest.partition import RewardedDecisionPartition
 import src.ingest.utils
 from src.ingest.utils import json_dumps
 
-from tests_utils import dicts_to_df, upload_gzipped_records_to_firehose_bucket, \
+from tracker.tests_utils import dicts_to_df, upload_gzipped_records_to_firehose_bucket, \
     load_ingest_test_case
 
-from conftest import assert_valid_rewarded_decision_record
+from tracker.conftest import assert_valid_rewarded_decision_record
 
 
 class CasesMergeOfRewardedDecisions:

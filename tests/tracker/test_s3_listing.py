@@ -17,7 +17,7 @@ from utils import list_s3_keys
 from partition import list_partition_s3_keys as list_partitions
 from config import TRAIN_BUCKET
 from firehose_record import DF_SCHEMA
-from tests_utils import dicts_to_df
+from tracker.tests_utils import dicts_to_df
 
 
 ENGINE = "fastparquet"

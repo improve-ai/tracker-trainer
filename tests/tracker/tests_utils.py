@@ -19,7 +19,7 @@ def dicts_to_df(dicts: list, columns: list = None, dtypes: dict = None):
 
 
 def load_ingest_test_case(test_case_file: str):
-    test_case_path = os.sep.join([os.getenv('TEST_CASES_DIR'), test_case_file])
+    test_case_path = os.sep.join([os.getenv('TEST_CASES_DIR'), 'tracker_test_cases', test_case_file])
     with open(test_case_path, 'r') as tcf:
         test_case_json = orjson.loads(tcf.read())
     return test_case_json

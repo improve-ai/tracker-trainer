@@ -1,0 +1,18 @@
+{
+  "test_case": {
+    "item": {},
+    "context": {"k0": 0, "k1": "1"},
+    "encode_item_kwargs": {
+      "unix_timestamp": 1627917339.8758383,
+      "chosen": true,
+      "weight": 1.0
+    }
+  },
+  "model_seed": 1,
+  "test_output": {
+    "context.k0": 0.0,
+    "context.k1": "1",
+    "t": 1627917339.8758383,
+    "w": 1.0,
+    "y": 1.0}
+}

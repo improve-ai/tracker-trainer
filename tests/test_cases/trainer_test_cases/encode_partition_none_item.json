@@ -1,0 +1,24 @@
+{
+  "test_case": {
+    "records": [
+      {
+        "decision_id": "29YkUXjeHeDd6K0HcRJrLZhocG0",
+        "item": null,
+        "count": 1,
+        "context": {"k0": 0.0, "k1": "1.0"},
+        "sample": null
+    },
+      {
+        "decision_id": "29ZHOrIOV9DyvVuJziDWj1c3zMU",
+        "item": {"$value": 1.0},
+        "count": 1,
+        "context": {"k0": 0.0, "k1": "1.0"},
+        "sample": null
+    }]
+  },
+  "model_seed": 1,
+  "test_output": [
+    {"context.k0": 0.0, "context.k1": "1.0", "t": 1653297422.0, "y": 1.0, "w": 1.0},
+    {"item.$value": 1.0, "context.k0": 0.0, "context.k1": "1.0", "t": 1653313658.0, "y": 1.0, "w": 1.0}
+  ]
+}

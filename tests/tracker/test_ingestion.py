@@ -13,8 +13,8 @@ from ingest_firehose import lambda_handler, RECORDS_KEY, S3_KEY, BUCKET_KEY, \
 
 parquet_s3_key = partition.parquet_s3_key
 
-from tests_utils import upload_gzipped_records_to_firehose_bucket
 
+from tracker.tests_utils import upload_gzipped_records_to_firehose_bucket
 
 ENGINE = 'fastparquet'
 
@@ -22,7 +22,7 @@ ENGINE = 'fastparquet'
 def _read_test_case(test_case_json_filename):
     test_data_dir = os.getenv('TEST_CASES_DIR', None)
     assert test_data_dir is not None
-    test_case_path = os.sep.join([test_data_dir, test_case_json_filename])
+    test_case_path = os.sep.join([test_data_dir, 'tracker_test_cases', test_case_json_filename])
     with open(test_case_path, 'r') as tcf:
         test_case = json.loads(tcf.read())
     return test_case

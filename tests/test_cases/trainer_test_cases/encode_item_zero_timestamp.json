@@ -1,0 +1,20 @@
+{
+  "test_case": {
+    "item": {"$value": {"k0": 0, "k1": 1}},
+    "context": {"k0": 0, "k1": "1"},
+    "encode_item_kwargs": {
+      "unix_timestamp": 0.0,
+      "chosen": true,
+      "weight": 1.0
+  }
+  },
+  "model_seed": 1,
+  "test_output": {
+    "item.$value.k0": 0,
+    "item.$value.k1": 1,
+    "context.k0": 0,
+    "context.k1": "1",
+    "t": 0.0,
+    "w": 1.0,
+    "y": 1.0}
+}
