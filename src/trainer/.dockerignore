@@ -9,3 +9,4 @@ improve_trainer.egg-info/*
 README.md
 sed_parameters
 setup.py
+benchmark/*

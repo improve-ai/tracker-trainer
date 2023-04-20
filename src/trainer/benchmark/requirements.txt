@@ -1,0 +1,8 @@
+coba
+Matplotlib
+docker
+requests_mock
+# latest current improveai version on pypi is 7.2.1 which has a bug already fixed on master
+# improveai
+# This is why I pinned iproveai version from github (until 7.2.2 is published to pypi)
+git+https://github.com/improve-ai/python-sdk.git@v8

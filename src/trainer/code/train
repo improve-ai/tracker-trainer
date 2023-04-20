@@ -11,6 +11,7 @@ from cluster_utils import get_ip_from_host, start_daemons
 import propensities
 import decision_trainer
 
+
 def train(client):
         
     # train the propensity model
