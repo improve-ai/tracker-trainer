@@ -37,6 +37,7 @@ def run():
         client = Client(address='tcp://{ip}:8786'.format(ip=master_ip))
 
         print('waiting for workers to spawn')
+        print(f'Having {len(config.ALL_HOSTNAMES)} hosts and {n_worker_processes} worker processes per host')
         while len(client.scheduler_info()['workers']) != len(config.ALL_HOSTNAMES) * n_worker_processes:
             print('waiting for remaining workers')
             time.sleep(1)

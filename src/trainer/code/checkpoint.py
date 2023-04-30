@@ -40,6 +40,11 @@ def load_checkpoint():
     checkpoint_booster = xgb.Booster()
     loaded_checkpoint_path = CHECKPOINTS_PATH / 'phase1.xgb'
 
+    if not loaded_checkpoint_path.exists():
+        print(f'No checkpoint file: {loaded_checkpoint_path} found. '
+              f'Proceeding to phase 1 training')
+        return None
+
     try:
         # attempt to load model from checkpoint file
         checkpoint_booster.load_model(loaded_checkpoint_path)
@@ -71,6 +76,7 @@ def load_checkpoint():
         assert created_at_string is not None
 
         if not use_checkpoint(datetime.fromisoformat(created_at_string)):
+            print(f'The existing checkpoint is outdated - proceeding to phase 1 training')
             return None
 
         mean_item_count = checkpoint_booster_metadata.get(MEAN_ITEM_COUNT_METADATA_KEY, None)
@@ -137,6 +143,8 @@ def save_xgboost_checkpoint(booster, string_tables, model_seed, phase_index: int
     try:
         print(f'Attempting to save checkpoint for phase {phase_index}')
         booster.save_model(checkpoint_save_path)
+        assert checkpoint_save_path.exists()
+        print(f'Checkpoint for phase {phase_index} saved successfully')
     except xgb.core.XGBoostError as xgberr:
         print(f'Checkpoint save for phase {phase_index} failed with error:')
         print(str(xgberr))

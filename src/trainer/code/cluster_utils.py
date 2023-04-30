@@ -83,7 +83,8 @@ def start_daemons(
     # TODO using multiple workers per node seems to speed things up
     #  (maybe this would also solve the work-stealing bug?)
     # n_worker_processes = 1
-    n_worker_processes = os.cpu_count() // CORES_PER_WORKER
+    n_worker_processes = 1 if os.cpu_count() // CORES_PER_WORKER == 0 else os.cpu_count() // CORES_PER_WORKER
+
     if n_worker_processes > 1:
         res_cmd += ['--nworkers', str(n_worker_processes)]
 

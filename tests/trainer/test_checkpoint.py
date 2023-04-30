@@ -1,4 +1,6 @@
+from copy import deepcopy
 import datetime
+import importlib
 from pathlib import Path
 import shutil
 
@@ -201,12 +203,12 @@ def _prepare_checkpoint_with_desired_age(created_at):
     return checkpoint_test_dir
 
 
-def _get_max_checkpoint_ages_for_valid_units():
+def _get_max_checkpoint_ages_for_valid_units(add_0_seconds_test_case: bool = False):
     return \
         {f'{value} {unit if value != 1 else unit[:-1]}': datetime.timedelta(**{unit: value})
          for value, unit in zip(
-            [1, 30, 1, 30, 1, 24, 1, 2],
-            ['seconds', 'seconds', 'minutes', 'minutes', 'hours', 'hours', 'days', 'days'])}
+            ([0] if add_0_seconds_test_case else []) + [1, 30, 1, 30, 1, 24, 1, 2],
+            (['seconds'] if add_0_seconds_test_case else []) + ['seconds', 'seconds', 'minutes', 'minutes', 'hours', 'hours', 'days', 'days'])}
 
 
 def test_checkpoint_younger_than_max_checkpoint_age_loads():
@@ -215,6 +217,7 @@ def test_checkpoint_younger_than_max_checkpoint_age_loads():
 
     for mca_string, mca in max_checkpoint_ages.items():
         now = datetime.datetime.now()
+
         checkpoint_save_dir = _prepare_checkpoint_with_desired_age(created_at=(now - mca * 0.75).isoformat())
 
         # expect checkpoint to be saved under phase1.xgb
@@ -243,16 +246,12 @@ def test_checkpoint_younger_than_max_checkpoint_age_loads():
 
 
 def test_checkpoint_older_than_max_checkpoint_age_does_not_load():
-    max_checkpoint_ages = _get_max_checkpoint_ages_for_valid_units()
+    max_checkpoint_ages = _get_max_checkpoint_ages_for_valid_units(add_0_seconds_test_case=True)
 
     for mca_string, mca in max_checkpoint_ages.items():
         now = datetime.datetime.now()
         checkpoint_save_dir = _prepare_checkpoint_with_desired_age(
             created_at=(now - mca * 1.25).isoformat())
-
-        b = xgb.Booster()
-        b.load_model(checkpoint_save_dir / 'phase1.xgb')
-        current_model_created_at = orjson.loads(b.attr(USER_DEFINED_METADATA_KEY))[CREATED_AT_METADATA_KEY]
         # expect checkpoint to be saved under phase1.xgb
         config.CHECKPOINTS_PATH = Path(checkpoint_save_dir)
         src.trainer.code.checkpoint.CHECKPOINTS_PATH = Path(checkpoint_save_dir)
@@ -265,3 +264,54 @@ def test_checkpoint_older_than_max_checkpoint_age_does_not_load():
 
         shutil.rmtree(checkpoint_save_dir)
 
+
+def test_zero_seconds_max_checkpoint_age():
+    dummy_created_at = datetime.datetime.now()
+    checkpoint_save_dir = \
+        _prepare_checkpoint_with_desired_age(created_at=dummy_created_at.isoformat())
+    config.CHECKPOINTS_PATH = Path(checkpoint_save_dir)
+    src.trainer.code.checkpoint.CHECKPOINTS_PATH = Path(checkpoint_save_dir)
+
+    config.MAX_CHECKPOINT_AGE_STRING = '0 seconds'
+    src.trainer.code.checkpoint.MAX_CHECKPOINT_AGE_STRING = '0 seconds'
+
+    load_checkpoint_result = load_checkpoint()
+    assert load_checkpoint_result is None
+
+    shutil.rmtree(checkpoint_save_dir)
+
+
+def test_load_checkpoint_with_missing_max_checkpoint_age_hyperparam():
+    # cache old hyperparams
+    previous_hyperparams = deepcopy(config.HYPERPARAMETERS)
+    # modify hyperparams -> remove checkpoint entry
+    modified_hyperparams = deepcopy(config.HYPERPARAMETERS)
+    del modified_hyperparams[config.MAX_CHECKPOINT_AGE_HYPERPARAMS_KEY]
+
+    with open(config.HYPERPARAMETER_PATH, 'w') as f:
+        f.write(orjson.dumps(modified_hyperparams).decode())
+
+    importlib.reload(config)
+
+    # use importlib.reload(config_1) to reload config
+    assert config.MAX_CHECKPOINT_AGE_STRING not in config.HYPERPARAMETERS
+    assert config.MAX_CHECKPOINT_AGE_STRING == '0 seconds'
+
+    dummy_created_at = datetime.datetime.now()
+    checkpoint_save_dir = \
+        _prepare_checkpoint_with_desired_age(
+            created_at=dummy_created_at.isoformat())
+
+    config.CHECKPOINTS_PATH = Path(checkpoint_save_dir)
+    src.trainer.code.checkpoint.CHECKPOINTS_PATH = Path(checkpoint_save_dir)
+
+    load_checkpoint_result = load_checkpoint()
+    assert load_checkpoint_result is None
+
+    shutil.rmtree(checkpoint_save_dir)
+
+    # restore old hyperparams
+    with open(config.HYPERPARAMETER_PATH, 'w') as f:
+        f.write(orjson.dumps(previous_hyperparams).decode())
+
+    pass

@@ -105,7 +105,8 @@ BINARY_REWARDS = str2bool(HYPERPARAMETERS.get('binary_rewards', 'false'))
 
 # moved to config to have all HP entries in one place
 MAX_CHECKPOINT_AGE_HYPERPARAMS_KEY = 'max_checkpoint_age'
-MAX_CHECKPOINT_AGE_STRING = HYPERPARAMETERS.get(MAX_CHECKPOINT_AGE_HYPERPARAMS_KEY, None)
+MAX_CHECKPOINT_AGE_STRING = HYPERPARAMETERS.get(MAX_CHECKPOINT_AGE_HYPERPARAMS_KEY, '0 seconds')
 
 # dask worker config
 CORES_PER_WORKER = 4
+

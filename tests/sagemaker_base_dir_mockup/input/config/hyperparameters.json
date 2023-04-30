@@ -1,2 +1,1 @@
-{"model_name":  "test-model",
- "max_checkpoint_age": "24 hours"}
+{"model_name":"test-model","max_checkpoint_age":"24 hours"}
