@@ -1,4 +1,5 @@
-from coba.environments.simulated.synthetics import LambdaSimulation
+# from coba.environments.simulated.synthetics import LambdaSimulation
+from coba import LambdaSimulation
 
 class HappySunday(LambdaSimulation):
 

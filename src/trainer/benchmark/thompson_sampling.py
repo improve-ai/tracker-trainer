@@ -3,7 +3,8 @@ import numpy as np
 
 from typing import Any, Dict, Sequence, Optional, cast, Hashable
 
-from coba.environments import Context, Action
+# from coba.environments import Context, Action
+from coba.primitives.semantic import Context, Action
 from coba.statistics import OnlineVariance
 from coba.learners.primitives import Learner
 

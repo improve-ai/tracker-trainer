@@ -8,8 +8,8 @@ from pathlib import Path
 
 from improveai import Scorer
 
-from src.ingest.firehose_record import FirehoseRecordGroup, DECISION_ID_KEY
-from src.ingest.partition import RewardedDecisionPartition, maybe_split_on_timestamp_boundaries, parquet_s3_key
+from firehose_record import FirehoseRecordGroup, DECISION_ID_KEY
+from partition import RewardedDecisionPartition, maybe_split_on_timestamp_boundaries, parquet_s3_key
 
 # import benchmark_config as bc
 

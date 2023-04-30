@@ -5,18 +5,15 @@ from collections import defaultdict
 from typing import Any, Dict, Sequence  # , Optional, cast, Hashable
 
 import numpy as np
-from coba.environments import Context, Action
-# from coba.primitives.semantic import Context, Action
-# from coba.statistics import OnlineVariance
+from coba.primitives.semantic import Context, Action
 from coba.learners.primitives import Learner
 
 import requests_mock
 
-# from improveai import DecisionModel
 from improveai import RewardTracker
 
 
-from src.ingest.firehose_record import FirehoseRecord
+from firehose_record import FirehoseRecord
 
 from train import train_model
 
