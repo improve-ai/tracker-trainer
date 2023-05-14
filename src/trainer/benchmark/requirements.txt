@@ -3,6 +3,10 @@ Matplotlib
 docker
 requests_mock
 boto3
+# added incase user did not install ingest and trainer requirements first and
+#  wants to use benchmark
+pandas~=1.3.4
+fastparquet==0.7.2
 # latest current improveai version on pypi is 7.2.1 which has a bug already fixed on master
 # improveai
 # This is why I pinned iproveai version from github (until 7.2.2 is published to pypi)
