@@ -62,3 +62,7 @@ The reinforcement learning algorithm is a [contextual multi-armed bandit](https:
 # License
 
 The Tracker/Trainer is available under the Sustainable Use License. It is free to use for internal business purposes and personal use, though cloud providers are restricted from commerializing the APIs. For custom licensing contact support@improve.ai.
+
+# Integration Assistance
+
+For professional integration services, please contact [Konrad Wiecko](mailto:konrad.wiecko@gmail.com).
