@@ -1,4 +1,6 @@
 distributed:
+  admin:
+    log-format: '%(name)s - %(levelname)s - %(message)s'
   comm:
     retry:
       count: 10
