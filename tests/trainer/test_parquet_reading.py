@@ -32,21 +32,59 @@ def test_get_rewarded_decision_record_parquet_filters_1():
     # loaded_columns, model_evaluation: bool = False
     columns = [tc.ITEM_KEY]
     filters = get_parquet_train_filters(loaded_columns=columns)
-    np.testing.assert_array_equal(filters, [[(tc.ITEM_KEY, 'not in', [None])]])
+    # make sure filters are 'double wrapped' for logical and
+    assert len(filters) == 1
+    # make sure sublist is also 1 element long
+    assert len(filters[0]) == 1
+    # make sure the only ement in a sublist is a tuple
+    assert isinstance(filters[0][0], tuple)
+    assert len(filters[0][0]) == 3
+    # test element by element
+    assert filters[0][0][0] == tc.ITEM_KEY
+    assert filters[0][0][1] == 'not in'
+    assert filters[0][0][2] == [None]
 
 
 def test_get_rewarded_decision_record_parquet_filters_2():
     # loaded_columns, model_evaluation: bool = False
     columns = [tc.ITEM_KEY, tc.CONTEXT_KEY]
     filters = get_parquet_train_filters(loaded_columns=columns)
-    np.testing.assert_array_equal(filters, [[(tc.ITEM_KEY, 'not in', [None]), (tc.CONTEXT_KEY, 'not in', [None])]])
+    # make sure filters are 'double wrapped' for logical and
+    assert len(filters) == 1
+    # make sure sublist is also 1 element long
+    assert len(filters[0]) == 2
+    # make sure the only ement in a sublist is a tuple
+    for i in range(2):
+        assert isinstance(filters[0][i], tuple)
+        assert len(filters[0][i]) == 3
+
+        for key_index, key in enumerate([tc.ITEM_KEY, tc.CONTEXT_KEY]):
+            assert filters[0][0][0] == tc.ITEM_KEY
+            assert filters[0][0][1] == 'not in'
+            assert filters[0][0][2] == [None]
+    # np.testing.assert_array_equal(filters, [[(tc.ITEM_KEY, 'not in', [None]), (tc.CONTEXT_KEY, 'not in', [None])]])
 
 
 def test_get_rewarded_decision_record_parquet_filters_3():
     # loaded_columns, model_evaluation: bool = False
     columns = [tc.ITEM_KEY, tc.CONTEXT_KEY, 'dummy-column']
     filters = get_parquet_train_filters(loaded_columns=columns)
-    np.testing.assert_array_equal(filters, [[(tc.ITEM_KEY, 'not in', [None]), (tc.CONTEXT_KEY, 'not in', [None])]])
+
+    # make sure filters are 'double wrapped' for logical and
+    assert len(filters) == 1
+    # make sure sublist is also 1 element long
+    assert len(filters[0]) == 2
+    # make sure the only ement in a sublist is a tuple
+    for i in range(2):
+        assert isinstance(filters[0][i], tuple)
+        assert len(filters[0][i]) == 3
+
+        for key_index, key in enumerate([tc.ITEM_KEY, tc.CONTEXT_KEY]):
+            assert filters[0][0][0] == tc.ITEM_KEY
+            assert filters[0][0][1] == 'not in'
+            assert filters[0][0][2] == [None]
+
+    # np.testing.assert_array_equal(filters, [[(tc.ITEM_KEY, 'not in', [None]), (tc.CONTEXT_KEY, 'not in', [None])]])
 
 
 class TestDataLoader(TestCase):

@@ -94,7 +94,9 @@ def construct_string_tables(flat_features_bag, allowed_feature_names: list, mode
 
 
 def hash(string: str, n_bits: int, seed: int):
-    assert n_bits > 0 and n_bits <= 64
+    # n_bits in current code will never exceed 63
+    # assert that n_bits > 0 and n_bits < 64
+    assert 0 < n_bits < 64
     mask = (1 << (n_bits + 1)) - 1
     return xxh3(string, seed) & mask
 
