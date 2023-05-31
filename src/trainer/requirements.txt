@@ -9,9 +9,6 @@ dask_ml
 pandas~=1.3.4
 s3fs==0.4.2
 # s3fs~=2022.3.0
-Flask==2.0.2
-gevent==21.8.0
-gunicorn==20.1.0
 # explicit orjson and ksuid specification although improveai also depends on them
 orjson
 svix-ksuid
