@@ -22,7 +22,7 @@ import src.ingest.utils
 from src.ingest.utils import json_dumps
 
 from tracker.tests_utils import dicts_to_df, upload_gzipped_records_to_firehose_bucket, \
-    load_ingest_test_case
+    load_ingest_test_case, get_valid_moto_s3_keys, get_model_name_from_env
 
 from tracker.conftest import assert_valid_rewarded_decision_record
 
@@ -170,7 +170,6 @@ class CasesMergeOfRewardedDecisions:
         
         assert rewarded_decision_record1.get(REWARDS_KEY) is None
 
-
         record = get_decision_rec()
         expected_rewarded_record = FirehoseRecord(record).to_rewarded_decision_dict()
         expected_rewarded_record[REWARD_KEY] = 0
@@ -191,7 +190,7 @@ class CasesMergeOfRewardedDecisions:
 @parametrize_with_cases("rewarded_records_df, expected_df", cases=CasesMergeOfRewardedDecisions)
 def test_merge_of_rewarded_decision_records(rewarded_records_df, expected_df):
 
-    rdg = RewardedDecisionPartition("some_model_name", rewarded_records_df)
+    rdg = RewardedDecisionPartition(get_model_name_from_env(), rewarded_records_df)
     rdg.sort()
     rdg.merge()
 
@@ -206,54 +205,21 @@ def test_idempotency1(rewarded_records_df, expected_df):
     merging the results and running it again.
     """
 
-    rdg1 = RewardedDecisionPartition("model_name", rewarded_records_df)
+    rdg1 = RewardedDecisionPartition(get_model_name_from_env(), rewarded_records_df)
     rdg1.sort()
     rdg1.merge()
 
-    rdg2 = RewardedDecisionPartition("model_name", rewarded_records_df)
+    rdg2 = RewardedDecisionPartition(get_model_name_from_env(), rewarded_records_df)
     rdg2.sort()
     rdg2.merge()
 
     parallel_df = pd.concat([rdg1.df, rdg2.df], ignore_index=True)
 
-    rdg3 = RewardedDecisionPartition("model_name", parallel_df)
+    rdg3 = RewardedDecisionPartition(get_model_name_from_env(), parallel_df)
     rdg3.sort()
     rdg3.merge()
 
     assert_frame_equal(rdg3.df, expected_df, check_column_type=True)
-
-
-def get_valid_moto_s3_keys(parquet_files, model_names) -> list:
-
-    test_cases_dir = os.getenv('TEST_CASES_DIR', None)
-    assert test_cases_dir is not None
-
-    merge_test_data_relative_dir = os.getenv('MERGE_TEST_DATA_RELATIVE_DIR', None)
-    assert merge_test_data_relative_dir is not None
-
-    model_names_per_file = \
-        [mn for pqf in parquet_files for mn in model_names if mn in pqf]
-
-    valid_s3_keys = []
-
-    for pq_file, model_name_for_pq_file in zip(parquet_files, model_names_per_file):
-        pq_file_path = os.sep.join(
-            [test_cases_dir, merge_test_data_relative_dir, pq_file])
-
-        # load parquet file
-        df = pd.read_parquet(pq_file_path)
-        # generate valid s3 key
-        df.sort_values(DECISION_ID_KEY, inplace=True, ignore_index=True)
-        min_decision_id = df[DECISION_ID_KEY].dropna().iloc[0]
-        max_decision_id = df[DECISION_ID_KEY].dropna().iloc[-1]
-        count = df.shape[0]
-        s3_key = parquet_s3_key(
-            model_name=model_name_for_pq_file, min_decision_id=min_decision_id,
-            max_decision_id=max_decision_id, count=count)
-
-        valid_s3_keys.append(s3_key)
-
-    return valid_s3_keys
 
 
 def prepare_moto_deps(

@@ -59,7 +59,7 @@ def _load_expected_records_parquet(expected_output_parquet_file):
     return expected_records
 
 
-def _process_tested_records(records):
+def _prepare_tested_records(records):
     # if records point to *.gz file read gzipped file
     # if records stores a list assume that this is a list of records
     if isinstance(records, str) and records.endswith('.gz'):
@@ -98,7 +98,7 @@ def _generic_test__merge_many_records_group(test_case_file: str):
 
     records = test_case.get("records", None)
     assert records is not None
-    records = _process_tested_records(records)
+    records = _prepare_tested_records(records)
 
     group_slice_start = test_case.get('group_slice_start', None)
     assert group_slice_start is not None
@@ -121,10 +121,6 @@ def _generic_test__merge_many_records_group(test_case_file: str):
     assert expected_output is not None
     expected_output = _process_expected_output(expected_output)
 
-    merged_records_desired_dtypes = \
-        pd.DataFrame(merged_records, columns=DF_SCHEMA.keys())\
-        .astype(DF_SCHEMA).values
-
     merged_df = \
         pd.DataFrame(merged_records, columns=DF_SCHEMA).astype(DF_SCHEMA)
     expected_df = \
@@ -132,12 +128,6 @@ def _generic_test__merge_many_records_group(test_case_file: str):
     # TODO pandas assert frame equal passes but numpy wont allow
     #  np.nan == np.nan of dtype object to pass
     pd.testing.assert_frame_equal(merged_df, expected_df)
-
-    # a = np.array([1, 2, np.nan, np.nan], dtype=object)
-    # b = np.array([1, 2, np.nan, np.nan], dtype=object)
-    # print(np.array_equal(a, b, equal_nan=False))
-    # np.testing.assert_array_equal(a, b)
-    # np.testing.assert_array_equal(merged_records_desired_dtypes, expected_output)
 
 
 def test__merge_many_records_group_1():
@@ -225,7 +215,7 @@ def _generic_test__merge_single_record_groups(test_case_file):
 
     records = test_case.get("records", None)
     assert records is not None
-    records = _process_tested_records(records)
+    records = _prepare_tested_records(records)
 
     model_name = test_case.get("model_name", None)
     assert model_name is not None
@@ -300,7 +290,7 @@ def _generic_test__get_group_slicing_indices(test_case_file):
 
     records = test_case.get("records", None)
     assert records is not None
-    records = _process_tested_records(records)
+    records = _prepare_tested_records(records)
 
     model_name = test_case.get("model_name", None)
     assert model_name is not None

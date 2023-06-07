@@ -8,6 +8,8 @@ import pandas as pd
 
 # Local imports
 import config
+from src.ingest.firehose_record import DECISION_ID_KEY, MODEL_KEY
+from src.ingest.partition import parquet_s3_key
 
 
 def dicts_to_df(dicts: list, columns: list = None, dtypes: dict = None):
@@ -33,3 +35,42 @@ def upload_gzipped_records_to_firehose_bucket(s3_client, path, key):
         Key=key,
         ExtraArgs={'ContentType': 'application/gzip'}
     )
+
+
+def get_valid_s3_key_from_df(df, model_name):
+    df.sort_values(DECISION_ID_KEY, inplace=True, ignore_index=True)
+    return parquet_s3_key(
+        model_name=model_name,
+        min_decision_id=df[DECISION_ID_KEY].dropna().iloc[0],
+        max_decision_id=df[DECISION_ID_KEY].dropna().iloc[-1], count=df.shape[0])
+
+
+def get_valid_moto_s3_keys(parquet_files, model_names) -> list:
+
+    test_cases_dir = os.getenv('TEST_CASES_DIR', None)
+    assert test_cases_dir is not None
+
+    merge_test_data_relative_dir = os.getenv('MERGE_TEST_DATA_RELATIVE_DIR', None)
+    assert merge_test_data_relative_dir is not None
+
+    model_names_per_file = \
+        [mn for pqf in parquet_files for mn in model_names if mn in pqf]
+
+    valid_s3_keys = []
+
+    for pq_file, model_name_for_pq_file in zip(parquet_files, model_names_per_file):
+        pq_file_path = os.sep.join(
+            [test_cases_dir, merge_test_data_relative_dir, pq_file])
+
+        # load parquet file
+        df = pd.read_parquet(pq_file_path)
+
+        valid_s3_keys.append(get_valid_s3_key_from_df(df, model_name_for_pq_file))
+
+    return valid_s3_keys
+
+
+def get_model_name_from_env():
+    model_name = os.getenv(MODEL_KEY, None)
+    assert model_name is not None
+    return model_name
