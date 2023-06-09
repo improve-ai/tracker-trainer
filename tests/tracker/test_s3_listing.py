@@ -257,6 +257,7 @@ def test_incorrectly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec)
 
     model_name = 'messages-2.0'
     s3_key = f'rewarded_decisions/{model_name}/parquet/{filename}'
+    assert not utils.is_valid_rewarded_decisions_s3_key(s3_key)
 
     # Upload file with a key that doesn't comply with the expected format
     with parquet_filepath.open(mode='rb') as f:
@@ -305,6 +306,8 @@ def test_incorrectly_named_s3_partition_in_correct_folder(s3, tmp_path, get_rewa
 
     model_name = 'messages-2.0'
     s3_key = f'rewarded_decisions/{model_name}/parquet/2022/01/29/{filename}'
+    # check that s3 key is invalid
+    assert not utils.is_valid_rewarded_decisions_s3_key(s3_key)
 
     # Upload file with a key that doesn't comply with the expected format
     with parquet_filepath.open(mode='rb') as f:
@@ -342,6 +345,7 @@ def test_correctly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec):
     # Create mock bucket
     s3.create_bucket(Bucket=TRAIN_BUCKET)
 
+    # TODO verify that those fnames are valid keys
     filenames = [
         '20220129T185234Z-20220129T184832Z-152-6f678cec-74d0-4a87-be0d-00f811fcc391.parquet',
         '20220129T185434Z-20220129T185237Z-78-94013f07-f824-45fc-b398-24b940991e71.parquet']
@@ -355,6 +359,7 @@ def test_correctly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec):
 
         model_name = 'messages-2.0'
         s3_key = f'rewarded_decisions/{model_name}/parquet/2022/01/29/{filename}'
+        assert utils.is_valid_rewarded_decisions_s3_key(s3_key)
 
         # Upload file with a key that doesn't comply with the expected format
         with parquet_filepath.open(mode='rb') as f:
