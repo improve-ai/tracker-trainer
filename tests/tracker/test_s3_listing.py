@@ -1,6 +1,9 @@
 # Built-in imports
-import string
 import io
+import os
+from pathlib import Path
+import string
+import tempfile
 
 # External imports
 import numpy as np
@@ -17,7 +20,9 @@ from utils import list_s3_keys
 from partition import list_partition_s3_keys as list_partitions
 from config import TRAIN_BUCKET
 from firehose_record import DF_SCHEMA
-from tracker.tests_utils import dicts_to_df
+from tracker.tests_utils import dicts_to_df, get_valid_s3_key_from_df, \
+    get_model_name_from_env
+
 
 
 ENGINE = "fastparquet"
@@ -233,11 +238,10 @@ def test_list_partitions_after(s3, current_cases, mocker, keys):
         assert all([a == b for a, b in zip(selected_keys, expected)])
 
 
-def test_incorrectly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec):
+def test_incorrectly_named_s3_partition(s3, get_rewarded_decision_rec):
     """
-    Assert that keys that don't comply with:
-        constants.REWARDED_DECISIONS_S3_KEY_REGEXP
-    won't not be returned.
+    Assert that keys that don't comply with: constants.REWARDED_DECISIONS_S3_KEY_REGEXP
+    won't be returned.
     
     Parameters:
         s3 : pytest fixture
@@ -249,40 +253,47 @@ def test_incorrectly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec)
     s3.create_bucket(Bucket=TRAIN_BUCKET)
 
     # Create a dummy parquet file
-    filename = 'file.parquet'
-    parquet_filepath = tmp_path / filename
+    invalid_filename = 'file.parquet'
+    model_name = get_model_name_from_env()
+
     rdr = get_rewarded_decision_rec()
     df = dicts_to_df(dicts=[rdr], columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
-    df.to_parquet(parquet_filepath, engine=ENGINE, index=False)
 
-    model_name = 'messages-2.0'
-    s3_key = f'rewarded_decisions/{model_name}/parquet/{filename}'
-    assert not utils.is_valid_rewarded_decisions_s3_key(s3_key)
+    invalid_key_prefix = "/".join(get_valid_s3_key_from_df(df=df, model_name=model_name).split("/")[:-2])
 
-    # Upload file with a key that doesn't comply with the expected format
-    with parquet_filepath.open(mode='rb') as f:
-        s3.upload_fileobj(
-            Fileobj   = f,
-            Bucket    = TRAIN_BUCKET,
-            Key       = s3_key,
-            ExtraArgs = { 'ContentType': 'application/gzip' })
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        # valid_key_prefix = os.sep.join(valid_s3_key.split(os.sep)[:-1])
+        invalid_partition_dir = tmp_path / invalid_key_prefix
+        # make sure parent dir exists
+        invalid_partition_dir.mkdir(parents=True, exist_ok=True)
+        invalid_s3_key_path = invalid_partition_dir / invalid_filename
+
+        df.to_parquet(invalid_s3_key_path, engine=ENGINE, index=False)
+
+        # Upload file with a key that doesn't comply with the expected format
+        invalid_s3_key = invalid_key_prefix + '/' + invalid_filename
+        with invalid_s3_key_path.open(mode='rb') as f:
+            s3.upload_fileobj(
+                Fileobj   = f,
+                Bucket    = TRAIN_BUCKET,
+                Key       = invalid_s3_key,
+                ExtraArgs = { 'ContentType': 'application/gzip' })
+
+        # Ensure the key is really there
+        response = s3.list_objects_v2(
+            Bucket = TRAIN_BUCKET,
+            Prefix = f'rewarded_decisions/{model_name}')
+        all_keys = [x['Key'] for x in response['Contents']]
+        assert invalid_s3_key in all_keys
+
+        # Ensure the key is not listed by the function of interest
+        s3_keys = list_partitions(model_name=model_name)
+
+        assert invalid_s3_key not in list(s3_keys)
 
 
-    # Ensure the key is really there
-    response = s3.list_objects_v2(
-        Bucket = TRAIN_BUCKET,
-        Prefix = f'rewarded_decisions/{model_name}')
-    all_keys = [x['Key'] for x in response['Contents']]
-    assert s3_key in all_keys
-
-
-    # Ensure the key is not listed by the function of interest
-    s3_keys = list_partitions(model_name=model_name)
-
-    assert s3_key not in list(s3_keys)
-
-
-def test_incorrectly_named_s3_partition_in_correct_folder(s3, tmp_path, get_rewarded_decision_rec):
+def test_incorrectly_named_s3_partition_in_correct_folder(s3, get_rewarded_decision_rec):
     """
     Assert that keys that don't comply with:
         constants.REWARDED_DECISIONS_S3_KEY_REGEXP
@@ -298,48 +309,57 @@ def test_incorrectly_named_s3_partition_in_correct_folder(s3, tmp_path, get_rewa
     s3.create_bucket(Bucket=TRAIN_BUCKET)
 
     # Create a dummy parquet file
-    filename = 'file.parquet'
-    parquet_filepath = tmp_path / filename
+    invalid_filename = 'file.parquet'
+    model_name = get_model_name_from_env()
+
     rdr = get_rewarded_decision_rec()
     df = dicts_to_df(dicts=[rdr], columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
-    df.to_parquet(parquet_filepath, engine=ENGINE, index=False)
 
-    model_name = 'messages-2.0'
-    s3_key = f'rewarded_decisions/{model_name}/parquet/2022/01/29/{filename}'
-    # check that s3 key is invalid
-    assert not utils.is_valid_rewarded_decisions_s3_key(s3_key)
+    valid_key_prefix = "/".join(get_valid_s3_key_from_df(df=df, model_name=model_name).split("/")[:-1])
 
-    # Upload file with a key that doesn't comply with the expected format
-    with parquet_filepath.open(mode='rb') as f:
-        s3.upload_fileobj(
-            Fileobj=f,
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        valid_partition_dir = tmp_path / valid_key_prefix
+        # make sure parent dir exists
+        valid_partition_dir.mkdir(parents=True, exist_ok=True)
+        invalid_s3_key_path = valid_partition_dir / invalid_filename
+
+        df.to_parquet(invalid_s3_key_path, engine=ENGINE, index=False)
+
+        # Upload file with a key that doesn't comply with the expected format
+        invalid_s3_key = valid_key_prefix + "/" + invalid_filename
+        with invalid_s3_key_path.open(mode='rb') as f:
+            s3.upload_fileobj(
+                Fileobj=f,
+                Bucket=TRAIN_BUCKET,
+                Key=invalid_s3_key,
+                ExtraArgs={'ContentType': 'application/gzip'})
+
+        # Ensure the key is really there
+        response = s3.list_objects_v2(
             Bucket=TRAIN_BUCKET,
-            Key=s3_key,
-            ExtraArgs={'ContentType': 'application/gzip'})
+            Prefix=f'rewarded_decisions/{model_name}')
+        all_keys = [x['Key'] for x in response['Contents']]
+        assert invalid_s3_key in all_keys
 
-    # Ensure the key is really there
-    response = s3.list_objects_v2(
-        Bucket=TRAIN_BUCKET,
-        Prefix=f'rewarded_decisions/{model_name}')
-    all_keys = [x['Key'] for x in response['Contents']]
-    assert s3_key in all_keys
+        # Ensure the key is not listed by the function of interest
+        s3_keys = list_partitions(model_name=model_name)
 
-    # Ensure the key is not listed by the function of interest
-    s3_keys = list_partitions(model_name=model_name)
-
-    assert s3_key not in list(s3_keys)
+        assert invalid_s3_key not in list(s3_keys)
 
 
-def test_correctly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec):
+def test_correctly_named_s3_partition(s3, get_rewarded_decision_rec):
     """
     Assert that keys that don't comply with:
         constants.REWARDED_DECISIONS_S3_KEY_REGEXP
-    won't not be returned.
+    won't be returned.
 
-    Parameters:
-        s3 : pytest fixture
-        tmp_path : pytest fixture
-        get_rewarded_decision_rec : pytest fixture
+    Parameters
+    ----------
+    s3: boto3.client
+        pytest fixture
+    get_rewarded_decision_rec: callable
+        pytest fixture
     """
 
     # Create mock bucket
@@ -350,24 +370,35 @@ def test_correctly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec):
         '20220129T185234Z-20220129T184832Z-152-6f678cec-74d0-4a87-be0d-00f811fcc391.parquet',
         '20220129T185434Z-20220129T185237Z-78-94013f07-f824-45fc-b398-24b940991e71.parquet']
 
+    model_name = get_model_name_from_env()
+
     for filename in filenames:
-        # Create a dummy parquet file
-        parquet_filepath = tmp_path / filename
+
         rdr = get_rewarded_decision_rec()
         df = dicts_to_df(dicts=[rdr], columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
-        df.to_parquet(parquet_filepath, engine=ENGINE, index=False)
+        valid_key_prefix = "/".join(get_valid_s3_key_from_df(df=df, model_name=model_name).split("/")[:-1])
 
-        model_name = 'messages-2.0'
-        s3_key = f'rewarded_decisions/{model_name}/parquet/2022/01/29/{filename}'
-        assert utils.is_valid_rewarded_decisions_s3_key(s3_key)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            valid_partition_dir = tmp_path / valid_key_prefix
+            # make sure parent dir exists
+            valid_partition_dir.mkdir(parents=True, exist_ok=True)
+            valid_s3_key_path = valid_partition_dir / filename
 
-        # Upload file with a key that doesn't comply with the expected format
-        with parquet_filepath.open(mode='rb') as f:
-            s3.upload_fileobj(
-                Fileobj=f,
-                Bucket=TRAIN_BUCKET,
-                Key=s3_key,
-                ExtraArgs={'ContentType': 'application/gzip'})
+            # Create a dummy parquet file
+            df.to_parquet(valid_s3_key_path, engine=ENGINE, index=False)
+
+            # model_name = 'messages-2.0'
+            valid_s3_key = valid_key_prefix + "/" + filename
+            assert utils.is_valid_rewarded_decisions_s3_key(valid_s3_key)
+
+            # Upload file with a key that doesn't comply with the expected format
+            with valid_s3_key_path.open(mode='rb') as f:
+                s3.upload_fileobj(
+                    Fileobj=f,
+                    Bucket=TRAIN_BUCKET,
+                    Key=valid_s3_key,
+                    ExtraArgs={'ContentType': 'application/gzip'})
 
     # Ensure the key is really there
     response = s3.list_objects_v2(
