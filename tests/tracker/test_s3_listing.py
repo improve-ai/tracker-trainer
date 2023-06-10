@@ -21,8 +21,7 @@ from partition import list_partition_s3_keys as list_partitions
 from config import TRAIN_BUCKET
 from firehose_record import DF_SCHEMA
 from tracker.tests_utils import dicts_to_df, get_valid_s3_key_from_df, \
-    get_model_name_from_env
-
+    get_model_name_from_env, are_all_s3_keys_valid
 
 
 ENGINE = "fastparquet"
@@ -288,7 +287,9 @@ def test_incorrectly_named_s3_partition(s3, get_rewarded_decision_rec):
         assert invalid_s3_key in all_keys
 
         # Ensure the key is not listed by the function of interest
-        s3_keys = list_partitions(model_name=model_name)
+        s3_keys = list(list_partitions(model_name=model_name))
+        if len(s3_keys) > 0:
+            assert are_all_s3_keys_valid(s3_keys)
 
         assert invalid_s3_key not in list(s3_keys)
 
@@ -343,7 +344,9 @@ def test_incorrectly_named_s3_partition_in_correct_folder(s3, get_rewarded_decis
         assert invalid_s3_key in all_keys
 
         # Ensure the key is not listed by the function of interest
-        s3_keys = list_partitions(model_name=model_name)
+        s3_keys = list(list_partitions(model_name=model_name))
+        if len(list(s3_keys)) > 0:
+            assert are_all_s3_keys_valid(s3_keys)
 
         assert invalid_s3_key not in list(s3_keys)
 
@@ -408,6 +411,9 @@ def test_correctly_named_s3_partition(s3, get_rewarded_decision_rec):
 
     # Ensure the key is not listed by the function of interest
     # list_partition_s3_keys(model_name)
-    s3_keys = list_partitions(model_name=model_name)
+    s3_keys = list(list_partitions(model_name=model_name))
+    if len(list(s3_keys)) > 0:
+        print(f's3_keys: {s3_keys}')
+        assert are_all_s3_keys_valid(s3_keys)
 
-    np.testing.assert_array_equal(all_keys, list(s3_keys))
+    np.testing.assert_array_equal(all_keys, s3_keys)

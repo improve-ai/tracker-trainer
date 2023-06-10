@@ -10,6 +10,7 @@ import pandas as pd
 import config
 from src.ingest.firehose_record import DECISION_ID_KEY, MODEL_KEY
 from src.ingest.partition import parquet_s3_key
+from src.ingest.utils import is_valid_rewarded_decisions_s3_key
 
 
 def dicts_to_df(dicts: list, columns: list = None, dtypes: dict = None):
@@ -74,3 +75,8 @@ def get_model_name_from_env():
     model_name = os.getenv(MODEL_KEY, None)
     assert model_name is not None
     return model_name
+
+
+def are_all_s3_keys_valid(s3_keys: list):
+    assert len(s3_keys) > 0
+    return all(is_valid_rewarded_decisions_s3_key(s3_key) for s3_key in s3_keys)
