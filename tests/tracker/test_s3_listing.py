@@ -7,11 +7,20 @@ import tempfile
 
 # External imports
 import numpy as np
+import pandas as pd
 import pytest
 from pytest_cases import parametrize_with_cases
 from pytest_cases import parametrize
 
 # Local imports
+import src.ingest.config
+
+src.ingest.config.FIREHOSE_BUCKET = os.getenv('FIREHOSE_BUCKET', None)
+assert src.ingest.config.FIREHOSE_BUCKET is not None
+
+src.ingest.config.TRAIN_BUCKET = os.getenv('TRAIN_BUCKET', None)
+assert src.ingest.config.TRAIN_BUCKET is not None
+
 import config
 import partition
 import firehose_record
@@ -20,7 +29,7 @@ from utils import list_s3_keys
 from partition import list_partition_s3_keys as list_partitions
 from config import TRAIN_BUCKET
 from firehose_record import DF_SCHEMA
-from tracker.tests_utils import dicts_to_df, get_valid_s3_key_from_df, \
+from tracker.tests_utils import dicts_to_df, get_valid_s3_key_from_df, load_ingest_test_case, \
     get_model_name_from_env, are_all_s3_keys_valid
 
 
@@ -417,3 +426,88 @@ def test_correctly_named_s3_partition(s3, get_rewarded_decision_rec):
         assert are_all_s3_keys_valid(s3_keys)
 
     np.testing.assert_array_equal(all_keys, s3_keys)
+
+
+def _prepare_s3_for_list_partition_tests(s3_client, dfs, s3_keys):
+    # create train bucket
+    s3_client.create_bucket(Bucket=src.ingest.config.TRAIN_BUCKET)
+
+    if len(dfs) == 0 or len(s3_keys) == 0:
+        return
+
+    for df, s3_key in zip(dfs, s3_keys):
+        # use tempdir
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            # ensure dir exists
+            (tmp_path / "/".join(s3_key.split("/")[:-1])).mkdir(exist_ok=True, parents=True)
+            s3_key_path = tmp_path / s3_key
+            # cache file to disk before push to moto
+            df.to_parquet(s3_key_path, engine=ENGINE, index=False)
+
+            # assert utils.is_valid_rewarded_decisions_s3_key(s3_key)
+
+            # Upload file with a key that doesn't comply with the expected format
+            with s3_key_path.open(mode='rb') as f:
+                s3_client.upload_fileobj(
+                    Fileobj=f,
+                    Bucket=TRAIN_BUCKET,
+                    Key=s3_key,
+                    ExtraArgs={'ContentType': 'application/gzip'})
+
+
+# tests for `list_partition_s3_keys`
+#  1. test against an empty bucket
+def test_list_partition_s3_keys_empty_bucket(s3):
+    dfs = []
+    s3_keys = []
+    _prepare_s3_for_list_partition_tests(s3, dfs, s3_keys)
+    calculated = list_partitions(get_model_name_from_env())
+    assert list(calculated) == []
+
+
+def _generic_test_list_partition(test_case_file, s3_client):
+    test_case_json = load_ingest_test_case(test_case_file=test_case_file)
+    test_case = test_case_json.get('test_case', None)
+    assert test_case is not None
+
+    # get parquet files paths
+    parquet_files = test_case.get("parquet_files", None)
+    assert parquet_files is not None
+
+    # load desired dfs
+    parquet_files_dir = Path(os.getenv("TEST_CASES_DIR")) / os.getenv("MERGE_TEST_DATA_RELATIVE_DIR")
+    dfs = [pd.read_parquet(parquet_files_dir / parquet_file) for parquet_file in parquet_files]
+
+    # get target s3 keys
+    s3_keys = test_case.get("s3_keys", None)
+    assert s3_keys is not None
+
+    # prepare moto bucket
+    _prepare_s3_for_list_partition_tests(s3_client, dfs, s3_keys)
+
+    # call list partition
+
+    model_name = test_case.get("model_name", None)
+    assert model_name is not None
+    calculated = list(list_partitions(model_name))
+
+    expected = test_case_json.get("expected_s3_keys", None)
+    assert expected is not None
+
+    np.testing.assert_array_equal(sorted(calculated), sorted(expected))
+
+
+#  2. test against all valid keys
+def test_list_partition_s3_keys_all_valid_keys(s3):
+    _generic_test_list_partition(os.getenv("LIST_PARTITION_S3_KEYS_ALL_VALID_KEYS"), s3)
+
+
+#  3. test against some valid and invalid keys
+def test_list_partition_s3_keys_valid_and_invalid_keys(s3):
+    _generic_test_list_partition(os.getenv("LIST_PARTITION_S3_KEYS_VALID_AND_INVALID_KEYS"), s3)
+
+
+#  4. test against all invalid keys
+def test_list_partition_s3_keys_all_invalid_keys(s3):
+    _generic_test_list_partition(os.getenv("LIST_PARTITION_S3_KEYS_ALL_INVALID_KEYS"), s3)
