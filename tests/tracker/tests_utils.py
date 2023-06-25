@@ -1,6 +1,8 @@
 # Built-in imports
 from io import BytesIO
 import os
+from pathlib import Path
+import tempfile
 
 # External imports
 import orjson
@@ -80,3 +82,31 @@ def get_model_name_from_env():
 def are_all_s3_keys_valid(s3_keys: list):
     assert len(s3_keys) > 0
     return all(is_valid_rewarded_decisions_s3_key(s3_key) for s3_key in s3_keys)
+
+
+def _prepare_s3_for_list_partition_tests(s3_client, dfs, s3_keys, bucket, engine):
+    # create train bucket
+    s3_client.create_bucket(Bucket=bucket)
+
+    if len(dfs) == 0 or len(s3_keys) == 0:
+        return
+
+    for df, s3_key in zip(dfs, s3_keys):
+        # use tempdir
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            # ensure dir exists
+            (tmp_path / "/".join(s3_key.split("/")[:-1])).mkdir(exist_ok=True, parents=True)
+            s3_key_path = tmp_path / s3_key
+            # cache file to disk before push to moto
+            df.to_parquet(s3_key_path, engine=engine, index=False)
+
+            # assert utils.is_valid_rewarded_decisions_s3_key(s3_key)
+
+            # Upload file with a key that doesn't comply with the expected format
+            with s3_key_path.open(mode='rb') as f:
+                s3_client.upload_fileobj(
+                    Fileobj=f,
+                    Bucket=bucket,
+                    Key=s3_key,
+                    ExtraArgs={'ContentType': 'application/gzip'})

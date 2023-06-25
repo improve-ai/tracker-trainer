@@ -30,7 +30,7 @@ from partition import list_partition_s3_keys as list_partitions
 from config import TRAIN_BUCKET
 from firehose_record import DF_SCHEMA
 from tracker.tests_utils import dicts_to_df, get_valid_s3_key_from_df, load_ingest_test_case, \
-    get_model_name_from_env, are_all_s3_keys_valid
+    get_model_name_from_env, are_all_s3_keys_valid, _prepare_s3_for_list_partition_tests
 
 
 ENGINE = "fastparquet"
@@ -428,32 +428,32 @@ def test_correctly_named_s3_partition(s3, get_rewarded_decision_rec):
     np.testing.assert_array_equal(all_keys, s3_keys)
 
 
-def _prepare_s3_for_list_partition_tests(s3_client, dfs, s3_keys):
-    # create train bucket
-    s3_client.create_bucket(Bucket=src.ingest.config.TRAIN_BUCKET)
-
-    if len(dfs) == 0 or len(s3_keys) == 0:
-        return
-
-    for df, s3_key in zip(dfs, s3_keys):
-        # use tempdir
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            # ensure dir exists
-            (tmp_path / "/".join(s3_key.split("/")[:-1])).mkdir(exist_ok=True, parents=True)
-            s3_key_path = tmp_path / s3_key
-            # cache file to disk before push to moto
-            df.to_parquet(s3_key_path, engine=ENGINE, index=False)
-
-            # assert utils.is_valid_rewarded_decisions_s3_key(s3_key)
-
-            # Upload file with a key that doesn't comply with the expected format
-            with s3_key_path.open(mode='rb') as f:
-                s3_client.upload_fileobj(
-                    Fileobj=f,
-                    Bucket=TRAIN_BUCKET,
-                    Key=s3_key,
-                    ExtraArgs={'ContentType': 'application/gzip'})
+# def _prepare_s3_for_list_partition_tests(s3_client, dfs, s3_keys):
+#     # create train bucket
+#     s3_client.create_bucket(Bucket=src.ingest.config.TRAIN_BUCKET)
+#
+#     if len(dfs) == 0 or len(s3_keys) == 0:
+#         return
+#
+#     for df, s3_key in zip(dfs, s3_keys):
+#         # use tempdir
+#         with tempfile.TemporaryDirectory() as tmp_dir:
+#             tmp_path = Path(tmp_dir)
+#             # ensure dir exists
+#             (tmp_path / "/".join(s3_key.split("/")[:-1])).mkdir(exist_ok=True, parents=True)
+#             s3_key_path = tmp_path / s3_key
+#             # cache file to disk before push to moto
+#             df.to_parquet(s3_key_path, engine=ENGINE, index=False)
+#
+#             # assert utils.is_valid_rewarded_decisions_s3_key(s3_key)
+#
+#             # Upload file with a key that doesn't comply with the expected format
+#             with s3_key_path.open(mode='rb') as f:
+#                 s3_client.upload_fileobj(
+#                     Fileobj=f,
+#                     Bucket=TRAIN_BUCKET,
+#                     Key=s3_key,
+#                     ExtraArgs={'ContentType': 'application/gzip'})
 
 
 # tests for `list_partition_s3_keys`
@@ -461,7 +461,10 @@ def _prepare_s3_for_list_partition_tests(s3_client, dfs, s3_keys):
 def test_list_partition_s3_keys_empty_bucket(s3):
     dfs = []
     s3_keys = []
-    _prepare_s3_for_list_partition_tests(s3, dfs, s3_keys)
+    # s3_client, dfs, s3_keys, bucket, engine
+    _prepare_s3_for_list_partition_tests(
+        s3, dfs, s3_keys, src.ingest.config.TRAIN_BUCKET, ENGINE)
+    # _prepare_s3_for_list_partition_tests(s3, dfs, s3_keys)
     calculated = list_partitions(get_model_name_from_env())
     assert list(calculated) == []
 
@@ -484,7 +487,9 @@ def _generic_test_list_partition(test_case_file, s3_client):
     assert s3_keys is not None
 
     # prepare moto bucket
-    _prepare_s3_for_list_partition_tests(s3_client, dfs, s3_keys)
+    # _prepare_s3_for_list_partition_tests(s3_client, dfs, s3_keys)
+    _prepare_s3_for_list_partition_tests(
+        s3_client, dfs, s3_keys, src.ingest.config.TRAIN_BUCKET, ENGINE)
 
     # call list partition
 
@@ -500,14 +505,14 @@ def _generic_test_list_partition(test_case_file, s3_client):
 
 #  2. test against all valid keys
 def test_list_partition_s3_keys_all_valid_keys(s3):
-    _generic_test_list_partition(os.getenv("LIST_PARTITION_S3_KEYS_ALL_VALID_KEYS"), s3)
+    _generic_test_list_partition(os.getenv("LIST_PARTITION_S3_KEYS_ALL_VALID_KEYS_JSON"), s3)
 
 
 #  3. test against some valid and invalid keys
 def test_list_partition_s3_keys_valid_and_invalid_keys(s3):
-    _generic_test_list_partition(os.getenv("LIST_PARTITION_S3_KEYS_VALID_AND_INVALID_KEYS"), s3)
+    _generic_test_list_partition(os.getenv("LIST_PARTITION_S3_KEYS_VALID_AND_INVALID_KEYS_JSON"), s3)
 
 
 #  4. test against all invalid keys
 def test_list_partition_s3_keys_all_invalid_keys(s3):
-    _generic_test_list_partition(os.getenv("LIST_PARTITION_S3_KEYS_ALL_INVALID_KEYS"), s3)
+    _generic_test_list_partition(os.getenv("LIST_PARTITION_S3_KEYS_ALL_INVALID_KEYS_JSON"), s3)
