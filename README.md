@@ -1,4 +1,4 @@
-# Improve AI Tracker/Trainer - Contextual Multi-Armed Bandit Item/Reward Tracker & Model Trainer
+# Contextual Multi-Armed Bandit Item/Reward Tracker & Model Trainer
 
 The Tracker/Trainer is a stack of serverless components that trains updated contextual multi-armed bandit models for scoring, ranking, and decisions. The stack runs on AWS to cheaply and easily track JSON items and their rewards from Improve AI libraries. These rewards are joined with the tracked items that they're associated with and used as input to training new scoring and ranking models.
 
