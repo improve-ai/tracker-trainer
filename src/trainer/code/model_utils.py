@@ -4,7 +4,7 @@ import coremltools as ct
 import dask
 from dask_ml.model_selection import train_test_split
 import numpy as np
-# TODO import orjson as json -> this is misleading -> json.dump does not require decoding afterwards
+# TODO import orjson as json -> this is misleading -> json.dumps does not require decoding afterwards
 # import orjson as json
 import orjson
 import pandas as pd
@@ -12,7 +12,6 @@ import xgboost as xgb
 
 from config import VERSION, TEST_SPLIT, MODEL_NAME
 import constants
-# import improveai
 from utils import trim_memory
 
 MODEL_NAME_METADATA_KEY = 'ai.improve.model'
@@ -172,7 +171,6 @@ def _check_user_defined_metadata(user_defined_metadata: dict):
             f'Bad metadata value: {feature_names} stored under {FEATURE_NAMES_METADATA_KEY} key'
 
 
-# TODO test this
 def append_metadata_to_mlmodel(mlmodel, string_tables, model_seed, created_at):
     """
     Appends metadata needed by the Improve AI Scorer/Ranker
@@ -203,7 +201,6 @@ def append_metadata_to_mlmodel(mlmodel, string_tables, model_seed, created_at):
     mlmodel.user_defined_metadata.update(input_user_defined_metadata)
 
 
-# TODO test this
 def append_metadata_to_booster(
         booster, string_tables, model_seed, created_at, mean_item_count: int = None):
     """
@@ -276,7 +273,26 @@ def _assert_feature_names_identical_in_booster_and_mlmodel(booster: xgb.Booster,
 
 
 def transform_model(booster: xgb.Booster, string_tables: dict, model_seed: int) -> tuple:
-    # feature_names = booster.feature_names
+    """
+    Converts booster to MLModel and appends both booster and MLModel with
+    Improve AI metadata
+
+    Parameters
+    ----------
+    booster: xgb.Booster
+        booster to be transformed and appended
+    string_tables: dict
+        a dict with target-value encoding for strings
+    model_seed: int
+        32-bit string
+
+    Returns
+    -------
+    tuple
+        (<booster>, <MLModel>)
+
+    """
+
     assert booster.feature_names is not None, 'Booster must have feature names'
 
     unexpected_feature_names = [constants.TARGET_FEATURE_KEY, constants.WEIGHT_FEATURE_KEY]
@@ -285,18 +301,20 @@ def transform_model(booster: xgb.Booster, string_tables: dict, model_seed: int) 
 
     created_at = datetime.now().isoformat()
 
-    # Convert model
+    # because of bugged XGBoost JSON dumping and silent JSON loading fails of coremltools
+    # feature names must be nulled just before conversion
+    converted_booster = booster.copy()
+    converted_booster.feature_names = None
+
     mlmodel = ct.converters.xgboost.convert(
-        booster, mode=MLMODEL_REGRESSOR_MODE, feature_names=booster.feature_names, force_32bit_float=True)
+        converted_booster, mode=MLMODEL_REGRESSOR_MODE, feature_names=booster.feature_names, force_32bit_float=True)
 
     # append Improve AI metadata to mlmodel
-    append_metadata_to_mlmodel(
-        mlmodel=mlmodel, string_tables=string_tables, model_seed=model_seed, created_at=created_at)
+    append_metadata_to_mlmodel(mlmodel=mlmodel, string_tables=string_tables, model_seed=model_seed, created_at=created_at)
 
     # for decision model `mean_item_count` should be None (only propensity model is checkpointed)
     append_metadata_to_booster(
-        booster=booster, string_tables=string_tables, model_seed=model_seed,
-        created_at=created_at, mean_item_count=None)
+        booster=booster, string_tables=string_tables, model_seed=model_seed, created_at=created_at, mean_item_count=None)
 
     _assert_feature_names_identical_in_booster_and_mlmodel(booster, mlmodel)
 

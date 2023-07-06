@@ -1,0 +1,18 @@
+{
+  "test_case": {
+    "parquet_files": [
+      "appconfig-model-null-variants.parquet",
+      "multiple-models-appconfig-model-initial-batch.parquet",
+      "multiple-models-appconfig-model-initial-batch-additional-columns.parquet"],
+    "s3_keys": [
+      "rewarded_decisions/appconfig/parquet/2022/11/25/20221125T112118Z-20221125T112013Z-75-83a86037-9087-488c-b57d-95f7fe7b4d37.parquet",
+      "rewarded_decisions/appconfig/parquet/2022/11/28/file.parquet",
+      "rewarded_decisions/appconfig/parquet/2022/11/25/20221125T112013Z-20221125T112013Z-1-54fcd0c6-cfc9-45f4-b981-b5cccae98475.parquet"
+    ],
+    "model_name": "appconfig"
+  },
+  "expected_s3_keys": [
+    "rewarded_decisions/appconfig/parquet/2022/11/25/20221125T112118Z-20221125T112013Z-75-83a86037-9087-488c-b57d-95f7fe7b4d37.parquet",
+    "rewarded_decisions/appconfig/parquet/2022/11/25/20221125T112013Z-20221125T112013Z-1-54fcd0c6-cfc9-45f4-b981-b5cccae98475.parquet"
+  ]
+}

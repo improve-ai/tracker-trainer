@@ -1,14 +1,26 @@
 # Built-in imports
-import string
 import io
+import os
+from pathlib import Path
+import string
+import tempfile
 
 # External imports
 import numpy as np
+import pandas as pd
 import pytest
 from pytest_cases import parametrize_with_cases
 from pytest_cases import parametrize
 
 # Local imports
+import src.ingest.config
+
+src.ingest.config.FIREHOSE_BUCKET = os.getenv('FIREHOSE_BUCKET', None)
+assert src.ingest.config.FIREHOSE_BUCKET is not None
+
+src.ingest.config.TRAIN_BUCKET = os.getenv('TRAIN_BUCKET', None)
+assert src.ingest.config.TRAIN_BUCKET is not None
+
 import config
 import partition
 import firehose_record
@@ -17,7 +29,8 @@ from utils import list_s3_keys
 from partition import list_partition_s3_keys as list_partitions
 from config import TRAIN_BUCKET
 from firehose_record import DF_SCHEMA
-from tracker.tests_utils import dicts_to_df
+from tracker.tests_utils import dicts_to_df, get_valid_s3_key_from_df, load_ingest_test_case, \
+    get_model_name_from_env, are_all_s3_keys_valid, _prepare_s3_for_list_partition_tests
 
 
 ENGINE = "fastparquet"
@@ -233,11 +246,10 @@ def test_list_partitions_after(s3, current_cases, mocker, keys):
         assert all([a == b for a, b in zip(selected_keys, expected)])
 
 
-def test_incorrectly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec):
+def test_incorrectly_named_s3_partition(s3, get_rewarded_decision_rec):
     """
-    Assert that keys that don't comply with:
-        constants.REWARDED_DECISIONS_S3_KEY_REGEXP
-    won't not be returned.
+    Assert that keys that don't comply with: constants.REWARDED_DECISIONS_S3_KEY_REGEXP
+    won't be returned.
     
     Parameters:
         s3 : pytest fixture
@@ -249,39 +261,49 @@ def test_incorrectly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec)
     s3.create_bucket(Bucket=TRAIN_BUCKET)
 
     # Create a dummy parquet file
-    filename = 'file.parquet'
-    parquet_filepath = tmp_path / filename
+    invalid_filename = 'file.parquet'
+    model_name = get_model_name_from_env()
+
     rdr = get_rewarded_decision_rec()
     df = dicts_to_df(dicts=[rdr], columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
-    df.to_parquet(parquet_filepath, engine=ENGINE, index=False)
 
-    model_name = 'messages-2.0'
-    s3_key = f'rewarded_decisions/{model_name}/parquet/{filename}'
+    invalid_key_prefix = "/".join(get_valid_s3_key_from_df(df=df, model_name=model_name).split("/")[:-2])
 
-    # Upload file with a key that doesn't comply with the expected format
-    with parquet_filepath.open(mode='rb') as f:
-        s3.upload_fileobj(
-            Fileobj   = f,
-            Bucket    = TRAIN_BUCKET,
-            Key       = s3_key,
-            ExtraArgs = { 'ContentType': 'application/gzip' })
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        # valid_key_prefix = os.sep.join(valid_s3_key.split(os.sep)[:-1])
+        invalid_partition_dir = tmp_path / invalid_key_prefix
+        # make sure parent dir exists
+        invalid_partition_dir.mkdir(parents=True, exist_ok=True)
+        invalid_s3_key_path = invalid_partition_dir / invalid_filename
+
+        df.to_parquet(invalid_s3_key_path, engine=ENGINE, index=False)
+
+        # Upload file with a key that doesn't comply with the expected format
+        invalid_s3_key = invalid_key_prefix + '/' + invalid_filename
+        with invalid_s3_key_path.open(mode='rb') as f:
+            s3.upload_fileobj(
+                Fileobj   = f,
+                Bucket    = TRAIN_BUCKET,
+                Key       = invalid_s3_key,
+                ExtraArgs = { 'ContentType': 'application/gzip' })
+
+        # Ensure the key is really there
+        response = s3.list_objects_v2(
+            Bucket = TRAIN_BUCKET,
+            Prefix = f'rewarded_decisions/{model_name}')
+        all_keys = [x['Key'] for x in response['Contents']]
+        assert invalid_s3_key in all_keys
+
+        # Ensure the key is not listed by the function of interest
+        s3_keys = list(list_partitions(model_name=model_name))
+        if len(s3_keys) > 0:
+            assert are_all_s3_keys_valid(s3_keys)
+
+        assert invalid_s3_key not in list(s3_keys)
 
 
-    # Ensure the key is really there
-    response = s3.list_objects_v2(
-        Bucket = TRAIN_BUCKET,
-        Prefix = f'rewarded_decisions/{model_name}')
-    all_keys = [x['Key'] for x in response['Contents']]
-    assert s3_key in all_keys
-
-
-    # Ensure the key is not listed by the function of interest
-    s3_keys = list_partitions(model_name=model_name)
-
-    assert s3_key not in list(s3_keys)
-
-
-def test_incorrectly_named_s3_partition_in_correct_folder(s3, tmp_path, get_rewarded_decision_rec):
+def test_incorrectly_named_s3_partition_in_correct_folder(s3, get_rewarded_decision_rec):
     """
     Assert that keys that don't comply with:
         constants.REWARDED_DECISIONS_S3_KEY_REGEXP
@@ -297,72 +319,98 @@ def test_incorrectly_named_s3_partition_in_correct_folder(s3, tmp_path, get_rewa
     s3.create_bucket(Bucket=TRAIN_BUCKET)
 
     # Create a dummy parquet file
-    filename = 'file.parquet'
-    parquet_filepath = tmp_path / filename
+    invalid_filename = 'file.parquet'
+    model_name = get_model_name_from_env()
+
     rdr = get_rewarded_decision_rec()
     df = dicts_to_df(dicts=[rdr], columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
-    df.to_parquet(parquet_filepath, engine=ENGINE, index=False)
 
-    model_name = 'messages-2.0'
-    s3_key = f'rewarded_decisions/{model_name}/parquet/2022/01/29/{filename}'
+    valid_key_prefix = "/".join(get_valid_s3_key_from_df(df=df, model_name=model_name).split("/")[:-1])
 
-    # Upload file with a key that doesn't comply with the expected format
-    with parquet_filepath.open(mode='rb') as f:
-        s3.upload_fileobj(
-            Fileobj=f,
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        valid_partition_dir = tmp_path / valid_key_prefix
+        # make sure parent dir exists
+        valid_partition_dir.mkdir(parents=True, exist_ok=True)
+        invalid_s3_key_path = valid_partition_dir / invalid_filename
+
+        df.to_parquet(invalid_s3_key_path, engine=ENGINE, index=False)
+
+        # Upload file with a key that doesn't comply with the expected format
+        invalid_s3_key = valid_key_prefix + "/" + invalid_filename
+        with invalid_s3_key_path.open(mode='rb') as f:
+            s3.upload_fileobj(
+                Fileobj=f,
+                Bucket=TRAIN_BUCKET,
+                Key=invalid_s3_key,
+                ExtraArgs={'ContentType': 'application/gzip'})
+
+        # Ensure the key is really there
+        response = s3.list_objects_v2(
             Bucket=TRAIN_BUCKET,
-            Key=s3_key,
-            ExtraArgs={'ContentType': 'application/gzip'})
+            Prefix=f'rewarded_decisions/{model_name}')
+        all_keys = [x['Key'] for x in response['Contents']]
+        assert invalid_s3_key in all_keys
 
-    # Ensure the key is really there
-    response = s3.list_objects_v2(
-        Bucket=TRAIN_BUCKET,
-        Prefix=f'rewarded_decisions/{model_name}')
-    all_keys = [x['Key'] for x in response['Contents']]
-    assert s3_key in all_keys
+        # Ensure the key is not listed by the function of interest
+        s3_keys = list(list_partitions(model_name=model_name))
+        if len(list(s3_keys)) > 0:
+            assert are_all_s3_keys_valid(s3_keys)
 
-    # Ensure the key is not listed by the function of interest
-    s3_keys = list_partitions(model_name=model_name)
-
-    assert s3_key not in list(s3_keys)
+        assert invalid_s3_key not in list(s3_keys)
 
 
-def test_correctly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec):
+def test_correctly_named_s3_partition(s3, get_rewarded_decision_rec):
     """
     Assert that keys that don't comply with:
         constants.REWARDED_DECISIONS_S3_KEY_REGEXP
-    won't not be returned.
+    won't be returned.
 
-    Parameters:
-        s3 : pytest fixture
-        tmp_path : pytest fixture
-        get_rewarded_decision_rec : pytest fixture
+    Parameters
+    ----------
+    s3: boto3.client
+        pytest fixture
+    get_rewarded_decision_rec: callable
+        pytest fixture
     """
 
     # Create mock bucket
     s3.create_bucket(Bucket=TRAIN_BUCKET)
 
+    # TODO verify that those fnames are valid keys
     filenames = [
         '20220129T185234Z-20220129T184832Z-152-6f678cec-74d0-4a87-be0d-00f811fcc391.parquet',
         '20220129T185434Z-20220129T185237Z-78-94013f07-f824-45fc-b398-24b940991e71.parquet']
 
+    model_name = get_model_name_from_env()
+
     for filename in filenames:
-        # Create a dummy parquet file
-        parquet_filepath = tmp_path / filename
+
         rdr = get_rewarded_decision_rec()
         df = dicts_to_df(dicts=[rdr], columns=DF_SCHEMA.keys(), dtypes=DF_SCHEMA)
-        df.to_parquet(parquet_filepath, engine=ENGINE, index=False)
+        valid_key_prefix = "/".join(get_valid_s3_key_from_df(df=df, model_name=model_name).split("/")[:-1])
 
-        model_name = 'messages-2.0'
-        s3_key = f'rewarded_decisions/{model_name}/parquet/2022/01/29/{filename}'
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            valid_partition_dir = tmp_path / valid_key_prefix
+            # make sure parent dir exists
+            valid_partition_dir.mkdir(parents=True, exist_ok=True)
+            valid_s3_key_path = valid_partition_dir / filename
 
-        # Upload file with a key that doesn't comply with the expected format
-        with parquet_filepath.open(mode='rb') as f:
-            s3.upload_fileobj(
-                Fileobj=f,
-                Bucket=TRAIN_BUCKET,
-                Key=s3_key,
-                ExtraArgs={'ContentType': 'application/gzip'})
+            # Create a dummy parquet file
+            df.to_parquet(valid_s3_key_path, engine=ENGINE, index=False)
+
+            # model_name = 'messages-2.0'
+            valid_s3_key = valid_key_prefix + "/" + filename
+            assert utils.is_valid_rewarded_decisions_s3_key(valid_s3_key)
+
+            # Upload file with a key that doesn't comply with the expected format
+            with valid_s3_key_path.open(mode='rb') as f:
+                s3.upload_fileobj(
+                    Fileobj=f,
+                    Bucket=TRAIN_BUCKET,
+                    Key=valid_s3_key,
+                    ExtraArgs={'ContentType': 'application/gzip'})
 
     # Ensure the key is really there
     response = s3.list_objects_v2(
@@ -372,6 +420,99 @@ def test_correctly_named_s3_partition(s3, tmp_path, get_rewarded_decision_rec):
 
     # Ensure the key is not listed by the function of interest
     # list_partition_s3_keys(model_name)
-    s3_keys = list_partitions(model_name=model_name)
+    s3_keys = list(list_partitions(model_name=model_name))
+    if len(list(s3_keys)) > 0:
+        print(f's3_keys: {s3_keys}')
+        assert are_all_s3_keys_valid(s3_keys)
 
-    np.testing.assert_array_equal(all_keys, list(s3_keys))
+    np.testing.assert_array_equal(all_keys, s3_keys)
+
+
+# def _prepare_s3_for_list_partition_tests(s3_client, dfs, s3_keys):
+#     # create train bucket
+#     s3_client.create_bucket(Bucket=src.ingest.config.TRAIN_BUCKET)
+#
+#     if len(dfs) == 0 or len(s3_keys) == 0:
+#         return
+#
+#     for df, s3_key in zip(dfs, s3_keys):
+#         # use tempdir
+#         with tempfile.TemporaryDirectory() as tmp_dir:
+#             tmp_path = Path(tmp_dir)
+#             # ensure dir exists
+#             (tmp_path / "/".join(s3_key.split("/")[:-1])).mkdir(exist_ok=True, parents=True)
+#             s3_key_path = tmp_path / s3_key
+#             # cache file to disk before push to moto
+#             df.to_parquet(s3_key_path, engine=ENGINE, index=False)
+#
+#             # assert utils.is_valid_rewarded_decisions_s3_key(s3_key)
+#
+#             # Upload file with a key that doesn't comply with the expected format
+#             with s3_key_path.open(mode='rb') as f:
+#                 s3_client.upload_fileobj(
+#                     Fileobj=f,
+#                     Bucket=TRAIN_BUCKET,
+#                     Key=s3_key,
+#                     ExtraArgs={'ContentType': 'application/gzip'})
+
+
+# tests for `list_partition_s3_keys`
+#  1. test against an empty bucket
+def test_list_partition_s3_keys_empty_bucket(s3):
+    dfs = []
+    s3_keys = []
+    # s3_client, dfs, s3_keys, bucket, engine
+    _prepare_s3_for_list_partition_tests(
+        s3, dfs, s3_keys, src.ingest.config.TRAIN_BUCKET, ENGINE)
+    # _prepare_s3_for_list_partition_tests(s3, dfs, s3_keys)
+    calculated = list_partitions(get_model_name_from_env())
+    assert list(calculated) == []
+
+
+def _generic_test_list_partition(test_case_file, s3_client):
+    test_case_json = load_ingest_test_case(test_case_file=test_case_file)
+    test_case = test_case_json.get('test_case', None)
+    assert test_case is not None
+
+    # get parquet files paths
+    parquet_files = test_case.get("parquet_files", None)
+    assert parquet_files is not None
+
+    # load desired dfs
+    parquet_files_dir = Path(os.getenv("TEST_CASES_DIR")) / os.getenv("MERGE_TEST_DATA_RELATIVE_DIR")
+    dfs = [pd.read_parquet(parquet_files_dir / parquet_file) for parquet_file in parquet_files]
+
+    # get target s3 keys
+    s3_keys = test_case.get("s3_keys", None)
+    assert s3_keys is not None
+
+    # prepare moto bucket
+    # _prepare_s3_for_list_partition_tests(s3_client, dfs, s3_keys)
+    _prepare_s3_for_list_partition_tests(
+        s3_client, dfs, s3_keys, src.ingest.config.TRAIN_BUCKET, ENGINE)
+
+    # call list partition
+
+    model_name = test_case.get("model_name", None)
+    assert model_name is not None
+    calculated = list(list_partitions(model_name))
+
+    expected = test_case_json.get("expected_s3_keys", None)
+    assert expected is not None
+
+    np.testing.assert_array_equal(sorted(calculated), sorted(expected))
+
+
+#  2. test against all valid keys
+def test_list_partition_s3_keys_all_valid_keys(s3):
+    _generic_test_list_partition(os.getenv("LIST_PARTITION_S3_KEYS_ALL_VALID_KEYS_JSON"), s3)
+
+
+#  3. test against some valid and invalid keys
+def test_list_partition_s3_keys_valid_and_invalid_keys(s3):
+    _generic_test_list_partition(os.getenv("LIST_PARTITION_S3_KEYS_VALID_AND_INVALID_KEYS_JSON"), s3)
+
+
+#  4. test against all invalid keys
+def test_list_partition_s3_keys_all_invalid_keys(s3):
+    _generic_test_list_partition(os.getenv("LIST_PARTITION_S3_KEYS_ALL_INVALID_KEYS_JSON"), s3)

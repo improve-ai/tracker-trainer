@@ -5,6 +5,9 @@ import time
 
 from config import CORES_PER_WORKER
 
+CMD_START_SCHEDULER = ['dask', 'scheduler']
+CMD_START_WORKER = ['dask', 'worker']
+
 
 def get_ip_from_host(host_name) -> str:
     """
@@ -39,8 +42,7 @@ def get_ip_from_host(host_name) -> str:
     return ip
 
 
-def start_daemons(
-        master_ip: str, is_master: bool, dask_pth: str = None):
+def start_daemons(master_ip: str, is_master: bool):
     """
     Start dask daemons (both scheduler and workers) using CLI call from python
 
@@ -50,8 +52,6 @@ def start_daemons(
         master node ip
     is_master: bool
         is caller a master node
-    dask_pth: str
-        path to dask
 
     Returns
     -------
@@ -59,13 +59,6 @@ def start_daemons(
 
     """
 
-    cmd_start_scheduler = \
-        'dask-scheduler' if not dask_pth \
-        else os.path.join(dask_pth, 'dask-scheduler')
-
-    cmd_start_worker = \
-        'dask-worker' if not dask_pth \
-        else os.path.join(dask_pth, 'dask-worker')
     # following https://github.com/dask/distributed/issues/7523 it might be
     # beneficial to spawn 1 worker for 4 cores available
 
@@ -96,13 +89,13 @@ def start_daemons(
     try:
         if is_master:
             print('starting master')
-            scheduler_process = Popen([cmd_start_scheduler])
+            scheduler_process = Popen(CMD_START_SCHEDULER)
 
         time.sleep(1)
         print('starting worker')
         print(f'Start worker CMD: {res_cmd}')
         worker_process = \
-            Popen([cmd_start_worker, schedule_conn_string] + res_cmd)
+            Popen(CMD_START_WORKER + [schedule_conn_string] + res_cmd)
     except Exception as exc:
         print(exc)
 

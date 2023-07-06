@@ -32,6 +32,8 @@ def aws_credentials():
     os.environ['AWS_SECRET_ACCESS_KEY'] = 'testing'
     os.environ['AWS_SECURITY_TOKEN'] = 'testing'
     os.environ['AWS_SESSION_TOKEN'] = 'testing'
+    # SAVE_TEST_MODEL_NAME = 'dummy-save-tset-model'
+    os.environ[MODEL_KEY] = 'dummy-test-model'
 
 
 @pytest.fixture(scope='function')
@@ -347,27 +349,6 @@ def assert_valid_rewarded_decision_record(rdr_dict):
         assert is_valid_count(count), f"invalid 'count': {count}"
 
 
-        # ######################################################################
-        # # runners_up validation
-        # ######################################################################
-        # runners_up = rdr_dict.get(RUNNERS_UP_KEY)
-        #
-        # if runners_up is not None:
-        #
-        #     assert isinstance(runners_up, str), "'runners_up' should be a str"
-        #
-        #     runners_up_list = orjson.loads(runners_up)
-        #     assert isinstance(runners_up_list, list), \
-        #         "'runners_up' must be a list"
-        #
-        #     assert len(runners_up_list) > 0, "len(runners_up) must be > 0"
-        #
-        # # runners up must not be set if missing
-        # elif runners_up is None:
-        #     assert RUNNERS_UP_KEY not in rdr_dict, \
-        #         f"{RUNNERS_UP_KEY} must not be set if missing"
-
-
         ######################################################################
         # sample validation
         ######################################################################
@@ -388,7 +369,7 @@ def assert_valid_rewarded_decision_record(rdr_dict):
         # variant validation
         ######################################################################
         variant = rdr_dict.get(ITEM_KEY)
-        assert variant is None , \
+        assert variant is None, \
             (f"in a partial rewarded decision record, "
              f"'variant' must be None: {variant}")
 
