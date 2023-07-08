@@ -1,10 +1,7 @@
-# boto3==1.20.31
 boto3~=1.27
-# fastparquet==0.7.2
 fastparquet~=2023.7
 orjson~=3.9
 pandas~=1.5
 # this works but is obsolete (march 2020)
 s3fs==0.4.2
 svix-ksuid==0.6.1
-# zstandard==0.16.0
